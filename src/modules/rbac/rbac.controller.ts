@@ -14,8 +14,6 @@ import { PaginationQueryDto } from '@modules/pagination';
 import { RbacService } from './rbac.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { CreatePermissionDto } from './dto/create-permission.dto';
-import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import { CreateOverrideDto } from './dto/create-override.dto';
 
@@ -64,30 +62,6 @@ export class RbacController {
   @RequirePermissions('permissions:read')
   async findAllPermissions(@Query() query: PaginationQueryDto) {
     return this.rbacService.findAllPermissions(query);
-  }
-
-  @Post('permissions')
-  @RequirePermissions('permissions:create')
-  @Audited('permission')
-  async createPermission(@Body() dto: CreatePermissionDto) {
-    return this.rbacService.createPermission(dto);
-  }
-
-  @Patch('permissions/:id')
-  @RequirePermissions('permissions:update')
-  @Audited('permission')
-  async updatePermission(
-    @Param('id') id: string,
-    @Body() dto: UpdatePermissionDto,
-  ) {
-    return this.rbacService.updatePermission(id, dto);
-  }
-
-  @Delete('permissions/:id')
-  @RequirePermissions('permissions:delete')
-  @Audited('permission')
-  async deletePermission(@Param('id') id: string) {
-    return this.rbacService.deletePermission(id);
   }
 
   // ── Role-Permission Assignment ──

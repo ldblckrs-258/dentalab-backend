@@ -3,7 +3,6 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { RbacService } from './rbac.service';
 import { PrismaService } from '@modules/database';
@@ -162,39 +161,6 @@ describe('RbacService', () => {
 
       const result = await service.deleteRole('r1');
       expect(result).toEqual({ message: 'Role deleted' });
-    });
-  });
-
-  describe('Permissions', () => {
-    it('should throw ConflictException for duplicate permission', async () => {
-      prisma.baseClient.permission.findUnique.mockResolvedValue({ id: 'p1' });
-
-      await expect(
-        service.createPermission({ resource: 'user', action: 'read' }),
-      ).rejects.toThrow(ConflictException);
-    });
-
-    it('should create permission when unique', async () => {
-      prisma.baseClient.permission.findUnique.mockResolvedValue(null);
-      prisma.baseClient.permission.create.mockResolvedValue({
-        id: 'p1',
-        resource: 'user',
-        action: 'read',
-      });
-
-      await service.createPermission({ resource: 'user', action: 'read' });
-      expect(prisma.baseClient.permission.create).toHaveBeenCalled();
-    });
-
-    it('should throw BadRequestException when deleting permission assigned to roles', async () => {
-      prisma.baseClient.permission.findUnique.mockResolvedValue({
-        id: 'p1',
-        _count: { role_permissions: 2, user_permission_overrides: 0 },
-      });
-
-      await expect(service.deletePermission('p1')).rejects.toThrow(
-        BadRequestException,
-      );
     });
   });
 

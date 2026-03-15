@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -14,8 +13,6 @@ import {
 import { PermissionResolverService } from './services/permission-resolver.service';
 import type { CreateRoleDto } from './dto/create-role.dto';
 import type { UpdateRoleDto } from './dto/update-role.dto';
-import type { CreatePermissionDto } from './dto/create-permission.dto';
-import type { UpdatePermissionDto } from './dto/update-permission.dto';
 import type { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import type { CreateOverrideDto } from './dto/create-override.dto';
 
@@ -106,7 +103,9 @@ export class RbacService {
   // ── Permissions ──
 
   async findAllPermissions(query: PaginationQueryDto) {
-    const prismaArgs = buildPrismaQuery(query, ['resource', 'action']);
+    const prismaArgs = buildPrismaQuery(query, ['resource', 'action'], {
+      resource: 'asc',
+    });
 
     const where: Record<string, unknown> = {};
     if (query.search) {
@@ -125,59 +124,6 @@ export class RbacService {
       this.prisma.baseClient.permission.count({ where }),
     ]);
     return buildPaginatedResponse(data, total, query);
-  }
-
-  async createPermission(dto: CreatePermissionDto) {
-    const existing = await this.prisma.baseClient.permission.findUnique({
-      where: {
-        resource_action: { resource: dto.resource, action: dto.action },
-      },
-    });
-    if (existing) {
-      throw new ConflictException(
-        `Permission ${dto.resource}:${dto.action} already exists`,
-      );
-    }
-
-    return this.prisma.baseClient.permission.create({
-      data: {
-        resource: dto.resource,
-        action: dto.action,
-        description: dto.description,
-      },
-    });
-  }
-
-  async updatePermission(id: string, dto: UpdatePermissionDto) {
-    const permission = await this.prisma.baseClient.permission.findUnique({
-      where: { id },
-    });
-    if (!permission) throw new NotFoundException('Permission not found');
-
-    return this.prisma.baseClient.permission.update({
-      where: { id },
-      data: { description: dto.description },
-    });
-  }
-
-  async deletePermission(id: string) {
-    const permission = await this.prisma.baseClient.permission.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { role_permissions: true, user_permission_overrides: true },
-        },
-      },
-    });
-    if (!permission) throw new NotFoundException('Permission not found');
-    if (permission._count.role_permissions > 0) {
-      throw new BadRequestException(
-        'Cannot delete permission that is assigned to roles. Remove it from roles first.',
-      );
-    }
-
-    await this.prisma.baseClient.permission.delete({ where: { id } });
-    return { message: 'Permission deleted' };
   }
 
   // ── Role-Permission Assignment ──

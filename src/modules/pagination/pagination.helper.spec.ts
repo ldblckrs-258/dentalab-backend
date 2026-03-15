@@ -43,6 +43,12 @@ describe('pagination.helper', () => {
       expect(result.orderBy).toEqual({ email: 'desc' });
     });
 
+    it('should use custom default sort when provided', () => {
+      const dto: PaginationQueryDto = {};
+      const result = buildPrismaQuery(dto, allowedSortFields, { name: 'asc' });
+      expect(result.orderBy).toEqual({ name: 'asc' });
+    });
+
     it('should throw for invalid sort field', () => {
       const dto: PaginationQueryDto = { sortBy: 'invalid_field' };
       expect(() => buildPrismaQuery(dto, allowedSortFields)).toThrow(
