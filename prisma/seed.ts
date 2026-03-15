@@ -1,7 +1,13 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+});
+
+const prisma = new PrismaClient({ adapter });
 
 // ── Default Roles ──
 const DEFAULT_ROLES = [
@@ -264,12 +270,12 @@ async function main() {
   });
   console.log(`    ✓ Admin user: ${adminEmail}`);
 
-  console.log('✅ Seeding complete!');
+  console.log('Seeding complete!');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seed failed:', e);
+    console.error('Seed failed:', e);
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());

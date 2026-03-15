@@ -6,9 +6,9 @@ services:
     ports:
       - '5480:5432'
     environment:
-      POSTGRES_USER: psql
-      POSTGRES_PASSWORD: psql_secret
-      POSTGRES_DB: psql
+      POSTGRES_USER: dentalab
+      POSTGRES_PASSWORD: dentalab_secret
+      POSTGRES_DB: dentalab
     volumes:
       - dentalab_pgdata:/var/lib/postgresql/data
 
@@ -30,8 +30,8 @@ services:
       - '5680:5672'
       - '15680:15672'
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin_secret
+      RABBITMQ_DEFAULT_USER: dentalab
+      RABBITMQ_DEFAULT_PASS: dentalab_secret
 
   minio:
     image: minio/minio:latest
@@ -41,8 +41,8 @@ services:
       - '9020:9000'
       - '9021:9001'
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: secret
+      MINIO_ROOT_USER: dentalab_admin
+      MINIO_ROOT_PASSWORD: dentalab_secret
     command: server /data --console-address ":9001"
     volumes:
       - dentalab_minio:/data
@@ -55,8 +55,8 @@ services:
     entrypoint: >
       /bin/sh -c "
       sleep 3;
-      mc alias set local http://minio:9000 admin secret;
-      mc mb local/admin --ignore-existing;
+      mc alias set local http://minio:9000 dentalab_admin dentalab_secret;
+      mc mb local/dentalab --ignore-existing;
       exit 0;
       "
 
