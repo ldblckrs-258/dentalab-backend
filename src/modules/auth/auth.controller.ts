@@ -6,42 +6,79 @@ import {
   HttpStatus,
   Post,
   Put,
+  Req,
+  Res,
+  UnauthorizedException,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { Public, CurrentUser, RateLimit, Audited } from '@common/decorators';
+import { REFRESH_TOKEN_COOKIE } from '@common/constants';
 import type { AuthenticatedUser } from '@common/interfaces';
+import { AppConfigService } from '@modules/config';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: AppConfigService,
+  ) {}
 
   @Post('login')
   @Public()
   @HttpCode(HttpStatus.OK)
   @RateLimit({ limit: 5, windowSeconds: 60, keyExtractor: 'ip+body:email' })
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { refreshToken, refreshExpiresIn, ...result } =
+      await this.authService.login(dto);
+    this.setRefreshTokenCookie(res, refreshToken, refreshExpiresIn);
+    return result;
   }
 
   @Post('refresh')
   @Public()
   @HttpCode(HttpStatus.OK)
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshTokens(dto);
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE] as
+      | string
+      | undefined;
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
+
+    const {
+      refreshToken: newToken,
+      refreshExpiresIn,
+      ...result
+    } = await this.authService.refreshTokens({ refreshToken });
+    this.setRefreshTokenCookie(res, newToken, refreshExpiresIn);
+    return result;
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(
     @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    await this.authService.logout(user.id, dto.refreshToken);
+    const refreshToken = req.cookies?.[REFRESH_TOKEN_COOKIE] as
+      | string
+      | undefined;
+    if (refreshToken) {
+      await this.authService.logout(user.id, refreshToken);
+    }
+    this.clearRefreshTokenCookie(res);
     return { message: 'Logged out successfully' };
   }
 
@@ -76,5 +113,28 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto);
     return { message: 'Password has been reset successfully' };
+  }
+
+  private setRefreshTokenCookie(
+    res: Response,
+    token: string,
+    maxAgeMs: number,
+  ) {
+    res.cookie(REFRESH_TOKEN_COOKIE, token, {
+      httpOnly: true,
+      secure: this.config.app.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/v1/auth',
+      maxAge: maxAgeMs,
+    });
+  }
+
+  private clearRefreshTokenCookie(res: Response) {
+    res.clearCookie(REFRESH_TOKEN_COOKIE, {
+      httpOnly: true,
+      secure: this.config.app.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/v1/auth',
+    });
   }
 }

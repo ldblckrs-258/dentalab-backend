@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { AppConfigService } from '@modules/config';
 
@@ -15,6 +16,9 @@ async function bootstrap() {
   app.setGlobalPrefix(API_PREFIX, {
     exclude: ['health/live', 'health/ready'],
   });
+
+  // Cookie parser
+  app.use(cookieParser());
 
   // CORS
   app.enableCors({

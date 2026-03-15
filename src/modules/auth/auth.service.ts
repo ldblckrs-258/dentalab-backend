@@ -64,10 +64,13 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const tokens = await this.generateTokens(user.id, user.email);
+    const { accessToken, refreshToken, refreshExpiresIn } =
+      await this.generateTokens(user.id, user.email);
 
     return {
-      ...tokens,
+      accessToken,
+      refreshToken,
+      refreshExpiresIn,
       user: {
         id: user.id,
         email: user.email,
@@ -113,13 +116,13 @@ export class AuthService {
     );
 
     // Generate new token pair
-    const tokens = await this.generateTokens(
-      storedToken.user.id,
-      storedToken.user.email,
-    );
+    const { accessToken, refreshToken, refreshExpiresIn } =
+      await this.generateTokens(storedToken.user.id, storedToken.user.email);
 
     return {
-      ...tokens,
+      accessToken,
+      refreshToken,
+      refreshExpiresIn,
       user: {
         id: storedToken.user.id,
         email: storedToken.user.email,
@@ -361,7 +364,7 @@ export class AuthService {
       },
     });
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, refreshExpiresIn: refreshExpiryMs };
   }
 
   private hashToken(token: string): string {

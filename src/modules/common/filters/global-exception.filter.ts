@@ -102,11 +102,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
       if (typeof response === 'object' && response !== null) {
         const resp = response as Record<string, unknown>;
+        const message = Array.isArray(resp.message)
+          ? (resp.message[0] as string)
+          : ((resp.message as string) ?? exception.message);
         return {
           statusCode: status,
           errorCode,
-          message: (resp.message as string) ?? exception.message,
-          details: resp.message !== resp.error ? resp : undefined,
+          message,
+          // Only include details for validation errors (message array)
+          details: Array.isArray(resp.message) ? resp.message : undefined,
         };
       }
 

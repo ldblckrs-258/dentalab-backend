@@ -12,6 +12,7 @@ export const PERMISSION_CACHE_TTL = 300; // 5 minutes
 
 // Token
 export const REFRESH_TOKEN_BYTES = 32;
+export const REFRESH_TOKEN_COOKIE = 'refresh_token';
 
 // Password
 export const BCRYPT_ROUNDS = 10;
