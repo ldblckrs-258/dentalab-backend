@@ -1,0 +1,631 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ──────────────────────────────────────────
+// Auth & RBAC
+// ──────────────────────────────────────────
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique
+  password_hash String
+  full_name     String
+  phone         String?
+  avatar_url    String?
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  user_roles                  UserRole[]
+  user_permission_overrides   UserPermissionOverride[]
+  refresh_tokens              RefreshToken[]
+  password_reset_tokens       PasswordResetToken[]
+  audit_logs                  AuditLog[]
+  provider                    Provider?
+  created_appointments        Appointment[]            @relation("CreatedByUser")
+  cancelled_appointments      Appointment[]            @relation("CancelledByUser")
+  uploaded_files              PatientFile[]
+  created_forms               Form[]
+  created_kiosk_sessions      KioskSession[]
+  authored_documents          InternalDocument[]
+  document_version_changes    DocumentVersion[]
+  inventory_transactions      InventoryTransaction[]
+  chat_sessions               ChatSession[]
+  reviewed_overrides          ProviderScheduleOverride[] @relation("ReviewedByUser")
+  granted_overrides           UserPermissionOverride[]   @relation("GrantedByUser")
+  revoked_overrides           UserPermissionOverride[]   @relation("RevokedByUser")
+
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  is_system   Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  role_permissions RolePermission[]
+  user_roles       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  resource    String
+  action      String
+  description String?
+
+  role_permissions          RolePermission[]
+  user_permission_overrides UserPermissionOverride[]
+
+  @@unique([resource, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  role_id       String @db.Uuid
+  permission_id String @db.Uuid
+
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@id([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  user_id String @db.Uuid
+  role_id String @db.Uuid
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [role_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, role_id])
+  @@map("user_roles")
+}
+
+model UserPermissionOverride {
+  id            String    @id @default(uuid()) @db.Uuid
+  user_id       String    @db.Uuid
+  permission_id String    @db.Uuid
+  grant_type    String    // 'grant' | 'deny'
+  reason        String?
+  granted_by    String    @db.Uuid
+  expires_at    DateTime?
+  is_active     Boolean   @default(true)
+  revoked_by    String?   @db.Uuid
+  revoked_at    DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  user               User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  permission         Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  granted_by_user    User       @relation("GrantedByUser", fields: [granted_by], references: [id])
+  revoked_by_user    User?      @relation("RevokedByUser", fields: [revoked_by], references: [id])
+
+  @@map("user_permission_overrides")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String?  @db.Uuid
+  action      String
+  resource    String
+  resource_id String?
+  old_data    Json?
+  new_data    Json?
+  ip_address  String?
+  created_at  DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id])
+
+  @@map("audit_logs")
+}
+
+model RefreshToken {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  token_hash String
+  expires_at DateTime
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+// ──────────────────────────────────────────
+// Scheduling & Clinical
+// ──────────────────────────────────────────
+
+model Provider {
+  id             String   @id @default(uuid()) @db.Uuid
+  user_id        String   @unique @db.Uuid
+  specialty      String?
+  license_number String?
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  user                    User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  schedules               ProviderSchedule[]
+  schedule_overrides      ProviderScheduleOverride[]
+  appointments            Appointment[]
+  clinical_notes          ClinicalNote[]
+  treatment_plans         TreatmentPlan[]
+
+  @@map("providers")
+}
+
+model ProviderSchedule {
+  id          String  @id @default(uuid()) @db.Uuid
+  provider_id String  @db.Uuid
+  day_of_week Int     // 0=Sunday, 6=Saturday
+  start_time  String  // "HH:mm" format
+  end_time    String  // "HH:mm" format
+  is_available Boolean @default(true)
+
+  provider Provider @relation(fields: [provider_id], references: [id], onDelete: Cascade)
+
+  @@map("provider_schedules")
+}
+
+model ProviderScheduleOverride {
+  id            String    @id @default(uuid()) @db.Uuid
+  provider_id   String    @db.Uuid
+  specific_date DateTime  @db.Date
+  override_type String    // 'day_off' | 'custom_hours'
+  start_time    String?   // "HH:mm" format
+  end_time      String?   // "HH:mm" format
+  reason        String?
+  status        String    @default("pending") // 'pending' | 'approved' | 'rejected'
+  requested_at  DateTime  @default(now())
+  reviewed_by   String?   @db.Uuid
+  reviewed_at   DateTime?
+  review_note   String?
+
+  provider     Provider @relation(fields: [provider_id], references: [id], onDelete: Cascade)
+  reviewer     User?    @relation("ReviewedByUser", fields: [reviewed_by], references: [id])
+
+  @@map("provider_schedule_overrides")
+}
+
+model AppointmentType {
+  id              String  @id @default(uuid()) @db.Uuid
+  name            String
+  duration_minutes Int
+  color           String?
+  is_active       Boolean @default(true)
+
+  appointments Appointment[]
+
+  @@map("appointment_types")
+}
+
+model Procedure {
+  id              String  @id @default(uuid()) @db.Uuid
+  ada_code        String  @unique
+  name            String
+  category        String?
+  duration_minutes Int?
+  default_fee     Decimal? @db.Decimal(10, 2)
+  is_active       Boolean @default(true)
+
+  appointment_procedures AppointmentProcedure[]
+
+  @@map("procedures")
+}
+
+model TreatmentPlan {
+  id                  String   @id @default(uuid()) @db.Uuid
+  patient_id          String   @db.Uuid
+  provider_id         String   @db.Uuid
+  name                String
+  status              String   @default("draft") // 'draft' | 'proposed' | 'accepted' | 'in_progress' | 'completed'
+  start_date          DateTime? @db.Date
+  end_date            DateTime? @db.Date
+  estimated_total_cost Decimal? @db.Decimal(10, 2)
+  notes               String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  patient      Patient       @relation(fields: [patient_id], references: [id])
+  provider     Provider      @relation(fields: [provider_id], references: [id])
+  appointments Appointment[]
+
+  @@map("treatment_plans")
+}
+
+model Appointment {
+  id                  String    @id @default(uuid()) @db.Uuid
+  patient_id          String    @db.Uuid
+  provider_id         String    @db.Uuid
+  type_id             String    @db.Uuid
+  treatment_plan_id   String?   @db.Uuid
+  created_by          String    @db.Uuid
+  start_time          DateTime
+  end_time            DateTime
+  status              String    @default("scheduled") // 'scheduled' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
+  notes               String?
+  cancelled_by        String?   @db.Uuid
+  cancelled_at        DateTime?
+  cancellation_reason String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  patient            Patient              @relation(fields: [patient_id], references: [id])
+  provider           Provider             @relation(fields: [provider_id], references: [id])
+  appointment_type   AppointmentType      @relation(fields: [type_id], references: [id])
+  treatment_plan     TreatmentPlan?       @relation(fields: [treatment_plan_id], references: [id])
+  created_by_user    User                 @relation("CreatedByUser", fields: [created_by], references: [id])
+  cancelled_by_user  User?                @relation("CancelledByUser", fields: [cancelled_by], references: [id])
+  procedures         AppointmentProcedure[]
+  clinical_note      ClinicalNote?
+  form_submissions   FormSubmission[]
+  kiosk_sessions     KioskSession[]
+  email_logs         EmailLog[]
+
+  @@map("appointments")
+}
+
+model AppointmentProcedure {
+  id             String  @id @default(uuid()) @db.Uuid
+  appointment_id String  @db.Uuid
+  procedure_id   String  @db.Uuid
+  tooth_number   String?
+  fee            Decimal? @db.Decimal(10, 2)
+  status         String  @default("planned") // 'planned' | 'in_progress' | 'completed'
+
+  appointment Appointment @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
+  procedure   Procedure   @relation(fields: [procedure_id], references: [id])
+
+  @@map("appointment_procedures")
+}
+
+model ClinicalNote {
+  id             String   @id @default(uuid()) @db.Uuid
+  patient_id     String   @db.Uuid
+  provider_id    String   @db.Uuid
+  appointment_id String   @unique @db.Uuid
+  subjective     String?
+  objective      String?
+  assessment     String?
+  plan           String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  patient     Patient     @relation(fields: [patient_id], references: [id])
+  provider    Provider    @relation(fields: [provider_id], references: [id])
+  appointment Appointment @relation(fields: [appointment_id], references: [id])
+
+  @@map("clinical_notes")
+}
+
+// ──────────────────────────────────────────
+// Patient
+// ──────────────────────────────────────────
+
+model Patient {
+  id                      String   @id @default(uuid()) @db.Uuid
+  first_name              String
+  last_name               String
+  date_of_birth           DateTime? @db.Date
+  gender                  String?
+  phone                   String?
+  email                   String?
+  address                 String?
+  emergency_contact_name  String?
+  emergency_contact_phone String?
+  is_active               Boolean  @default(true)
+  created_at              DateTime @default(now())
+  updated_at              DateTime @updatedAt
+
+  insurances       PatientInsurance[]
+  files            PatientFile[]
+  appointments     Appointment[]
+  clinical_notes   ClinicalNote[]
+  form_submissions FormSubmission[]
+  treatment_plans  TreatmentPlan[]
+  kiosk_sessions   KioskSession[]
+
+  @@map("patients")
+}
+
+model PatientInsurance {
+  id              String    @id @default(uuid()) @db.Uuid
+  patient_id      String    @db.Uuid
+  provider_name   String
+  policy_number   String
+  group_number    String?
+  effective_date  DateTime? @db.Date
+  expiration_date DateTime? @db.Date
+  is_primary      Boolean   @default(false)
+  created_at      DateTime  @default(now())
+
+  patient Patient @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+
+  @@map("patient_insurances")
+}
+
+model PatientFile {
+  id          String   @id @default(uuid()) @db.Uuid
+  patient_id  String   @db.Uuid
+  uploaded_by String   @db.Uuid
+  file_name   String
+  file_type   String
+  file_url    String
+  file_size   BigInt
+  created_at  DateTime @default(now())
+
+  patient  Patient @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  uploader User    @relation(fields: [uploaded_by], references: [id])
+
+  @@map("patient_files")
+}
+
+// ──────────────────────────────────────────
+// Operations
+// ──────────────────────────────────────────
+
+model Form {
+  id               String   @id @default(uuid()) @db.Uuid
+  created_by       String   @db.Uuid
+  title            String
+  description      String?
+  schema           Json
+  is_published     Boolean  @default(false)
+  is_kiosk_enabled Boolean  @default(false)
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  creator          User              @relation(fields: [created_by], references: [id])
+  submissions      FormSubmission[]
+  kiosk_session_forms KioskSessionForm[]
+
+  @@map("forms")
+}
+
+model FormSubmission {
+  id               String    @id @default(uuid()) @db.Uuid
+  patient_id       String    @db.Uuid
+  form_id          String    @db.Uuid
+  appointment_id   String?   @db.Uuid
+  kiosk_session_id String?   @db.Uuid
+  data             Json
+  submitted_at     DateTime  @default(now())
+
+  patient       Patient       @relation(fields: [patient_id], references: [id])
+  form          Form          @relation(fields: [form_id], references: [id])
+  appointment   Appointment?  @relation(fields: [appointment_id], references: [id])
+  kiosk_session KioskSession? @relation(fields: [kiosk_session_id], references: [id])
+
+  @@map("form_submissions")
+}
+
+model KioskSession {
+  id                 String    @id @default(uuid()) @db.Uuid
+  patient_id         String    @db.Uuid
+  appointment_id     String?   @db.Uuid
+  created_by         String    @db.Uuid
+  token_hash         String
+  expires_in_minutes Int       @default(30)
+  expires_at         DateTime
+  status             String    @default("active") // 'active' | 'completed' | 'expired'
+  created_at         DateTime  @default(now())
+  closed_at          DateTime?
+
+  patient          Patient            @relation(fields: [patient_id], references: [id])
+  appointment      Appointment?       @relation(fields: [appointment_id], references: [id])
+  creator          User               @relation(fields: [created_by], references: [id])
+  session_forms    KioskSessionForm[]
+  form_submissions FormSubmission[]
+
+  @@map("kiosk_sessions")
+}
+
+model KioskSessionForm {
+  id           String    @id @default(uuid()) @db.Uuid
+  session_id   String    @db.Uuid
+  form_id      String    @db.Uuid
+  status       String    @default("pending") // 'pending' | 'completed'
+  completed_at DateTime?
+
+  session KioskSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  form    Form         @relation(fields: [form_id], references: [id])
+
+  @@map("kiosk_session_forms")
+}
+
+model InternalDocument {
+  id              String   @id @default(uuid()) @db.Uuid
+  created_by      String   @db.Uuid
+  title           String
+  content         String?
+  category        String?
+  current_version Int      @default(1)
+  is_published    Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  creator  User              @relation(fields: [created_by], references: [id])
+  versions DocumentVersion[]
+
+  @@map("internal_documents")
+}
+
+model DocumentVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  document_id    String   @db.Uuid
+  changed_by     String   @db.Uuid
+  version_number Int
+  content        String?
+  created_at     DateTime @default(now())
+
+  document InternalDocument @relation(fields: [document_id], references: [id], onDelete: Cascade)
+  changer  User             @relation(fields: [changed_by], references: [id])
+
+  @@map("document_versions")
+}
+
+model InventoryItem {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  sku           String   @unique
+  category      String?
+  quantity      Int      @default(0)
+  unit          String?
+  min_quantity  Int      @default(0)
+  cost_per_unit Decimal? @db.Decimal(10, 2)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  transactions InventoryTransaction[]
+
+  @@map("inventory_items")
+}
+
+model InventoryTransaction {
+  id              String   @id @default(uuid()) @db.Uuid
+  item_id         String   @db.Uuid
+  quantity_change Int
+  type            String   // 'purchase' | 'usage' | 'adjustment' | 'return'
+  reference_id    String?
+  performed_by    String   @db.Uuid
+  notes           String?
+  created_at      DateTime @default(now())
+
+  item      InventoryItem @relation(fields: [item_id], references: [id])
+  performer User          @relation(fields: [performed_by], references: [id])
+
+  @@map("inventory_transactions")
+}
+
+model EmailTemplate {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  subject    String
+  body_html  String
+  type       String   // 'reminder' | 'reset_password' | 'welcome' | 'notification'
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  email_logs EmailLog[]
+
+  @@map("email_templates")
+}
+
+model EmailLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  template_id     String    @db.Uuid
+  appointment_id  String?   @db.Uuid
+  recipient_email String
+  status          String    @default("pending") // 'pending' | 'sent' | 'failed'
+  sent_at         DateTime?
+  error_message   String?
+
+  template    EmailTemplate @relation(fields: [template_id], references: [id])
+  appointment Appointment?  @relation(fields: [appointment_id], references: [id])
+
+  @@map("email_logs")
+}
+
+// ──────────────────────────────────────────
+// RAG / AI
+// ──────────────────────────────────────────
+
+model RagDocument {
+  id                  String   @id @default(uuid()) @db.Uuid
+  source_type         String   // 'internal_document' | 'clinical_note'
+  source_id           String   @db.Uuid
+  patient_id          String?  @db.Uuid
+  filename            String?
+  content_type        String?
+  total_parent_chunks Int      @default(0)
+  total_child_chunks  Int      @default(0)
+  status              String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
+  error_message       String?
+  content_hash        String?
+  ingestion_time_ms   Float?
+  created_at          DateTime @default(now())
+
+  parent_chunks ParentChunk[]
+  child_chunks  ChildChunk[]
+
+  @@map("rag_documents")
+}
+
+model ParentChunk {
+  id              String   @id @default(uuid()) @db.Uuid
+  rag_document_id String   @db.Uuid
+  heading         String?
+  chunk_index     Int
+  metadata        Json?
+  created_at      DateTime @default(now())
+
+  rag_document RagDocument  @relation(fields: [rag_document_id], references: [id], onDelete: Cascade)
+  child_chunks ChildChunk[]
+
+  @@map("parent_chunks")
+}
+
+model ChildChunk {
+  id              String                       @id @default(uuid()) @db.Uuid
+  parent_chunk_id String                       @db.Uuid
+  rag_document_id String                       @db.Uuid
+  content         String
+  embedding       Unsupported("vector(1536)")?
+  search_vector   Unsupported("tsvector")?
+  chunk_index     Int
+  metadata        Json?
+  created_at      DateTime                     @default(now())
+
+  parent_chunk ParentChunk @relation(fields: [parent_chunk_id], references: [id], onDelete: Cascade)
+  rag_document RagDocument @relation(fields: [rag_document_id], references: [id], onDelete: Cascade)
+
+  @@map("child_chunks")
+}
+
+model ChatSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  title      String?
+  created_at DateTime @default(now())
+
+  user     User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid()) @db.Uuid
+  session_id String   @db.Uuid
+  role       String   // 'user' | 'assistant' | 'system'
+  content    String
+  citations  Json?
+  created_at DateTime @default(now())
+
+  session ChatSession @relation(fields: [session_id], references: [id], onDelete: Cascade)
+
+  @@map("chat_messages")
+}

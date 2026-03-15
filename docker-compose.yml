@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: dentalab-postgres
+    restart: unless-stopped
+    ports:
+      - '5480:5432'
+    environment:
+      POSTGRES_USER: psql
+      POSTGRES_PASSWORD: psql_secret
+      POSTGRES_DB: psql
+    volumes:
+      - dentalab_pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: dentalab-redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    command: redis-server --appendonly yes
+    volumes:
+      - dentalab_redis:/data
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: dentalab-rabbitmq
+    restart: unless-stopped
+    ports:
+      - '5680:5672'
+      - '15680:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin_secret
+
+  minio:
+    image: minio/minio:latest
+    container_name: dentalab-minio
+    restart: unless-stopped
+    ports:
+      - '9020:9000'
+      - '9021:9001'
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: secret
+    command: server /data --console-address ":9001"
+    volumes:
+      - dentalab_minio:/data
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: dentalab-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 3;
+      mc alias set local http://minio:9000 admin secret;
+      mc mb local/admin --ignore-existing;
+      exit 0;
+      "
+
+volumes:
+  dentalab_pgdata:
+  dentalab_redis:
+  dentalab_minio:
