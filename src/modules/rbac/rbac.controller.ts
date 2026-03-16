@@ -12,6 +12,7 @@ import { RequirePermissions, Audited, CurrentUser } from '@common/decorators';
 import type { AuthenticatedUser } from '@common/interfaces';
 import { PaginationQueryDto } from '@modules/pagination';
 import { RbacService } from './rbac.service';
+import { PermissionResolverService } from './services/permission-resolver.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
@@ -19,7 +20,10 @@ import { CreateOverrideDto } from './dto/create-override.dto';
 
 @Controller('rbac')
 export class RbacController {
-  constructor(private readonly rbacService: RbacService) {}
+  constructor(
+    private readonly rbacService: RbacService,
+    private readonly permissionResolver: PermissionResolverService,
+  ) {}
 
   // ── Roles ──
 
@@ -84,6 +88,14 @@ export class RbacController {
     @Body() dto: AssignPermissionsDto,
   ) {
     return this.rbacService.revokePermissionsFromRole(id, dto);
+  }
+
+  // ── User Permissions ──
+
+  @Get('users/:id/permissions')
+  @RequirePermissions('users:read')
+  async getUserPermissions(@Param('id') userId: string) {
+    return this.permissionResolver.resolvePermissions(userId);
   }
 
   // ── User Permission Overrides ──

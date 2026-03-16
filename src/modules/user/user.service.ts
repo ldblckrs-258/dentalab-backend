@@ -7,18 +7,15 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@modules/database';
 import { CacheService } from '@modules/redis';
-import {
-  PaginationQueryDto,
-  buildPrismaQuery,
-  buildPaginatedResponse,
-} from '@modules/pagination';
+import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { PermissionResolverService } from '@modules/rbac';
 import {
   BCRYPT_ROUNDS,
   CACHE_DOMAIN_AUTH,
   CACHE_KEY_BLACKLIST,
 } from '@common/constants';
-import { activeOverrideWhere } from '@common/utils';
+import { activeOverrideWhere, OVERRIDE_SELECT } from '@common/utils';
+import type { UserQueryDto } from './dto/user-query.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import type { UpdateUserStatusDto } from './dto/update-user-status.dto';
@@ -35,12 +32,20 @@ const USER_SELECT = {
   updated_at: true,
 } as const;
 
-const USER_DETAIL_SELECT = {
+const USER_WITH_ROLES_SELECT = {
   ...USER_SELECT,
   user_roles: {
-    include: { role: { select: { id: true, name: true } } },
+    select: { role: { select: { id: true, name: true } } },
   },
 } as const;
+
+function flattenUserRoles<T extends { user_roles: { role: unknown }[] }>(
+  user: T | null,
+) {
+  if (!user) return null;
+  const { user_roles, ...rest } = user;
+  return { ...rest, roles: user_roles.map((ur) => ur.role) };
+}
 
 @Injectable()
 export class UserService {
@@ -50,7 +55,7 @@ export class UserService {
     private readonly permissionResolver: PermissionResolverService,
   ) {}
 
-  async findAll(query: PaginationQueryDto) {
+  async findAll(query: UserQueryDto) {
     const prismaArgs = buildPrismaQuery(query, [
       'full_name',
       'email',
@@ -64,35 +69,41 @@ export class UserService {
         { email: { contains: query.search, mode: 'insensitive' } },
       ];
     }
+    if (query.roleId) {
+      where.user_roles = { some: { role_id: query.roleId } };
+    }
+    if (query.isActive !== undefined) {
+      where.is_active = query.isActive === 'true';
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.baseClient.user.findMany({
         ...prismaArgs,
         where,
-        select: USER_DETAIL_SELECT,
+        select: USER_WITH_ROLES_SELECT,
       }),
       this.prisma.baseClient.user.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    return buildPaginatedResponse(data.map(flattenUserRoles), total, query);
   }
 
   async findById(id: string) {
     const [user, overrides] = await Promise.all([
       this.prisma.baseClient.user.findUnique({
         where: { id },
-        select: USER_DETAIL_SELECT,
+        select: USER_WITH_ROLES_SELECT,
       }),
       this.prisma.baseClient.userPermissionOverride.findMany({
         where: activeOverrideWhere(id),
-        include: { permission: true },
+        select: OVERRIDE_SELECT,
         orderBy: { created_at: 'desc' },
       }),
     ]);
 
     if (!user) throw new NotFoundException('User not found');
 
-    return { ...user, overrides };
+    return { ...flattenUserRoles(user), overrides };
   }
 
   async create(dto: CreateUserDto) {
@@ -106,7 +117,7 @@ export class UserService {
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
-    return this.prisma.transaction(async (tx) => {
+    const user = await this.prisma.transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
           email: dto.email,
@@ -128,21 +139,25 @@ export class UserService {
 
       return tx.user.findUnique({
         where: { id: created.id },
-        select: USER_DETAIL_SELECT,
+        select: USER_WITH_ROLES_SELECT,
       });
     });
+
+    return flattenUserRoles(user);
   }
 
   async update(id: string, dto: UpdateUserDto) {
-    return this.prisma.baseClient.user.update({
+    const user = await this.prisma.baseClient.user.update({
       where: { id },
       data: {
         full_name: dto.full_name,
         phone: dto.phone,
         avatar_url: dto.avatar_url,
       },
-      select: USER_DETAIL_SELECT,
+      select: USER_WITH_ROLES_SELECT,
     });
+
+    return flattenUserRoles(user);
   }
 
   async updateStatus(id: string, dto: UpdateUserStatusDto) {

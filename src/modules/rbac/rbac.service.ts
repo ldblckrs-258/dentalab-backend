@@ -10,6 +10,7 @@ import {
   buildPrismaQuery,
   buildPaginatedResponse,
 } from '@modules/pagination';
+import { activeOverrideWhere, OVERRIDE_SELECT } from '@common/utils';
 import { PermissionResolverService } from './services/permission-resolver.service';
 import type { CreateRoleDto } from './dto/create-role.dto';
 import type { UpdateRoleDto } from './dto/update-role.dto';
@@ -27,13 +28,19 @@ export class RbacService {
 
   async findAllRoles(query: PaginationQueryDto) {
     const prismaArgs = buildPrismaQuery(query, ['name', 'created_at']);
-    const [data, total] = await Promise.all([
+    const [rawData, total] = await Promise.all([
       this.prisma.baseClient.role.findMany({
         ...prismaArgs,
         include: { _count: { select: { user_roles: true } } },
       }),
       this.prisma.baseClient.role.count(),
     ]);
+
+    const data = rawData.map(({ _count, ...rest }) => ({
+      ...rest,
+      userCount: _count.user_roles,
+    }));
+
     return buildPaginatedResponse(data, total, query);
   }
 
@@ -42,13 +49,28 @@ export class RbacService {
       where: { id },
       include: {
         role_permissions: {
-          include: { permission: true },
+          select: {
+            permission: {
+              select: {
+                id: true,
+                resource: true,
+                action: true,
+                description: true,
+              },
+            },
+          },
         },
         _count: { select: { user_roles: true } },
       },
     });
     if (!role) throw new NotFoundException('Role not found');
-    return role;
+
+    const { role_permissions, _count, ...rest } = role;
+    return {
+      ...rest,
+      permissions: role_permissions.map((rp) => rp.permission),
+      userCount: _count.user_roles,
+    };
   }
 
   async createRole(dto: CreateRoleDto) {
@@ -170,12 +192,8 @@ export class RbacService {
 
   async findUserOverrides(userId: string) {
     return this.prisma.baseClient.userPermissionOverride.findMany({
-      where: {
-        user_id: userId,
-        is_active: true,
-        OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
-      },
-      include: { permission: true },
+      where: activeOverrideWhere(userId),
+      select: OVERRIDE_SELECT,
       orderBy: { created_at: 'desc' },
     });
   }
@@ -195,7 +213,7 @@ export class RbacService {
           granted_by: grantedBy,
           expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null,
         },
-        include: { permission: true },
+        select: OVERRIDE_SELECT,
       },
     );
 

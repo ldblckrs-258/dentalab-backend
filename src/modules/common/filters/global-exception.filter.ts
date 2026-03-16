@@ -41,6 +41,11 @@ const PRISMA_ERROR_MAP: Record<
     errorCode: 'FOREIGN_KEY_CONSTRAINT',
     message: 'Related resource not found',
   },
+  P2023: {
+    status: HttpStatus.BAD_REQUEST,
+    errorCode: 'INVALID_INPUT',
+    message: 'Invalid input value',
+  },
   P2024: {
     status: HttpStatus.SERVICE_UNAVAILABLE,
     errorCode: 'DATABASE_TIMEOUT',
