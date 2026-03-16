@@ -20,6 +20,7 @@ export const ROUTING_KEY = {
   CLINICAL_NOTE_UPDATED: 'clinical_note.updated',
   EMAIL_SEND_REMINDER: 'email.send_reminder',
   EMAIL_SEND_RESET_PASSWORD: 'email.send_reset_password',
+  EMAIL_SEND_WELCOME: 'email.send_welcome',
   INVENTORY_LOW_STOCK: 'inventory.low_stock',
 } as const;
 

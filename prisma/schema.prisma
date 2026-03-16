@@ -282,7 +282,6 @@ model Appointment {
   clinical_note      ClinicalNote?
   form_submissions   FormSubmission[]
   kiosk_sessions     KioskSession[]
-  email_logs         EmailLog[]
 
   @@map("appointments")
 }
@@ -521,10 +520,13 @@ model InventoryTransaction {
 
 model EmailTemplate {
   id         String   @id @default(uuid()) @db.Uuid
-  name       String
-  subject    String
-  body_html  String
-  type       String   // 'reminder' | 'reset_password' | 'welcome' | 'notification'
+  name       String   @unique
+  subject    String   // Handlebars template string for subject
+  body_mjml  String   // MJML source with Handlebars placeholders
+  body_html  String   // Compiled HTML (MJML → HTML output)
+  type       String   // 'auth' | 'reminder' | 'notification' | 'marketing'
+  variables  Json?    // Schema: { required: string[], optional: string[] }
+  is_system  Boolean  @default(false)
   is_active  Boolean  @default(true)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -537,15 +539,35 @@ model EmailTemplate {
 model EmailLog {
   id              String    @id @default(uuid()) @db.Uuid
   template_id     String    @db.Uuid
-  appointment_id  String?   @db.Uuid
+  resend_id       String?   @unique
+  from_address    String
   recipient_email String
-  status          String    @default("pending") // 'pending' | 'sent' | 'failed'
-  sent_at         DateTime?
+  subject         String
+  status          String    @default("pending") // 'pending' | 'sent' | 'delivered' | 'bounced' | 'complained' | 'failed'
+  variables       Json?
   error_message   String?
+  attachments     Json?     // [{filename, size, content_type}]
+  tags            Json?     // [{name, value}]
+  batch_id        String?
+  entity_type     String?   // 'user' | 'appointment' | 'patient' etc.
+  entity_id       String?   @db.Uuid
+  sent_at         DateTime?
+  delivered_at    DateTime?
+  bounced_at      DateTime?
+  complained_at   DateTime?
+  webhook_events  Json?     // Array of raw webhook event payloads
+  is_active       Boolean   @default(true)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
   template    EmailTemplate @relation(fields: [template_id], references: [id])
-  appointment Appointment?  @relation(fields: [appointment_id], references: [id])
 
+  @@index([resend_id])
+  @@index([recipient_email])
+  @@index([status])
+  @@index([template_id])
+  @@index([entity_type, entity_id])
+  @@index([batch_id])
   @@map("email_logs")
 }
 

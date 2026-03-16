@@ -1,0 +1,20 @@
+<!-- Content section for welcome -->
+<mj-section background-color="#ffffff" padding="30px 20px">
+  <mj-column>
+    <mj-text font-size="20px" font-weight="bold">Welcome to DentaLab!</mj-text>
+    <mj-text>Hello {{userName}},</mj-text>
+    <mj-text>
+      An account has been created for you. Here are your login credentials:
+    </mj-text>
+    <mj-text padding="10px 20px" background-color="#f4f4f5" border-radius="6px">
+      <strong>Email:</strong> {{email}}<br/>
+      <strong>Temporary Password:</strong> {{temporaryPassword}}
+    </mj-text>
+    <mj-text>
+      Please change your password after your first login.
+    </mj-text>
+    <mj-button href="{{loginLink}}">
+      Login Now
+    </mj-button>
+  </mj-column>
+</mj-section>

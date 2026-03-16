@@ -8,6 +8,7 @@ import { queueSchema } from './schemas/queue.schema';
 import { storageSchema } from './schemas/storage.schema';
 import { jwtSchema } from './schemas/jwt.schema';
 import { aiSchema } from './schemas/ai.schema';
+import { emailSchema } from './schemas/email.schema';
 import { maskSensitiveValues } from './config.utils';
 
 const logger = new Logger('ConfigModule');
@@ -38,6 +39,9 @@ const jwtConfig = registerAs('jwt', () =>
   validateAndLoad(jwtSchema, process.env),
 );
 const aiConfig = registerAs('ai', () => validateAndLoad(aiSchema, process.env));
+const emailConfig = registerAs('email', () =>
+  validateAndLoad(emailSchema, process.env),
+);
 
 @Global()
 @Module({
@@ -53,6 +57,7 @@ const aiConfig = registerAs('ai', () => validateAndLoad(aiSchema, process.env));
         storageConfig,
         jwtConfig,
         aiConfig,
+        emailConfig,
       ],
     }),
   ],
@@ -72,6 +77,7 @@ export class AppConfigModule {
         storage: configService.storage,
         jwt: configService.jwt,
         ai: configService.ai,
+        email: configService.email,
       };
       logger.debug(
         `Config: ${JSON.stringify(maskSensitiveValues(allConfig as Record<string, unknown>), null, 2)}`,

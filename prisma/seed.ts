@@ -1,7 +1,10 @@
 import 'dotenv/config';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import * as bcrypt from 'bcrypt';
+import mjml from 'mjml';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -103,6 +106,12 @@ const PERMISSIONS: {
   { resource: 'email_templates', action: 'read' },
   { resource: 'email_templates', action: 'update' },
   { resource: 'email_templates', action: 'delete' },
+  { resource: 'email_logs', action: 'read' },
+  {
+    resource: 'email_logs',
+    action: 'manage',
+    description: 'Resend failed emails, view stats',
+  },
 
   // AI Chatbot
   { resource: 'chat_sessions', action: 'create' },
@@ -184,6 +193,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat_sessions', 'read'),
     perm('chat_sessions', 'delete'),
     perm('rag_internal_docs', 'read'),
+    perm('email_logs', 'read'),
   ],
 };
 
@@ -236,7 +246,55 @@ async function main() {
     console.log(`    ✓ ${roleName}: ${data.length} permissions`);
   }
 
-  // 4. Seed default admin user
+  // 4. Seed system email templates
+  console.log('  → Seeding email templates...');
+  const baseLayout = readFileSync(
+    join(__dirname, 'email-templates/layouts/base.mjml'),
+    'utf-8',
+  );
+  const templateDefs: {
+    name: string;
+    subject: string;
+    type: string;
+    file: string;
+    variables: { required: string[]; optional: string[] };
+  }[] = JSON.parse(
+    readFileSync(join(__dirname, 'email-templates/templates.json'), 'utf-8'),
+  );
+
+  for (const def of templateDefs) {
+    const childMjml = readFileSync(
+      join(__dirname, `email-templates/${def.file}`),
+      'utf-8',
+    );
+    const fullMjml = baseLayout.replace('{{{content}}}', childMjml);
+    const { html } = mjml(fullMjml, { validationLevel: 'soft' });
+
+    await prisma.emailTemplate.upsert({
+      where: { name: def.name },
+      update: {
+        subject: def.subject,
+        body_mjml: fullMjml,
+        body_html: html,
+        type: def.type,
+        variables: def.variables,
+        is_system: true,
+      },
+      create: {
+        name: def.name,
+        subject: def.subject,
+        body_mjml: fullMjml,
+        body_html: html,
+        type: def.type,
+        variables: def.variables,
+        is_system: true,
+        is_active: true,
+      },
+    });
+    console.log(`    ✓ Template: ${def.name}`);
+  }
+
+  // 5. Seed default admin user
   console.log('  → Seeding admin user...');
   const adminEmail = process.env.ADMIN_EMAIL ?? 'admin@dentalab.com';
   const adminPassword = process.env.ADMIN_PASSWORD ?? 'Admin@123';

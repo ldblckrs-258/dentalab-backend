@@ -5,3 +5,4 @@ export * from './queue.schema';
 export * from './storage.schema';
 export * from './jwt.schema';
 export * from './ai.schema';
+export * from './email.schema';

@@ -7,6 +7,8 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@modules/database';
 import { CacheService } from '@modules/redis';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
+import type { EmailSendWelcomePayload } from '@modules/queue/interfaces';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { PermissionResolverService } from '@modules/rbac';
 import {
@@ -53,6 +55,7 @@ export class UserService {
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
     private readonly permissionResolver: PermissionResolverService,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   async findAll(query: UserQueryDto) {
@@ -142,6 +145,15 @@ export class UserService {
         select: USER_WITH_ROLES_SELECT,
       });
     });
+
+    // Publish welcome email event
+    const welcomePayload: EmailSendWelcomePayload = {
+      userId: user!.id,
+      email: dto.email,
+      fullName: dto.full_name,
+      temporaryPassword: dto.password,
+    };
+    this.queueProducer.publish(ROUTING_KEY.EMAIL_SEND_WELCOME, welcomePayload);
 
     return flattenUserRoles(user);
   }
