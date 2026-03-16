@@ -95,7 +95,7 @@ describe('UserService', () => {
 
   describe('findAll', () => {
     it('should return paginated users', async () => {
-      prisma.baseClient.user.findMany.mockResolvedValue([mockUser]);
+      prisma.baseClient.user.findMany.mockResolvedValue([mockUserWithRoles]);
       prisma.baseClient.user.count.mockResolvedValue(1);
 
       const result = await service.findAll({});

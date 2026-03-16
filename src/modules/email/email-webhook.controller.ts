@@ -18,6 +18,7 @@ import { EMAIL_STATUS, WEBHOOK_EVENT_TYPE } from './email.constants';
 @Controller('webhooks/email')
 export class EmailWebhookController {
   private readonly logger = new Logger(EmailWebhookController.name);
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   private readonly wh: Webhook | null;
 
   constructor(

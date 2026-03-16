@@ -65,16 +65,22 @@ describe('RbacService', () => {
 
   describe('Roles', () => {
     it('should find role by id', async () => {
-      const role = {
+      prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
         name: 'admin',
-        role_permissions: [],
+        role_permissions: [
+          { permission: { id: 'p1', resource: 'users', action: 'read' } },
+        ],
         _count: { user_roles: 2 },
-      };
-      prisma.baseClient.role.findUnique.mockResolvedValue(role);
+      });
 
       const result = await service.findRoleById('r1');
-      expect(result).toEqual(role);
+      expect(result).toEqual({
+        id: 'r1',
+        name: 'admin',
+        permissions: [{ id: 'p1', resource: 'users', action: 'read' }],
+        userCount: 2,
+      });
     });
 
     it('should throw NotFoundException for missing role', async () => {

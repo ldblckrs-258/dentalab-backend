@@ -9,8 +9,8 @@ import {
   Query,
 } from '@nestjs/common';
 import { RequirePermissions, Audited } from '@common/decorators';
-import { PaginationQueryDto } from '@modules/pagination';
 import { UserService } from './user.service';
+import { UserQueryDto } from './dto/user-query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
@@ -22,7 +22,7 @@ export class UserController {
 
   @Get()
   @RequirePermissions('users:read')
-  async findAll(@Query() query: PaginationQueryDto) {
+  async findAll(@Query() query: UserQueryDto) {
     return this.userService.findAll(query);
   }
 
