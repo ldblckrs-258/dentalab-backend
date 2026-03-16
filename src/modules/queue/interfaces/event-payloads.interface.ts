@@ -46,6 +46,13 @@ export interface EmailSendResetPasswordPayload {
   expiresAt: string;
 }
 
+export interface EmailSendWelcomePayload {
+  userId: string;
+  email: string;
+  fullName: string;
+  temporaryPassword: string;
+}
+
 export interface InventoryLowStockPayload {
   itemId: string;
   itemName: string;
@@ -61,4 +68,5 @@ export type EventPayload =
   | ClinicalNoteUpdatedPayload
   | EmailSendReminderPayload
   | EmailSendResetPasswordPayload
+  | EmailSendWelcomePayload
   | InventoryLowStockPayload;

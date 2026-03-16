@@ -7,6 +7,7 @@ import type { QueueConfig } from './schemas/queue.schema';
 import type { StorageConfig } from './schemas/storage.schema';
 import type { JwtConfig } from './schemas/jwt.schema';
 import type { AiConfig } from './schemas/ai.schema';
+import type { EmailConfig } from './schemas/email.schema';
 
 @Injectable()
 export class AppConfigService {
@@ -38,6 +39,10 @@ export class AppConfigService {
 
   get ai(): AiConfig {
     return this.configService.get<AiConfig>('ai')!;
+  }
+
+  get email(): EmailConfig {
+    return this.configService.get<EmailConfig>('email')!;
   }
 
   get isDevelopment(): boolean {

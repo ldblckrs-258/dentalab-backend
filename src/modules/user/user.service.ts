@@ -7,6 +7,8 @@ import {
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '@modules/database';
 import { CacheService } from '@modules/redis';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
+import type { EmailSendWelcomePayload } from '@modules/queue/interfaces';
 import {
   PaginationQueryDto,
   buildPrismaQuery,
@@ -48,6 +50,7 @@ export class UserService {
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
     private readonly permissionResolver: PermissionResolverService,
+    private readonly queueProducer: QueueProducerService,
   ) {}
 
   async findAll(query: PaginationQueryDto) {
@@ -106,7 +109,7 @@ export class UserService {
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
 
-    return this.prisma.transaction(async (tx) => {
+    const user = await this.prisma.transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
           email: dto.email,
@@ -131,6 +134,17 @@ export class UserService {
         select: USER_DETAIL_SELECT,
       });
     });
+
+    // Publish welcome email event
+    const welcomePayload: EmailSendWelcomePayload = {
+      userId: user!.id,
+      email: dto.email,
+      fullName: dto.full_name,
+      temporaryPassword: dto.password,
+    };
+    this.queueProducer.publish(ROUTING_KEY.EMAIL_SEND_WELCOME, welcomePayload);
+
+    return user;
   }
 
   async update(id: string, dto: UpdateUserDto) {

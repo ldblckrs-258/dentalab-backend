@@ -10,6 +10,7 @@ import { RbacModule } from '@modules/rbac';
 import { AuditModule } from '@modules/audit';
 import { HealthModule } from '@modules/health';
 import { UserModule } from '@modules/user';
+import { EmailModule } from '@modules/email';
 import { KioskModule } from '@modules/kiosk';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -22,6 +23,7 @@ import { AppService } from './app.service';
     QueueModule,
     StorageModule,
     CommonModule,
+    EmailModule,
     AuthModule,
     RbacModule,
     AuditModule,

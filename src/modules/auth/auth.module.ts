@@ -7,8 +7,6 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { EmailConsumerService } from './services/email-consumer.service';
-
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -25,7 +23,6 @@ import { EmailConsumerService } from './services/email-consumer.service';
   providers: [
     AuthService,
     JwtStrategy,
-    EmailConsumerService,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,

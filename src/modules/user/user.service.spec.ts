@@ -9,6 +9,7 @@ import { UserService } from './user.service';
 import { PrismaService } from '@modules/database';
 import { CacheService } from '@modules/redis';
 import { PermissionResolverService } from '@modules/rbac';
+import { QueueProducerService } from '@modules/queue';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(),
@@ -85,6 +86,7 @@ describe('UserService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: CacheService, useValue: cacheService },
         { provide: PermissionResolverService, useValue: permissionResolver },
+        { provide: QueueProducerService, useValue: { publish: jest.fn() } },
       ],
     }).compile();
 
