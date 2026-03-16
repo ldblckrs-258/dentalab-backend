@@ -170,7 +170,11 @@ export class RbacService {
 
   async findUserOverrides(userId: string) {
     return this.prisma.baseClient.userPermissionOverride.findMany({
-      where: { user_id: userId, is_active: true },
+      where: {
+        user_id: userId,
+        is_active: true,
+        OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+      },
       include: { permission: true },
       orderBy: { created_at: 'desc' },
     });

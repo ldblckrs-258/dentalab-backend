@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { AuditService } from './audit.service';
 import { PrismaService } from '@modules/database';
 
@@ -13,6 +14,7 @@ describe('AuditService', () => {
         auditLog: {
           create: jest.fn().mockResolvedValue({}),
           findMany: jest.fn().mockResolvedValue([]),
+          findUnique: jest.fn(),
           count: jest.fn().mockResolvedValue(0),
         },
       },
@@ -55,16 +57,19 @@ describe('AuditService', () => {
   });
 
   describe('findAll', () => {
-    it('should apply pagination defaults', async () => {
+    it('should return paginated result with user join', async () => {
       prisma.baseClient.auditLog.findMany.mockResolvedValue([]);
       prisma.baseClient.auditLog.count.mockResolvedValue(0);
 
       const result = await service.findAll({});
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ skip: 0, take: 20 }),
+        expect.objectContaining({
+          include: expect.objectContaining({
+            user: expect.any(Object),
+          }),
+        }),
       );
       expect(result.meta.page).toBe(1);
-      expect(result.meta.limit).toBe(20);
     });
 
     it('should apply filters', async () => {
@@ -86,25 +91,42 @@ describe('AuditService', () => {
             action: 'create',
             resource: 'user',
           }),
-          skip: 10,
-          take: 10,
         }),
       );
     });
 
     it('should apply date range filters', async () => {
-      const start = new Date('2024-01-01');
-      const end = new Date('2024-12-31');
       prisma.baseClient.auditLog.findMany.mockResolvedValue([]);
       prisma.baseClient.auditLog.count.mockResolvedValue(0);
 
-      await service.findAll({ startDate: start, endDate: end });
+      await service.findAll({
+        from: '2024-01-01T00:00:00.000Z',
+        to: '2024-12-31T00:00:00.000Z',
+      });
 
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {
-            created_at: { gte: start, lte: end },
-          },
+          where: expect.objectContaining({
+            created_at: {
+              gte: expect.any(Date),
+              lte: expect.any(Date),
+            },
+          }),
+        }),
+      );
+    });
+
+    it('should apply ipAddress filter', async () => {
+      prisma.baseClient.auditLog.findMany.mockResolvedValue([]);
+      prisma.baseClient.auditLog.count.mockResolvedValue(0);
+
+      await service.findAll({ ipAddress: '192.168.1.1' });
+
+      expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            ip_address: '192.168.1.1',
+          }),
         }),
       );
     });
@@ -122,6 +144,33 @@ describe('AuditService', () => {
         hasNextPage: true,
         hasPreviousPage: true,
       });
+    });
+  });
+
+  describe('findById', () => {
+    it('should return audit log with user info', async () => {
+      const mockLog = {
+        id: 'log-1',
+        action: 'create',
+        resource: 'user',
+        user: { email: 'admin@test.com', full_name: 'Admin' },
+      };
+      prisma.baseClient.auditLog.findUnique.mockResolvedValue(mockLog);
+
+      const result = await service.findById('log-1');
+      expect(result).toEqual(mockLog);
+      expect(prisma.baseClient.auditLog.findUnique).toHaveBeenCalledWith({
+        where: { id: 'log-1' },
+        include: expect.objectContaining({ user: expect.any(Object) }),
+      });
+    });
+
+    it('should throw NotFoundException when not found', async () => {
+      prisma.baseClient.auditLog.findUnique.mockResolvedValue(null);
+
+      await expect(service.findById('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

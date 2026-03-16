@@ -1,4 +1,6 @@
 import {
+  HttpException,
+  HttpStatus,
   Injectable,
   UnauthorizedException,
   ForbiddenException,
@@ -11,9 +13,12 @@ import { AppConfigService } from '@modules/config';
 import { CacheService } from '@modules/redis';
 import {
   CACHE_DOMAIN_AUTH,
+  CACHE_KEY_BLACKLIST,
+  CACHE_KEY_LOGIN_ATTEMPTS,
   BCRYPT_ROUNDS,
   REFRESH_TOKEN_BYTES,
 } from '@common/constants';
+import { hashToken } from '@common/utils';
 import type { JwtPayload } from '@common/interfaces';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import type { EmailSendResetPasswordPayload } from '@modules/queue';
@@ -43,12 +48,36 @@ export class AuthService {
   ) {}
 
   async login(dto: LoginDto) {
+    const lockoutKey = `${CACHE_KEY_LOGIN_ATTEMPTS}:${dto.email.toLowerCase()}`;
+    const lockoutDurationSeconds =
+      this.config.app.LOCKOUT_DURATION_MINUTES * 60;
+
+    // Check lockout before DB query to prevent user enumeration
+    const currentAttempts = await this.cacheService.get<number>(
+      CACHE_DOMAIN_AUTH,
+      lockoutKey,
+    );
+    if (
+      currentAttempts !== null &&
+      currentAttempts >= this.config.app.MAX_LOGIN_ATTEMPTS
+    ) {
+      throw new HttpException(
+        'Account temporarily locked. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const user = await this.prisma.client.user.findUnique({
       where: { email: dto.email },
       select: USER_AUTH_SELECT,
     });
 
     if (!user) {
+      await this.cacheService.increment(
+        CACHE_DOMAIN_AUTH,
+        lockoutKey,
+        lockoutDurationSeconds,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -61,8 +90,16 @@ export class AuthService {
       user.password_hash,
     );
     if (!isPasswordValid) {
+      await this.cacheService.increment(
+        CACHE_DOMAIN_AUTH,
+        lockoutKey,
+        lockoutDurationSeconds,
+      );
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    // Reset counter on successful login
+    await this.cacheService.del(CACHE_DOMAIN_AUTH, lockoutKey);
 
     const { accessToken, refreshToken, refreshExpiresIn } =
       await this.generateTokens(user.id, user.email);
@@ -80,12 +117,12 @@ export class AuthService {
   }
 
   async refreshTokens(dto: RefreshTokenDto) {
-    const tokenHash = this.hashToken(dto.refreshToken);
+    const tokenHash = hashToken(dto.refreshToken);
 
     // Check Redis blacklist
     const isBlacklisted = await this.cacheService.exists(
       CACHE_DOMAIN_AUTH,
-      `blacklist:${tokenHash}`,
+      `${CACHE_KEY_BLACKLIST}:${tokenHash}`,
     );
     if (isBlacklisted) {
       throw new UnauthorizedException('Token has been revoked');
@@ -132,7 +169,7 @@ export class AuthService {
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {
-    const tokenHash = this.hashToken(refreshToken);
+    const tokenHash = hashToken(refreshToken);
 
     const storedToken = await this.prisma.baseClient.refreshToken.findFirst({
       where: { token_hash: tokenHash, user_id: userId },
@@ -224,7 +261,7 @@ export class AuthService {
     if (!user) return;
 
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = this.hashToken(resetToken);
+    const tokenHash = hashToken(resetToken);
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await this.prisma.baseClient.passwordResetToken.create({
@@ -245,7 +282,7 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    const tokenHash = this.hashToken(dto.token);
+    const tokenHash = hashToken(dto.token);
 
     const resetToken =
       await this.prisma.baseClient.passwordResetToken.findFirst({
@@ -292,7 +329,7 @@ export class AuthService {
       remainingTtl > 0
         ? this.cacheService.set(
             CACHE_DOMAIN_AUTH,
-            `blacklist:${tokenHash}`,
+            `${CACHE_KEY_BLACKLIST}:${tokenHash}`,
             true,
             remainingTtl,
           )
@@ -351,7 +388,7 @@ export class AuthService {
     const refreshToken = crypto
       .randomBytes(REFRESH_TOKEN_BYTES)
       .toString('hex');
-    const refreshTokenHash = this.hashToken(refreshToken);
+    const refreshTokenHash = hashToken(refreshToken);
     const refreshExpiryMs = this.parseExpiry(
       this.config.jwt.JWT_REFRESH_EXPIRY,
     );
@@ -365,10 +402,6 @@ export class AuthService {
     });
 
     return { accessToken, refreshToken, refreshExpiresIn: refreshExpiryMs };
-  }
-
-  private hashToken(token: string): string {
-    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   private parseExpiry(expiry: string): number {

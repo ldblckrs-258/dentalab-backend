@@ -40,6 +40,8 @@ CLAUDE.md
 .cursor
 thoughts
 .serena
+.agents
+skills-lock.json
 
 # dotenv environment variable files
 .env

@@ -63,6 +63,29 @@ describe('PermissionResolverService', () => {
       expect(cacheService.set).toHaveBeenCalled();
     });
 
+    it('should pass expiry filter when querying overrides', async () => {
+      cacheService.get.mockResolvedValue(null);
+      prisma.baseClient.userRole.findMany.mockResolvedValue([]);
+      prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([]);
+
+      await service.resolvePermissions('user-1');
+
+      expect(
+        prisma.baseClient.userPermissionOverride.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            user_id: 'user-1',
+            is_active: true,
+            OR: [
+              { expires_at: null },
+              { expires_at: { gt: expect.any(Date) } },
+            ],
+          }),
+        }),
+      );
+    });
+
     it('should apply grant overrides', async () => {
       cacheService.get.mockResolvedValue(null);
       prisma.baseClient.userRole.findMany.mockResolvedValue([]);

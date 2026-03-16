@@ -1,5 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
+import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
+import type { AuditQueryDto } from './dto/audit-query.dto';
 
 export interface AuditEntry {
   userId?: string;
@@ -11,16 +13,7 @@ export interface AuditEntry {
   ipAddress?: string;
 }
 
-export interface AuditFilter {
-  userId?: string;
-  action?: string;
-  resource?: string;
-  resourceId?: string;
-  startDate?: Date;
-  endDate?: Date;
-  page?: number;
-  limit?: number;
-}
+const USER_SELECT = { select: { email: true, full_name: true } } as const;
 
 @Injectable()
 export class AuditService {
@@ -48,45 +41,44 @@ export class AuditService {
     }
   }
 
-  async findAll(filters: AuditFilter) {
-    const page = filters.page ?? 1;
-    const limit = filters.limit ?? 20;
-    const skip = (page - 1) * limit;
+  async findAll(query: AuditQueryDto) {
+    const prismaArgs = buildPrismaQuery(
+      query,
+      ['created_at', 'action', 'resource'],
+      { created_at: 'desc' },
+    );
 
     const where: Record<string, unknown> = {};
-    if (filters.userId) where.user_id = filters.userId;
-    if (filters.action) where.action = filters.action;
-    if (filters.resource) where.resource = filters.resource;
-    if (filters.resourceId) where.resource_id = filters.resourceId;
-    if (filters.startDate || filters.endDate) {
+    if (query.userId) where.user_id = query.userId;
+    if (query.action) where.action = query.action;
+    if (query.resource) where.resource = query.resource;
+    if (query.resourceId) where.resource_id = query.resourceId;
+    if (query.ipAddress) where.ip_address = query.ipAddress;
+    if (query.from || query.to) {
       where.created_at = {
-        ...(filters.startDate ? { gte: filters.startDate } : {}),
-        ...(filters.endDate ? { lte: filters.endDate } : {}),
+        ...(query.from ? { gte: new Date(query.from) } : {}),
+        ...(query.to ? { lte: new Date(query.to) } : {}),
       };
     }
 
     const [data, total] = await Promise.all([
       this.prisma.baseClient.auditLog.findMany({
+        ...prismaArgs,
         where,
-        skip,
-        take: limit,
-        orderBy: { created_at: 'desc' },
+        include: { user: USER_SELECT },
       }),
       this.prisma.baseClient.auditLog.count({ where }),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
+    return buildPaginatedResponse(data, total, query);
+  }
 
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
-    };
+  async findById(id: string) {
+    const log = await this.prisma.baseClient.auditLog.findUnique({
+      where: { id },
+      include: { user: USER_SELECT },
+    });
+    if (!log) throw new NotFoundException('Audit log not found');
+    return log;
   }
 }
