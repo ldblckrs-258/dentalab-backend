@@ -100,6 +100,122 @@ describe('PermissionResolverService', () => {
       expect(result).toEqual(['admin:access']);
     });
 
+    it('should resolve scoped permissions as resource:action:scope', async () => {
+      cacheService.get.mockResolvedValue(null);
+      prisma.baseClient.userRole.findMany.mockResolvedValue([
+        {
+          role: {
+            role_permissions: [
+              {
+                permission: {
+                  resource: 'users',
+                  action: 'create',
+                  scope: null,
+                },
+              },
+              {
+                permission: {
+                  resource: 'users',
+                  action: 'create',
+                  scope: 'admin',
+                },
+              },
+            ],
+          },
+        },
+      ]);
+      prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([]);
+
+      const result = await service.resolvePermissions('user-1');
+      expect(result).toEqual(['users:create', 'users:create:admin']);
+    });
+
+    it('should handle mixed scoped and non-scoped permissions', async () => {
+      cacheService.get.mockResolvedValue(null);
+      prisma.baseClient.userRole.findMany.mockResolvedValue([
+        {
+          role: {
+            role_permissions: [
+              {
+                permission: { resource: 'users', action: 'read', scope: null },
+              },
+              {
+                permission: {
+                  resource: 'users',
+                  action: 'update',
+                  scope: 'admin',
+                },
+              },
+              {
+                permission: {
+                  resource: 'appointments',
+                  action: 'update',
+                  scope: null,
+                },
+              },
+            ],
+          },
+        },
+      ]);
+      prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([]);
+
+      const result = await service.resolvePermissions('user-1');
+      expect(result).toEqual([
+        'appointments:update',
+        'users:read',
+        'users:update:admin',
+      ]);
+    });
+
+    it('should apply grant overrides with scope', async () => {
+      cacheService.get.mockResolvedValue(null);
+      prisma.baseClient.userRole.findMany.mockResolvedValue([]);
+      prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([
+        {
+          grant_type: 'grant',
+          permission: { resource: 'users', action: 'create', scope: 'admin' },
+        },
+      ]);
+
+      const result = await service.resolvePermissions('user-1');
+      expect(result).toEqual(['users:create:admin']);
+    });
+
+    it('should apply deny overrides with scope', async () => {
+      cacheService.get.mockResolvedValue(null);
+      prisma.baseClient.userRole.findMany.mockResolvedValue([
+        {
+          role: {
+            role_permissions: [
+              {
+                permission: {
+                  resource: 'users',
+                  action: 'create',
+                  scope: null,
+                },
+              },
+              {
+                permission: {
+                  resource: 'users',
+                  action: 'create',
+                  scope: 'admin',
+                },
+              },
+            ],
+          },
+        },
+      ]);
+      prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([
+        {
+          grant_type: 'deny',
+          permission: { resource: 'users', action: 'create', scope: 'admin' },
+        },
+      ]);
+
+      const result = await service.resolvePermissions('user-1');
+      expect(result).toEqual(['users:create']);
+    });
+
     it('should apply deny overrides', async () => {
       cacheService.get.mockResolvedValue(null);
       prisma.baseClient.userRole.findMany.mockResolvedValue([

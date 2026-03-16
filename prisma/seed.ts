@@ -1,10 +1,10 @@
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 import 'dotenv/config';
 import { readFileSync } from 'fs';
-import { join } from 'path';
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import * as bcrypt from 'bcrypt';
 import mjml from 'mjml';
+import { join } from 'path';
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
@@ -28,6 +28,7 @@ const DEFAULT_ROLES = [
 const PERMISSIONS: {
   resource: string;
   action: string;
+  scope?: string;
   description?: string;
 }[] = [
   // Auth & RBAC
@@ -119,6 +120,20 @@ const PERMISSIONS: {
   { resource: 'chat_sessions', action: 'delete' },
   { resource: 'rag_patient_notes', action: 'read' },
   { resource: 'rag_internal_docs', action: 'read' },
+
+  // Scoped: Admin user management
+  {
+    resource: 'users',
+    action: 'create',
+    scope: 'admin',
+    description: 'Create users with Admin role',
+  },
+  {
+    resource: 'users',
+    action: 'update',
+    scope: 'admin',
+    description: 'Assign/remove Admin role on users',
+  },
 ];
 
 // ── Role-Permission Mappings (based on actor-module matrix) ──
@@ -127,12 +142,20 @@ function perm(resource: string, action: string): string {
   return `${resource}:${action}`;
 }
 
+function scopedPerm(resource: string, action: string, scope: string): string {
+  return `${resource}:${action}:${scope}`;
+}
+
 function allActions(resource: string): string[] {
   return ['create', 'read', 'update', 'delete'].map((a) => perm(resource, a));
 }
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  Admin: PERMISSIONS.map((p) => perm(p.resource, p.action)), // ALL permissions
+  Admin: PERMISSIONS.map((p) =>
+    p.scope
+      ? scopedPerm(p.resource, p.action, p.scope)
+      : perm(p.resource, p.action),
+  ), // ALL permissions
 
   Doctor: [
     perm('appointments', 'read'),
@@ -198,7 +221,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 };
 
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log('Seeding database...');
 
   // 1. Seed roles
   console.log('  → Seeding roles...');
@@ -222,7 +245,10 @@ async function main() {
   const allPermissions = await prisma.permission.findMany();
   const permMap: Record<string, string> = {};
   for (const p of allPermissions) {
-    permMap[perm(p.resource, p.action)] = p.id;
+    const key = p.scope
+      ? `${p.resource}:${p.action}:${p.scope}`
+      : `${p.resource}:${p.action}`;
+    permMap[key] = p.id;
   }
   console.log(`    ✓ ${allPermissions.length} permissions`);
 

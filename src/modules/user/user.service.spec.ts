@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import {
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -52,6 +53,7 @@ describe('UserService', () => {
         },
         role: {
           findMany: jest.fn(),
+          findFirst: jest.fn().mockResolvedValue(null),
         },
         refreshToken: {
           findMany: jest.fn().mockResolvedValue([]),
@@ -78,6 +80,7 @@ describe('UserService', () => {
 
     permissionResolver = {
       invalidateCache: jest.fn().mockResolvedValue(undefined),
+      hasPermission: jest.fn().mockResolvedValue(true),
     };
 
     const module = await Test.createTestingModule({
@@ -126,11 +129,14 @@ describe('UserService', () => {
       prisma.baseClient.user.findUnique.mockResolvedValue({ id: 'existing' });
 
       await expect(
-        service.create({
-          email: 'test@example.com',
-          full_name: 'Test',
-          password: 'Test1234',
-        }),
+        service.create(
+          {
+            email: 'test@example.com',
+            full_name: 'Test',
+            password: 'Test1234',
+          },
+          'actor-1',
+        ),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -138,12 +144,15 @@ describe('UserService', () => {
       prisma.baseClient.user.findUnique.mockResolvedValueOnce(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
 
-      await service.create({
-        email: 'new@example.com',
-        full_name: 'New User',
-        password: 'Test1234',
-        roleIds: ['role-1'],
-      });
+      await service.create(
+        {
+          email: 'new@example.com',
+          full_name: 'New User',
+          password: 'Test1234',
+          roleIds: ['role-1'],
+        },
+        'actor-1',
+      );
 
       expect(bcrypt.hash).toHaveBeenCalledWith('Test1234', 10);
       expect(prisma.transaction).toHaveBeenCalled();
@@ -193,7 +202,7 @@ describe('UserService', () => {
     it('should assign roles and invalidate cache', async () => {
       prisma.baseClient.role.findMany.mockResolvedValue([{ id: 'role-1' }]);
 
-      await service.assignRoles('user-1', { roleIds: ['role-1'] });
+      await service.assignRoles('user-1', { roleIds: ['role-1'] }, 'actor-1');
 
       expect(prisma.baseClient.userRole.createMany).toHaveBeenCalled();
       expect(permissionResolver.invalidateCache).toHaveBeenCalledWith('user-1');
@@ -203,17 +212,96 @@ describe('UserService', () => {
       prisma.baseClient.role.findMany.mockResolvedValue([]); // no roles found
 
       await expect(
-        service.assignRoles('user-1', { roleIds: ['bad-id'] }),
+        service.assignRoles('user-1', { roleIds: ['bad-id'] }, 'actor-1'),
       ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('removeRoles', () => {
     it('should remove roles and invalidate cache', async () => {
-      await service.removeRoles('user-1', { roleIds: ['role-1'] });
+      await service.removeRoles('user-1', { roleIds: ['role-1'] }, 'actor-1');
 
       expect(prisma.baseClient.userRole.deleteMany).toHaveBeenCalled();
       expect(permissionResolver.invalidateCache).toHaveBeenCalledWith('user-1');
+    });
+  });
+
+  describe('admin role protection', () => {
+    const adminRoleId = 'admin-role-id';
+
+    it('should throw ForbiddenException when creating user with Admin role without permission', async () => {
+      prisma.baseClient.user.findUnique.mockResolvedValueOnce(null);
+      prisma.baseClient.role.findFirst.mockResolvedValue({ id: adminRoleId });
+      permissionResolver.hasPermission.mockResolvedValue(false);
+
+      await expect(
+        service.create(
+          {
+            email: 'new@example.com',
+            full_name: 'New Admin',
+            password: 'Test1234',
+            roleIds: [adminRoleId],
+          },
+          'actor-1',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow creating user with Admin role when actor has permission', async () => {
+      prisma.baseClient.user.findUnique.mockResolvedValueOnce(null);
+      prisma.baseClient.role.findFirst.mockResolvedValue({ id: adminRoleId });
+      permissionResolver.hasPermission.mockResolvedValue(true);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+
+      await service.create(
+        {
+          email: 'new@example.com',
+          full_name: 'New Admin',
+          password: 'Test1234',
+          roleIds: [adminRoleId],
+        },
+        'actor-1',
+      );
+
+      expect(prisma.transaction).toHaveBeenCalled();
+    });
+
+    it('should skip admin check when no Admin role in roleIds', async () => {
+      prisma.baseClient.user.findUnique.mockResolvedValueOnce(null);
+      prisma.baseClient.role.findFirst.mockResolvedValue(null); // no Admin role found
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+
+      await service.create(
+        {
+          email: 'new@example.com',
+          full_name: 'New User',
+          password: 'Test1234',
+          roleIds: ['doctor-role-id'],
+        },
+        'actor-1',
+      );
+
+      expect(permissionResolver.hasPermission).not.toHaveBeenCalled();
+    });
+
+    it('should throw ForbiddenException when assigning Admin role without permission', async () => {
+      prisma.baseClient.role.findMany.mockResolvedValue([
+        { id: adminRoleId, name: 'Admin' },
+      ]);
+      permissionResolver.hasPermission.mockResolvedValue(false);
+
+      await expect(
+        service.assignRoles('user-1', { roleIds: [adminRoleId] }, 'actor-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ForbiddenException when removing Admin role without permission', async () => {
+      prisma.baseClient.role.findFirst.mockResolvedValue({ id: adminRoleId });
+      permissionResolver.hasPermission.mockResolvedValue(false);
+
+      await expect(
+        service.removeRoles('user-1', { roleIds: [adminRoleId] }, 'actor-1'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

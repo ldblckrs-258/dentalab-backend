@@ -1,27 +1,32 @@
 import {
+  BCRYPT_ROUNDS,
+  CACHE_DOMAIN_AUTH,
+  CACHE_KEY_BLACKLIST,
+  SYSTEM_ROLE_ADMIN,
+} from '@common/constants';
+import { activeOverrideWhere, OVERRIDE_SELECT } from '@common/utils';
+import { PrismaService } from '@modules/database';
+import { buildPaginatedResponse, buildPrismaQuery } from '@modules/pagination';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
+import type {
+  EmailSendWelcomePayload,
+  EventPayload,
+} from '@modules/queue/interfaces';
+import { PermissionResolverService } from '@modules/rbac';
+import { CacheService } from '@modules/redis';
+import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { PrismaService } from '@modules/database';
-import { CacheService } from '@modules/redis';
-import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
-import type { EmailSendWelcomePayload } from '@modules/queue/interfaces';
-import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
-import { PermissionResolverService } from '@modules/rbac';
-import {
-  BCRYPT_ROUNDS,
-  CACHE_DOMAIN_AUTH,
-  CACHE_KEY_BLACKLIST,
-} from '@common/constants';
-import { activeOverrideWhere, OVERRIDE_SELECT } from '@common/utils';
-import type { UserQueryDto } from './dto/user-query.dto';
-import type { CreateUserDto } from './dto/create-user.dto';
-import type { UpdateUserDto } from './dto/update-user.dto';
-import type { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import type { AssignRolesDto } from './dto/assign-roles.dto';
+import type { CreateUserDto } from './dto/create-user.dto';
+import type { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import type { UpdateUserDto } from './dto/update-user.dto';
+import type { UserQueryDto } from './dto/user-query.dto';
 
 const USER_SELECT = {
   id: true,
@@ -109,7 +114,38 @@ export class UserService {
     return { ...flattenUserRoles(user), overrides };
   }
 
-  async create(dto: CreateUserDto) {
+  private async assertCanManageAdminRole(
+    roleIds: string[],
+    actorUserId: string,
+    requiredPermission: string,
+  ): Promise<void> {
+    const adminRole = await this.prisma.baseClient.role.findFirst({
+      where: { name: SYSTEM_ROLE_ADMIN, id: { in: roleIds } },
+      select: { id: true },
+    });
+
+    if (adminRole) {
+      const canManageAdmin = await this.permissionResolver.hasPermission(
+        actorUserId,
+        requiredPermission,
+      );
+      if (!canManageAdmin) {
+        throw new ForbiddenException(
+          'You do not have permission to manage the Admin role',
+        );
+      }
+    }
+  }
+
+  async create(dto: CreateUserDto, actorUserId: string) {
+    if (dto.roleIds?.length) {
+      await this.assertCanManageAdminRole(
+        dto.roleIds,
+        actorUserId,
+        'users:create:admin',
+      );
+    }
+
     const existing = await this.prisma.baseClient.user.findUnique({
       where: { email: dto.email },
       select: { id: true },
@@ -153,7 +189,10 @@ export class UserService {
       fullName: dto.full_name,
       temporaryPassword: dto.password,
     };
-    this.queueProducer.publish(ROUTING_KEY.EMAIL_SEND_WELCOME, welcomePayload);
+    this.queueProducer.publish(
+      ROUTING_KEY.EMAIL_SEND_WELCOME as string,
+      welcomePayload as EventPayload,
+    );
 
     return flattenUserRoles(user);
   }
@@ -211,13 +250,25 @@ export class UserService {
     return updated;
   }
 
-  async assignRoles(id: string, dto: AssignRolesDto) {
+  async assignRoles(id: string, dto: AssignRolesDto, actorUserId: string) {
     const existingRoles = await this.prisma.baseClient.role.findMany({
       where: { id: { in: dto.roleIds } },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     if (existingRoles.length !== dto.roleIds.length) {
       throw new BadRequestException('One or more role IDs are invalid');
+    }
+
+    if (existingRoles.some((r) => r.name === SYSTEM_ROLE_ADMIN)) {
+      const canManageAdmin = await this.permissionResolver.hasPermission(
+        actorUserId,
+        'users:update:admin',
+      );
+      if (!canManageAdmin) {
+        throw new ForbiddenException(
+          'You do not have permission to manage the Admin role',
+        );
+      }
     }
 
     await this.prisma.baseClient.userRole.createMany({
@@ -233,7 +284,13 @@ export class UserService {
     return { message: 'Roles assigned' };
   }
 
-  async removeRoles(id: string, dto: AssignRolesDto) {
+  async removeRoles(id: string, dto: AssignRolesDto, actorUserId: string) {
+    await this.assertCanManageAdminRole(
+      dto.roleIds,
+      actorUserId,
+      'users:update:admin',
+    );
+
     await this.prisma.baseClient.userRole.deleteMany({
       where: {
         user_id: id,

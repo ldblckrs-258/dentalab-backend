@@ -1,31 +1,31 @@
 import {
+  BCRYPT_ROUNDS,
+  CACHE_DOMAIN_AUTH,
+  CACHE_KEY_BLACKLIST,
+  CACHE_KEY_LOGIN_ATTEMPTS,
+  REFRESH_TOKEN_BYTES,
+} from '@common/constants';
+import type { JwtPayload } from '@common/interfaces';
+import { hashToken } from '@common/utils';
+import { AppConfigService } from '@modules/config';
+import { PrismaService } from '@modules/database';
+import type { EmailSendResetPasswordPayload } from '@modules/queue';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
+import { CacheService } from '@modules/redis';
+import {
+  ForbiddenException,
   HttpException,
   HttpStatus,
   Injectable,
   UnauthorizedException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { PrismaService } from '@modules/database';
-import { AppConfigService } from '@modules/config';
-import { CacheService } from '@modules/redis';
-import {
-  CACHE_DOMAIN_AUTH,
-  CACHE_KEY_BLACKLIST,
-  CACHE_KEY_LOGIN_ATTEMPTS,
-  BCRYPT_ROUNDS,
-  REFRESH_TOKEN_BYTES,
-} from '@common/constants';
-import { hashToken } from '@common/utils';
-import type { JwtPayload } from '@common/interfaces';
-import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
-import type { EmailSendResetPasswordPayload } from '@modules/queue';
-import type { LoginDto } from './dto/login.dto';
-import type { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { ForgotPasswordDto } from './dto/forgot-password.dto';
+import type { LoginDto } from './dto/login.dto';
+import type { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { ResetPasswordDto } from './dto/reset-password.dto';
 
 // Fields needed when returning user info from auth endpoints
@@ -349,7 +349,9 @@ export class AuthService {
             include: {
               role_permissions: {
                 include: {
-                  permission: { select: { resource: true, action: true } },
+                  permission: {
+                    select: { resource: true, action: true, scope: true },
+                  },
                 },
               },
             },
@@ -362,18 +364,33 @@ export class AuthService {
           is_active: true,
           OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
         },
-        include: { permission: { select: { resource: true, action: true } } },
+        include: {
+          permission: {
+            select: { resource: true, action: true, scope: true },
+          },
+        },
       }),
     ]);
+
+    const buildKey = (p: {
+      resource: string;
+      action: string;
+      scope?: string | null;
+    }) =>
+      p.scope
+        ? `${p.resource}:${p.action}:${p.scope}`
+        : `${p.resource}:${p.action}`;
 
     const permSet = new Set<string>();
     for (const ur of userRoles) {
       for (const rp of ur.role.role_permissions) {
-        permSet.add(`${rp.permission.resource}:${rp.permission.action}`);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        permSet.add(buildKey(rp.permission));
       }
     }
     for (const o of overrides) {
-      const key = `${o.permission.resource}:${o.permission.action}`;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const key = buildKey(o.permission);
       if (o.grant_type === 'deny') permSet.delete(key);
       else if (o.grant_type === 'grant') permSet.add(key);
     }

@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { CACHE_DOMAIN_RBAC, PERMISSION_CACHE_TTL } from '@common/constants';
 import { PrismaService } from '@modules/database';
 import { CacheService } from '@modules/redis';
-import { CACHE_DOMAIN_RBAC, PERMISSION_CACHE_TTL } from '@common/constants';
+import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class PermissionResolverService {
@@ -9,6 +9,16 @@ export class PermissionResolverService {
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
   ) {}
+
+  private buildPermissionKey(p: {
+    resource: string;
+    action: string;
+    scope?: string | null;
+  }): string {
+    return p.scope
+      ? `${p.resource}:${p.action}:${p.scope}`
+      : `${p.resource}:${p.action}`;
+  }
 
   async resolvePermissions(userId: string): Promise<string[]> {
     const cached = await this.cacheService.get<string[]>(
@@ -26,7 +36,9 @@ export class PermissionResolverService {
             include: {
               role_permissions: {
                 include: {
-                  permission: { select: { resource: true, action: true } },
+                  permission: {
+                    select: { resource: true, action: true, scope: true },
+                  },
                 },
               },
             },
@@ -39,19 +51,25 @@ export class PermissionResolverService {
           is_active: true,
           OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
         },
-        include: { permission: { select: { resource: true, action: true } } },
+        include: {
+          permission: {
+            select: { resource: true, action: true, scope: true },
+          },
+        },
       }),
     ]);
 
     const permissionSet = new Set<string>();
     for (const ur of userRoles) {
       for (const rp of ur.role.role_permissions) {
-        permissionSet.add(`${rp.permission.resource}:${rp.permission.action}`);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        permissionSet.add(this.buildPermissionKey(rp.permission));
       }
     }
 
     for (const override of overrides) {
-      const permKey = `${override.permission.resource}:${override.permission.action}`;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      const permKey = this.buildPermissionKey(override.permission);
       if (override.grant_type === 'deny') {
         permissionSet.delete(permKey);
       } else if (override.grant_type === 'grant') {

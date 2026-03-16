@@ -12,5 +12,7 @@ export const OVERRIDE_SELECT = {
   reason: true,
   expires_at: true,
   created_at: true,
-  permission: { select: { id: true, resource: true, action: true } },
+  permission: {
+    select: { id: true, resource: true, action: true, scope: true },
+  },
 } as const;

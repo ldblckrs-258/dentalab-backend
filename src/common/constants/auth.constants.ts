@@ -22,6 +22,12 @@ export const REFRESH_TOKEN_COOKIE = 'refresh_token';
 export const BCRYPT_ROUNDS = 10;
 export const PASSWORD_MIN_LENGTH = 8;
 
+// Ownership
+export const OWNERSHIP_KEY = 'ownership';
+
+// System roles
+export const SYSTEM_ROLE_ADMIN = 'Admin';
+
 // Kiosk session statuses
 export const KIOSK_STATUS_ACTIVE = 'active';
 export const KIOSK_STATUS_COMPLETED = 'completed';

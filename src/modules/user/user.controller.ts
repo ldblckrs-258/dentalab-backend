@@ -8,7 +8,8 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { RequirePermissions, Audited } from '@common/decorators';
+import { RequirePermissions, Audited, CurrentUser } from '@common/decorators';
+import type { AuthenticatedUser } from '@common/interfaces';
 import { UserService } from './user.service';
 import { UserQueryDto } from './dto/user-query.dto';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -35,8 +36,11 @@ export class UserController {
   @Post()
   @RequirePermissions('users:create')
   @Audited('user')
-  async create(@Body() dto: CreateUserDto) {
-    return this.userService.create(dto);
+  async create(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ) {
+    return this.userService.create(dto, currentUser.id);
   }
 
   @Patch(':id')
@@ -59,14 +63,22 @@ export class UserController {
   @Post(':id/roles')
   @RequirePermissions('users:update')
   @Audited('user')
-  async assignRoles(@Param('id') id: string, @Body() dto: AssignRolesDto) {
-    return this.userService.assignRoles(id, dto);
+  async assignRoles(
+    @Param('id') id: string,
+    @Body() dto: AssignRolesDto,
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ) {
+    return this.userService.assignRoles(id, dto, currentUser.id);
   }
 
   @Delete(':id/roles')
   @RequirePermissions('users:update')
   @Audited('user')
-  async removeRoles(@Param('id') id: string, @Body() dto: AssignRolesDto) {
-    return this.userService.removeRoles(id, dto);
+  async removeRoles(
+    @Param('id') id: string,
+    @Body() dto: AssignRolesDto,
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ) {
+    return this.userService.removeRoles(id, dto, currentUser.id);
   }
 }
