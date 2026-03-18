@@ -6,12 +6,15 @@ import {
 } from '@nestjs/common';
 import { KioskService } from './kiosk.service';
 import { PrismaService } from '@modules/database';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('KioskService', () => {
   let service: KioskService;
   let prisma: any;
 
   beforeEach(async () => {
+    mockI18nContext();
+
     prisma = {
       baseClient: {
         patient: { findFirst: jest.fn() },
@@ -141,7 +144,7 @@ describe('KioskService', () => {
       prisma.baseClient.kioskSession.update.mockResolvedValue({});
 
       const result = await service.closeSession('session-1');
-      expect(result.message).toBe('Session closed');
+      expect(result.message).toBe('kiosk.session_closed');
       expect(prisma.baseClient.kioskSession.update).toHaveBeenCalledWith({
         where: { id: 'session-1' },
         data: { status: 'completed', closed_at: expect.any(Date) },

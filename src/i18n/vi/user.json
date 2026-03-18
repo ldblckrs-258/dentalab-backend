@@ -1,0 +1,8 @@
+{
+  "email_in_use": "Email đã được sử dụng",
+  "cannot_manage_admin_role": "Bạn không có quyền quản lý vai trò Admin",
+  "invalid_role_ids": "Một hoặc nhiều ID vai trò không hợp lệ",
+  "roles_assigned": "Đã gán vai trò",
+  "roles_removed": "Đã xóa vai trò",
+  "language_updated": "Đã cập nhật ngôn ngữ ưu tiên"
+}

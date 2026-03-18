@@ -2,12 +2,14 @@ import { of } from 'rxjs';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ResponseInterceptor } from './response.interceptor';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('ResponseInterceptor', () => {
-  let interceptor: ResponseInterceptor<unknown>;
+  let interceptor: ResponseInterceptor;
   let reflector: Reflector;
 
   beforeEach(() => {
+    mockI18nContext();
     reflector = new Reflector();
     interceptor = new ResponseInterceptor(reflector);
   });
@@ -32,8 +34,9 @@ describe('ResponseInterceptor', () => {
       .intercept(context, next)
       .subscribe((result: Record<string, unknown>) => {
         expect(result.statusCode).toBe(200);
-        expect(result.message).toBe('Success');
+        expect(result.message).toBe('common.success');
         expect(result.data).toEqual({ id: 1, name: 'test' });
+        expect(result.lang).toBe('en');
         expect(result.timestamp).toBeDefined();
         done();
       });

@@ -8,6 +8,7 @@ import {
   Matches,
   MinLength,
 } from 'class-validator';
+import { i18nValidationMessage } from 'nestjs-i18n';
 import { PASSWORD_MIN_LENGTH } from '@common/constants';
 
 export class CreateUserDto {
@@ -25,8 +26,7 @@ export class CreateUserDto {
   @IsString()
   @MinLength(PASSWORD_MIN_LENGTH)
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
-    message:
-      'Password must contain at least one lowercase, one uppercase and one digit',
+    message: i18nValidationMessage('validation.password_requirements'),
   })
   password: string;
 

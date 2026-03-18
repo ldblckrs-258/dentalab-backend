@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
 import { GlobalExceptionFilter } from './global-exception.filter';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('GlobalExceptionFilter', () => {
   let filter: GlobalExceptionFilter;
@@ -9,6 +10,7 @@ describe('GlobalExceptionFilter', () => {
   let mockHost: ArgumentsHost;
 
   beforeEach(() => {
+    mockI18nContext();
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
@@ -35,7 +37,8 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
           statusCode: 400,
-          errorCode: 'BAD_REQUEST',
+          errorCode: 'COMMON_BAD_REQUEST',
+          lang: 'en',
         }),
       );
     });
@@ -44,7 +47,10 @@ describe('GlobalExceptionFilter', () => {
       filter.catch(new NotFoundException('Not found'), mockHost);
       expect(mockResponse.status).toHaveBeenCalledWith(404);
       expect(mockResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ errorCode: 'NOT_FOUND' }),
+        expect.objectContaining({
+          errorCode: 'COMMON_NOT_FOUND',
+          lang: 'en',
+        }),
       );
     });
 
@@ -55,8 +61,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(409);
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          errorCode: 'UNIQUE_CONSTRAINT_VIOLATION',
+          errorCode: 'COMMON_RESOURCE_ALREADY_EXISTS',
+          message: 'exception.resource_already_exists',
           details: { target: ['email'] },
+          lang: 'en',
         }),
       );
     });
@@ -65,7 +73,11 @@ describe('GlobalExceptionFilter', () => {
       filter.catch({ code: 'P2025' }, mockHost);
       expect(mockResponse.status).toHaveBeenCalledWith(404);
       expect(mockResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ errorCode: 'NOT_FOUND' }),
+        expect.objectContaining({
+          errorCode: 'COMMON_RESOURCE_NOT_FOUND',
+          message: 'exception.resource_not_found',
+          lang: 'en',
+        }),
       );
     });
 
@@ -73,7 +85,10 @@ describe('GlobalExceptionFilter', () => {
       filter.catch({ code: 'P2003' }, mockHost);
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith(
-        expect.objectContaining({ errorCode: 'FOREIGN_KEY_CONSTRAINT' }),
+        expect.objectContaining({
+          errorCode: 'COMMON_RELATED_RESOURCE_NOT_FOUND',
+          lang: 'en',
+        }),
       );
     });
 
@@ -87,8 +102,10 @@ describe('GlobalExceptionFilter', () => {
       expect(mockResponse.status).toHaveBeenCalledWith(500);
       expect(mockResponse.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          errorCode: 'INTERNAL_SERVER_ERROR',
+          errorCode: 'COMMON_INTERNAL_ERROR',
+          message: 'exception.unexpected_error',
           details: 'something broke',
+          lang: 'en',
         }),
       );
     });

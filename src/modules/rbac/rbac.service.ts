@@ -10,7 +10,7 @@ import {
   buildPrismaQuery,
   buildPaginatedResponse,
 } from '@modules/pagination';
-import { activeOverrideWhere, OVERRIDE_SELECT } from '@common/utils';
+import { activeOverrideWhere, OVERRIDE_SELECT, t } from '@common/utils';
 import { PermissionResolverService } from './services/permission-resolver.service';
 import type { CreateRoleDto } from './dto/create-role.dto';
 import type { UpdateRoleDto } from './dto/update-role.dto';
@@ -63,7 +63,8 @@ export class RbacService {
         _count: { select: { user_roles: true } },
       },
     });
-    if (!role) throw new NotFoundException('Role not found');
+    if (!role)
+      throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
     const { role_permissions, _count, ...rest } = role;
     return {
@@ -87,11 +88,14 @@ export class RbacService {
     const role = await this.prisma.baseClient.role.findUnique({
       where: { id },
     });
-    if (!role) throw new NotFoundException('Role not found');
+    if (!role)
+      throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
     // System roles: only description can be changed
     if (role.is_system && dto.name && dto.name !== role.name) {
-      throw new ForbiddenException('Cannot rename a system role');
+      throw new ForbiddenException(
+        t('rbac.cannot_rename_system_role', 'Cannot rename a system role'),
+      );
     }
 
     return this.prisma.baseClient.role.update({
@@ -108,18 +112,26 @@ export class RbacService {
       where: { id },
       include: { _count: { select: { user_roles: true } } },
     });
-    if (!role) throw new NotFoundException('Role not found');
+    if (!role)
+      throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
     if (role.is_system) {
-      throw new ForbiddenException('Cannot delete a system role');
+      throw new ForbiddenException(
+        t('rbac.cannot_delete_system_role', 'Cannot delete a system role'),
+      );
     }
     if (role._count.user_roles > 0) {
       throw new BadRequestException(
-        'Cannot delete role with assigned users. Remove users from this role first.',
+        t(
+          'rbac.cannot_delete_role_with_users',
+          'Cannot delete role with assigned users. Remove users from this role first.',
+        ),
       );
     }
 
     await this.prisma.baseClient.role.delete({ where: { id } });
-    return { message: 'Role deleted' };
+    return {
+      message: t('rbac.role_deleted', 'Role deleted'),
+    };
   }
 
   // ── Permissions ──
@@ -154,7 +166,8 @@ export class RbacService {
     const role = await this.prisma.baseClient.role.findUnique({
       where: { id: roleId },
     });
-    if (!role) throw new NotFoundException('Role not found');
+    if (!role)
+      throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
     await this.prisma.baseClient.rolePermission.createMany({
       data: dto.permissionIds.map((permissionId) => ({
@@ -167,14 +180,17 @@ export class RbacService {
     // Invalidate cache for all users with this role
     await this.permissionResolver.invalidateCacheForRole(roleId);
 
-    return { message: 'Permissions assigned' };
+    return {
+      message: t('rbac.permissions_assigned', 'Permissions assigned'),
+    };
   }
 
   async revokePermissionsFromRole(roleId: string, dto: AssignPermissionsDto) {
     const role = await this.prisma.baseClient.role.findUnique({
       where: { id: roleId },
     });
-    if (!role) throw new NotFoundException('Role not found');
+    if (!role)
+      throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
     await this.prisma.baseClient.rolePermission.deleteMany({
       where: {
@@ -185,7 +201,9 @@ export class RbacService {
 
     await this.permissionResolver.invalidateCacheForRole(roleId);
 
-    return { message: 'Permissions revoked' };
+    return {
+      message: t('rbac.permissions_revoked', 'Permissions revoked'),
+    };
   }
 
   // ── User Permission Overrides ──
@@ -227,7 +245,10 @@ export class RbacService {
       await this.prisma.baseClient.userPermissionOverride.findUnique({
         where: { id: overrideId },
       });
-    if (!override) throw new NotFoundException('Override not found');
+    if (!override)
+      throw new NotFoundException(
+        t('rbac.override_not_found', 'Override not found'),
+      );
 
     await this.prisma.baseClient.userPermissionOverride.update({
       where: { id: overrideId },
@@ -240,6 +261,8 @@ export class RbacService {
 
     await this.permissionResolver.invalidateCache(override.user_id);
 
-    return { message: 'Override revoked' };
+    return {
+      message: t('rbac.override_revoked', 'Override revoked'),
+    };
   }
 }

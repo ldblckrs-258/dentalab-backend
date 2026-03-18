@@ -1,0 +1,7 @@
+{
+  "log_not_found": "Email log not found",
+  "can_only_resend_failed": "Can only resend failed or bounced emails",
+  "template_not_found": "Email template not found",
+  "cannot_delete_system_template": "System templates cannot be deleted",
+  "template_deleted": "Email template deleted"
+}

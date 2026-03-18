@@ -1,20 +1,29 @@
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionGuard } from './permission.guard';
+import type { PermissionResolverService } from '../services/permission-resolver.service';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('PermissionGuard', () => {
   let guard: PermissionGuard;
   let reflector: Reflector;
 
-  let permissionResolver: any;
+  let permissionResolver: {
+    hasAllPermissions: jest.Mock;
+    hasAnyPermission: jest.Mock;
+  };
 
   beforeEach(() => {
+    mockI18nContext();
     reflector = new Reflector();
     permissionResolver = {
       hasAllPermissions: jest.fn(),
       hasAnyPermission: jest.fn(),
     };
-    guard = new PermissionGuard(reflector, permissionResolver);
+    guard = new PermissionGuard(
+      reflector,
+      permissionResolver as unknown as PermissionResolverService,
+    );
   });
 
   function createMockContext(overrides: {

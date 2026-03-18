@@ -62,13 +62,11 @@ export class PermissionResolverService {
     const permissionSet = new Set<string>();
     for (const ur of userRoles) {
       for (const rp of ur.role.role_permissions) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         permissionSet.add(this.buildPermissionKey(rp.permission));
       }
     }
 
     for (const override of overrides) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       const permKey = this.buildPermissionKey(override.permission);
       if (override.grant_type === 'deny') {
         permissionSet.delete(permKey);

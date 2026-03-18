@@ -1,0 +1,8 @@
+{
+  "resource_already_exists": "Tài nguyên đã tồn tại",
+  "resource_not_found": "Không tìm thấy tài nguyên",
+  "related_resource_not_found": "Không tìm thấy tài nguyên liên quan",
+  "invalid_input": "Giá trị đầu vào không hợp lệ",
+  "database_timeout": "Kết nối cơ sở dữ liệu đã hết thời gian",
+  "unexpected_error": "Đã xảy ra lỗi không mong muốn"
+}

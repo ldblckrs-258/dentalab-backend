@@ -11,6 +11,7 @@ import { PrismaService } from '@modules/database';
 import { CacheService } from '@modules/redis';
 import { PermissionResolverService } from '@modules/rbac';
 import { QueueProducerService } from '@modules/queue';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(),
@@ -36,6 +37,8 @@ describe('UserService', () => {
   const mockUserWithRoles = { ...mockUser, user_roles: [] };
 
   beforeEach(async () => {
+    mockI18nContext();
+
     prisma = {
       baseClient: {
         user: {

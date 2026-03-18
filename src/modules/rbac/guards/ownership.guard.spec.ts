@@ -1,26 +1,32 @@
 import { Test } from '@nestjs/testing';
+import type { ExecutionContext } from '@nestjs/common';
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { OwnershipGuard } from './ownership.guard';
 import { PrismaService } from '@modules/database';
 import { PermissionResolverService } from '../services/permission-resolver.service';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
-function createMockContext(params: Record<string, string>, user?: any) {
+function createMockContext(
+  params: Record<string, string>,
+  user?: { id: string },
+): ExecutionContext {
   return {
     getHandler: () => ({}),
     switchToHttp: () => ({
       getRequest: () => ({ params, user }),
     }),
-  } as any;
+  } as unknown as ExecutionContext;
 }
 
 describe('OwnershipGuard', () => {
   let guard: OwnershipGuard;
-  let reflector: any;
-  let prisma: any;
-  let permissionResolver: any;
+  let reflector: { get: jest.Mock };
+  let prisma: { baseClient: Record<string, Record<string, jest.Mock>> };
+  let permissionResolver: { hasPermission: jest.Mock };
 
   beforeEach(async () => {
+    mockI18nContext();
     reflector = { get: jest.fn() };
 
     prisma = {

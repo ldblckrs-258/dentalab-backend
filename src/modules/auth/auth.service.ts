@@ -6,7 +6,7 @@ import {
   REFRESH_TOKEN_BYTES,
 } from '@common/constants';
 import type { JwtPayload } from '@common/interfaces';
-import { hashToken } from '@common/utils';
+import { hashToken, t } from '@common/utils';
 import { AppConfigService } from '@modules/config';
 import { PrismaService } from '@modules/database';
 import type { EmailSendResetPasswordPayload } from '@modules/queue';
@@ -62,7 +62,10 @@ export class AuthService {
       currentAttempts >= this.config.app.MAX_LOGIN_ATTEMPTS
     ) {
       throw new HttpException(
-        'Account temporarily locked. Please try again later.',
+        t(
+          'auth.account_locked',
+          'Account temporarily locked. Please try again later.',
+        ),
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
@@ -78,11 +81,15 @@ export class AuthService {
         lockoutKey,
         lockoutDurationSeconds,
       );
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        t('auth.invalid_credentials', 'Invalid credentials'),
+      );
     }
 
     if (!user.is_active) {
-      throw new ForbiddenException('Account is deactivated');
+      throw new ForbiddenException(
+        t('auth.account_deactivated', 'Account is deactivated'),
+      );
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -95,7 +102,9 @@ export class AuthService {
         lockoutKey,
         lockoutDurationSeconds,
       );
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(
+        t('auth.invalid_credentials', 'Invalid credentials'),
+      );
     }
 
     // Reset counter on successful login
@@ -125,7 +134,9 @@ export class AuthService {
       `${CACHE_KEY_BLACKLIST}:${tokenHash}`,
     );
     if (isBlacklisted) {
-      throw new UnauthorizedException('Token has been revoked');
+      throw new UnauthorizedException(
+        t('auth.token_revoked', 'Token has been revoked'),
+      );
     }
 
     // Find token in DB with only needed user fields
@@ -142,7 +153,9 @@ export class AuthService {
     });
 
     if (!storedToken || !storedToken.user.is_active) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new UnauthorizedException(
+        t('auth.refresh_token_invalid', 'Invalid or expired refresh token'),
+      );
     }
 
     // Blacklist old token + delete from DB in parallel
@@ -209,7 +222,9 @@ export class AuthService {
     ]);
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException(
+        t('common.user_not_found', 'User not found'),
+      );
     }
 
     return {
@@ -233,7 +248,9 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException(
+        t('common.user_not_found', 'User not found'),
+      );
     }
 
     const isCurrentValid = await bcrypt.compare(
@@ -241,7 +258,9 @@ export class AuthService {
       user.password_hash,
     );
     if (!isCurrentValid) {
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new UnauthorizedException(
+        t('auth.current_password_incorrect', 'Current password is incorrect'),
+      );
     }
 
     const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
@@ -294,7 +313,9 @@ export class AuthService {
       });
 
     if (!resetToken) {
-      throw new UnauthorizedException('Invalid or expired reset token');
+      throw new UnauthorizedException(
+        t('auth.reset_token_invalid', 'Invalid or expired reset token'),
+      );
     }
 
     const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
@@ -384,12 +405,10 @@ export class AuthService {
     const permSet = new Set<string>();
     for (const ur of userRoles) {
       for (const rp of ur.role.role_permissions) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         permSet.add(buildKey(rp.permission));
       }
     }
     for (const o of overrides) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       const key = buildKey(o.permission);
       if (o.grant_type === 'deny') permSet.delete(key);
       else if (o.grant_type === 'grant') permSet.add(key);

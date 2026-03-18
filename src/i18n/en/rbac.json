@@ -1,0 +1,13 @@
+{
+  "role_not_found": "Role not found",
+  "cannot_rename_system_role": "Cannot rename a system role",
+  "cannot_delete_system_role": "Cannot delete a system role",
+  "cannot_delete_role_with_users": "Cannot delete role with assigned users. Remove users from this role first.",
+  "role_deleted": "Role deleted",
+  "permissions_assigned": "Permissions assigned",
+  "permissions_revoked": "Permissions revoked",
+  "insufficient_permissions": "Insufficient permissions",
+  "own_resources_only": "You can only access your own resources",
+  "override_not_found": "Override not found",
+  "override_revoked": "Override revoked"
+}

@@ -4,7 +4,7 @@ import {
   CACHE_KEY_BLACKLIST,
   SYSTEM_ROLE_ADMIN,
 } from '@common/constants';
-import { activeOverrideWhere, OVERRIDE_SELECT } from '@common/utils';
+import { activeOverrideWhere, OVERRIDE_SELECT, t } from '@common/utils';
 import { PrismaService } from '@modules/database';
 import { buildPaginatedResponse, buildPrismaQuery } from '@modules/pagination';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
@@ -109,7 +109,8 @@ export class UserService {
       }),
     ]);
 
-    if (!user) throw new NotFoundException('User not found');
+    if (!user)
+      throw new NotFoundException(t('common.user_not_found', 'User not found'));
 
     return { ...flattenUserRoles(user), overrides };
   }
@@ -131,7 +132,10 @@ export class UserService {
       );
       if (!canManageAdmin) {
         throw new ForbiddenException(
-          'You do not have permission to manage the Admin role',
+          t(
+            'user.cannot_manage_admin_role',
+            'You do not have permission to manage the Admin role',
+          ),
         );
       }
     }
@@ -151,7 +155,9 @@ export class UserService {
       select: { id: true },
     });
     if (existing) {
-      throw new ConflictException('Email already in use');
+      throw new ConflictException(
+        t('user.email_in_use', 'Email already in use'),
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
@@ -256,7 +262,9 @@ export class UserService {
       select: { id: true, name: true },
     });
     if (existingRoles.length !== dto.roleIds.length) {
-      throw new BadRequestException('One or more role IDs are invalid');
+      throw new BadRequestException(
+        t('user.invalid_role_ids', 'One or more role IDs are invalid'),
+      );
     }
 
     if (existingRoles.some((r) => r.name === SYSTEM_ROLE_ADMIN)) {
@@ -266,7 +274,10 @@ export class UserService {
       );
       if (!canManageAdmin) {
         throw new ForbiddenException(
-          'You do not have permission to manage the Admin role',
+          t(
+            'user.cannot_manage_admin_role',
+            'You do not have permission to manage the Admin role',
+          ),
         );
       }
     }
@@ -281,7 +292,7 @@ export class UserService {
 
     await this.permissionResolver.invalidateCache(id);
 
-    return { message: 'Roles assigned' };
+    return { message: t('user.roles_assigned', 'Roles assigned') };
   }
 
   async removeRoles(id: string, dto: AssignRolesDto, actorUserId: string) {
@@ -300,6 +311,16 @@ export class UserService {
 
     await this.permissionResolver.invalidateCache(id);
 
-    return { message: 'Roles removed' };
+    return { message: t('user.roles_removed', 'Roles removed') };
+  }
+
+  async updateLanguage(userId: string, language: string) {
+    await this.prisma.client.user.update({
+      where: { id: userId },
+      data: { preferred_language: language },
+    });
+    return {
+      message: t('user.language_updated', 'Language preference updated'),
+    };
   }
 }

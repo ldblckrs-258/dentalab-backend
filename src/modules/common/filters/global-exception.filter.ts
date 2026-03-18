@@ -7,49 +7,56 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { I18nContext } from 'nestjs-i18n';
+import { DEFAULT_LANGUAGE, ErrorCode } from '@common/constants';
 import { InfrastructureException } from './infrastructure.exception';
 
 const HTTP_STATUS_ERROR_CODES: Record<number, string> = {
-  400: 'BAD_REQUEST',
-  401: 'UNAUTHORIZED',
-  403: 'FORBIDDEN',
-  404: 'NOT_FOUND',
-  409: 'CONFLICT',
-  422: 'UNPROCESSABLE_ENTITY',
-  429: 'TOO_MANY_REQUESTS',
-  500: 'INTERNAL_SERVER_ERROR',
-  503: 'SERVICE_UNAVAILABLE',
+  400: ErrorCode.COMMON_BAD_REQUEST,
+  401: ErrorCode.COMMON_UNAUTHORIZED,
+  403: ErrorCode.COMMON_FORBIDDEN,
+  404: ErrorCode.COMMON_NOT_FOUND,
+  409: ErrorCode.COMMON_CONFLICT,
+  422: ErrorCode.COMMON_UNPROCESSABLE_ENTITY,
+  429: ErrorCode.COMMON_RATE_LIMIT_EXCEEDED,
+  500: ErrorCode.COMMON_INTERNAL_ERROR,
+  503: ErrorCode.COMMON_SERVICE_UNAVAILABLE,
 };
 
 // Prisma error codes
 const PRISMA_ERROR_MAP: Record<
   string,
-  { status: number; errorCode: string; message: string }
+  { status: number; errorCode: string; messageKey: string; fallback: string }
 > = {
   P2002: {
     status: HttpStatus.CONFLICT,
-    errorCode: 'UNIQUE_CONSTRAINT_VIOLATION',
-    message: 'Resource already exists',
+    errorCode: ErrorCode.COMMON_RESOURCE_ALREADY_EXISTS,
+    messageKey: 'exception.resource_already_exists',
+    fallback: 'Resource already exists',
   },
   P2025: {
     status: HttpStatus.NOT_FOUND,
-    errorCode: 'NOT_FOUND',
-    message: 'Resource not found',
+    errorCode: ErrorCode.COMMON_RESOURCE_NOT_FOUND,
+    messageKey: 'exception.resource_not_found',
+    fallback: 'Resource not found',
   },
   P2003: {
     status: HttpStatus.BAD_REQUEST,
-    errorCode: 'FOREIGN_KEY_CONSTRAINT',
-    message: 'Related resource not found',
+    errorCode: ErrorCode.COMMON_RELATED_RESOURCE_NOT_FOUND,
+    messageKey: 'exception.related_resource_not_found',
+    fallback: 'Related resource not found',
   },
   P2023: {
     status: HttpStatus.BAD_REQUEST,
-    errorCode: 'INVALID_INPUT',
-    message: 'Invalid input value',
+    errorCode: ErrorCode.COMMON_INVALID_INPUT,
+    messageKey: 'exception.invalid_input',
+    fallback: 'Invalid input value',
   },
   P2024: {
     status: HttpStatus.SERVICE_UNAVAILABLE,
-    errorCode: 'DATABASE_TIMEOUT',
-    message: 'Database connection timed out',
+    errorCode: ErrorCode.COMMON_DATABASE_TIMEOUT,
+    messageKey: 'exception.database_timeout',
+    fallback: 'Database connection timed out',
   },
 };
 
@@ -63,15 +70,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const i18n = I18nContext.current(host);
 
-    const { statusCode, errorCode, message, details } =
-      this.resolveException(exception);
+    const { statusCode, errorCode, message, details } = this.resolveException(
+      exception,
+      i18n,
+    );
 
     const errorResponse = {
       statusCode,
       errorCode,
       message,
       ...(this.isProduction ? {} : { details }),
+      lang: i18n?.lang ?? DEFAULT_LANGUAGE,
       timestamp: new Date().toISOString(),
       path: request.url,
     };
@@ -90,7 +101,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     response.status(statusCode).json(errorResponse);
   }
 
-  private resolveException(exception: unknown): {
+  private resolveException(
+    exception: unknown,
+    i18n?: I18nContext,
+  ): {
     statusCode: number;
     errorCode: string;
     message: string;
@@ -134,7 +148,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         return {
           statusCode: mapped.status,
           errorCode: mapped.errorCode,
-          message: mapped.message,
+          message: i18n?.t(mapped.messageKey) ?? mapped.fallback,
           details: this.isProduction ? undefined : (exception as any).meta,
         };
       }
@@ -143,8 +157,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // Unknown errors
     return {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      errorCode: 'INTERNAL_SERVER_ERROR',
-      message: 'An unexpected error occurred',
+      errorCode: ErrorCode.COMMON_INTERNAL_ERROR,
+      message:
+        i18n?.t('exception.unexpected_error') ?? 'An unexpected error occurred',
       details: exception instanceof Error ? exception.message : undefined,
     };
   }
@@ -160,6 +175,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   }
 
   private httpStatusToErrorCode(status: number): string {
-    return HTTP_STATUS_ERROR_CODES[status] ?? 'UNKNOWN_ERROR';
+    return HTTP_STATUS_ERROR_CODES[status] ?? ErrorCode.COMMON_UNKNOWN_ERROR;
   }
 }

@@ -1,0 +1,8 @@
+{
+  "token_required": "Yêu cầu token kiosk",
+  "token_invalid": "Token kiosk không hợp lệ hoặc đã hết hạn",
+  "patient_not_found": "Không tìm thấy bệnh nhân",
+  "appointment_not_found": "Không tìm thấy lịch hẹn cho bệnh nhân này",
+  "forms_unavailable": "Một hoặc nhiều biểu mẫu không khả dụng cho kiosk",
+  "session_closed": "Đã đóng phiên"
+}

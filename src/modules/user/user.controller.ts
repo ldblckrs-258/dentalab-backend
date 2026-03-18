@@ -16,6 +16,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
+import { UpdateLanguageDto } from './dto/update-language.dto';
 
 @Controller('users')
 export class UserController {
@@ -25,6 +26,15 @@ export class UserController {
   @RequirePermissions('users:read')
   async findAll(@Query() query: UserQueryDto) {
     return this.userService.findAll(query);
+  }
+
+  @Patch('me/language')
+  @Audited('user')
+  async updateLanguage(
+    @Body() dto: UpdateLanguageDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.userService.updateLanguage(userId, dto.language);
   }
 
   @Get(':id')

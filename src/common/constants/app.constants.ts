@@ -26,6 +26,10 @@ export const SENSITIVE_FIELDS = [
   'access_token',
 ];
 
+// i18n
+export const SUPPORTED_LANGUAGES = ['vi', 'en'] as const;
+export const DEFAULT_LANGUAGE = 'vi';
+
 // Soft-deletable models
 export const SOFT_DELETE_MODELS = [
   'User',

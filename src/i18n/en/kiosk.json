@@ -1,0 +1,8 @@
+{
+  "token_required": "Kiosk token is required",
+  "token_invalid": "Invalid or expired kiosk token",
+  "patient_not_found": "Patient not found",
+  "appointment_not_found": "Appointment not found for this patient",
+  "forms_unavailable": "One or more forms are not available for kiosk use",
+  "session_closed": "Session closed"
+}

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import { KIOSK_STATUS_ACTIVE } from '@common/constants';
-import { hashToken } from '@common/utils';
+import { hashToken, t } from '@common/utils';
 
 @Injectable()
 export class KioskAuthGuard implements CanActivate {
@@ -17,7 +17,9 @@ export class KioskAuthGuard implements CanActivate {
     const token = request.headers['x-kiosk-token'] as string | undefined;
 
     if (!token) {
-      throw new UnauthorizedException('Kiosk token is required');
+      throw new UnauthorizedException(
+        t('kiosk.token_required', 'Kiosk token is required'),
+      );
     }
 
     const tokenHash = hashToken(token);
@@ -31,7 +33,9 @@ export class KioskAuthGuard implements CanActivate {
     });
 
     if (!session) {
-      throw new UnauthorizedException('Invalid or expired kiosk token');
+      throw new UnauthorizedException(
+        t('kiosk.token_invalid', 'Invalid or expired kiosk token'),
+      );
     }
 
     request.kioskSession = session;

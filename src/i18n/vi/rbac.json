@@ -1,0 +1,13 @@
+{
+  "role_not_found": "Không tìm thấy vai trò",
+  "cannot_rename_system_role": "Không thể đổi tên vai trò hệ thống",
+  "cannot_delete_system_role": "Không thể xóa vai trò hệ thống",
+  "cannot_delete_role_with_users": "Không thể xóa vai trò đã có người dùng. Hãy xóa người dùng khỏi vai trò này trước.",
+  "role_deleted": "Đã xóa vai trò",
+  "permissions_assigned": "Đã gán quyền",
+  "permissions_revoked": "Đã thu hồi quyền",
+  "insufficient_permissions": "Không đủ quyền",
+  "own_resources_only": "Bạn chỉ có thể truy cập tài nguyên của chính mình",
+  "override_not_found": "Không tìm thấy ghi đè quyền",
+  "override_revoked": "Đã thu hồi ghi đè quyền"
+}

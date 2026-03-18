@@ -2,6 +2,7 @@ import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { KioskAuthGuard } from './kiosk-auth.guard';
 import { PrismaService } from '@modules/database';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('KioskAuthGuard', () => {
   let guard: KioskAuthGuard;
@@ -18,6 +19,7 @@ describe('KioskAuthGuard', () => {
   };
 
   beforeEach(async () => {
+    mockI18nContext();
     prisma = {
       baseClient: {
         kioskSession: { findFirst: jest.fn() },

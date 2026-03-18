@@ -12,6 +12,7 @@ import { PrismaService } from '@modules/database';
 import { AppConfigService } from '@modules/config';
 import { CacheService } from '@modules/redis';
 import { QueueProducerService } from '@modules/queue';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 jest.mock('bcrypt', () => ({
   compare: jest.fn(),
@@ -33,6 +34,8 @@ describe('AuthService', () => {
   };
 
   beforeEach(async () => {
+    mockI18nContext();
+
     prisma = {
       client: {
         user: {

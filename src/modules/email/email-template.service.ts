@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
+import { t } from '@common/utils';
 import {
   PaginationQueryDto,
   buildPrismaQuery,
@@ -58,7 +59,10 @@ export class EmailTemplateService {
     const template = await this.prisma.baseClient.emailTemplate.findUnique({
       where: { id },
     });
-    if (!template) throw new NotFoundException('Email template not found');
+    if (!template)
+      throw new NotFoundException(
+        t('email.template_not_found', 'Email template not found'),
+      );
     return template;
   }
 
@@ -82,7 +86,10 @@ export class EmailTemplateService {
     const template = await this.prisma.baseClient.emailTemplate.findUnique({
       where: { id },
     });
-    if (!template) throw new NotFoundException('Email template not found');
+    if (!template)
+      throw new NotFoundException(
+        t('email.template_not_found', 'Email template not found'),
+      );
 
     const data: Record<string, unknown> = {};
 
@@ -109,14 +116,24 @@ export class EmailTemplateService {
     const template = await this.prisma.baseClient.emailTemplate.findUnique({
       where: { id },
     });
-    if (!template) throw new NotFoundException('Email template not found');
+    if (!template)
+      throw new NotFoundException(
+        t('email.template_not_found', 'Email template not found'),
+      );
 
     if (template.is_system) {
-      throw new BadRequestException('System templates cannot be deleted');
+      throw new BadRequestException(
+        t(
+          'email.cannot_delete_system_template',
+          'System templates cannot be deleted',
+        ),
+      );
     }
 
     await this.prisma.baseClient.emailTemplate.delete({ where: { id } });
 
-    return { message: 'Email template deleted' };
+    return {
+      message: t('email.template_deleted', 'Email template deleted'),
+    };
   }
 }

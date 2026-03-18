@@ -11,6 +11,7 @@ import { PrismaService } from '@modules/database';
 import { AppConfigService } from '@modules/config';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { S3_CLIENT } from '@modules/storage/storage.constants';
+import { t } from '@common/utils';
 import { EMAIL_PROVIDER, EMAIL_STATUS } from './email.constants';
 import { TemplateService } from './template/template.service';
 import type {
@@ -205,11 +206,20 @@ export class EmailService {
       where: { id: emailLogId },
       include: { template: true },
     });
-    if (!log) throw new NotFoundException('Email log not found');
+    if (!log)
+      throw new NotFoundException(
+        t('email.log_not_found', 'Email log not found'),
+      );
     if (
-      ![EMAIL_STATUS.FAILED, EMAIL_STATUS.BOUNCED].includes(log.status as any)
+      log.status !== EMAIL_STATUS.FAILED &&
+      log.status !== EMAIL_STATUS.BOUNCED
     ) {
-      throw new BadRequestException('Can only resend failed or bounced emails');
+      throw new BadRequestException(
+        t(
+          'email.can_only_resend_failed',
+          'Can only resend failed or bounced emails',
+        ),
+      );
     }
 
     return this.sendTemplatedEmail({
@@ -295,7 +305,10 @@ export class EmailService {
         template: { select: { name: true, type: true, subject: true } },
       },
     });
-    if (!log) throw new NotFoundException('Email log not found');
+    if (!log)
+      throw new NotFoundException(
+        t('email.log_not_found', 'Email log not found'),
+      );
     return log;
   }
 

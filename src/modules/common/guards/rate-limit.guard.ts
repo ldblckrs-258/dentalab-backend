@@ -10,9 +10,11 @@ import {
   RATE_LIMIT_KEY,
   DEFAULT_RATE_LIMIT_MAX,
   DEFAULT_RATE_LIMIT_WINDOW,
+  ErrorCode,
 } from '@common/constants';
 import type { RateLimitOptions } from '@common/decorators';
 import { CacheService } from '@modules/redis';
+import { t } from '@common/utils';
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {
@@ -49,8 +51,10 @@ export class RateLimitGuard implements CanActivate {
       throw new HttpException(
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          errorCode: 'TOO_MANY_REQUESTS',
-          message: `Rate limit exceeded. Try again in ${windowSeconds} seconds.`,
+          errorCode: ErrorCode.COMMON_RATE_LIMIT_EXCEEDED,
+          message: t('common.rate_limit_exceeded', 'Rate limit exceeded.', {
+            seconds: windowSeconds,
+          }),
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );

@@ -1,0 +1,8 @@
+{
+  "resource_already_exists": "Resource already exists",
+  "resource_not_found": "Resource not found",
+  "related_resource_not_found": "Related resource not found",
+  "invalid_input": "Invalid input value",
+  "database_timeout": "Database connection timed out",
+  "unexpected_error": "An unexpected error occurred"
+}

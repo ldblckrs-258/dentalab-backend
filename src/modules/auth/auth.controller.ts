@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public, CurrentUser, RateLimit, Audited } from '@common/decorators';
+import { t } from '@common/utils';
 import { REFRESH_TOKEN_COOKIE } from '@common/constants';
 import type { AuthenticatedUser } from '@common/interfaces';
 import { AppConfigService } from '@modules/config';
@@ -53,7 +54,9 @@ export class AuthController {
       | string
       | undefined;
     if (!refreshToken) {
-      throw new UnauthorizedException('Refresh token not found');
+      throw new UnauthorizedException(
+        t('auth.refresh_token_not_found', 'Refresh token not found'),
+      );
     }
 
     const {
@@ -79,7 +82,7 @@ export class AuthController {
       await this.authService.logout(user.id, refreshToken);
     }
     this.clearRefreshTokenCookie(res);
-    return { message: 'Logged out successfully' };
+    return { message: t('auth.logged_out', 'Logged out successfully') };
   }
 
   @Get('me')
@@ -95,7 +98,9 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ) {
     await this.authService.changePassword(user.id, dto);
-    return { message: 'Password changed successfully' };
+    return {
+      message: t('auth.password_changed', 'Password changed successfully'),
+    };
   }
 
   @Post('forgot-password')
@@ -104,7 +109,12 @@ export class AuthController {
   @RateLimit({ limit: 3, windowSeconds: 60, keyExtractor: 'ip+body:email' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.forgotPassword(dto);
-    return { message: 'If the email exists, a reset link has been sent' };
+    return {
+      message: t(
+        'auth.reset_link_sent',
+        'If the email exists, a reset link has been sent',
+      ),
+    };
   }
 
   @Post('reset-password')
@@ -112,7 +122,12 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto);
-    return { message: 'Password has been reset successfully' };
+    return {
+      message: t(
+        'auth.password_reset_success',
+        'Password has been reset successfully',
+      ),
+    };
   }
 
   private setRefreshTokenCookie(

@@ -1,0 +1,7 @@
+{
+  "success": "Thành công",
+  "user_not_found": "Không tìm thấy người dùng",
+  "no_user_context": "Không có ngữ cảnh người dùng",
+  "resource_id_not_found": "Không tìm thấy ID tài nguyên",
+  "rate_limit_exceeded": "Vượt quá giới hạn tốc độ. Vui lòng thử lại sau {seconds} giây."
+}

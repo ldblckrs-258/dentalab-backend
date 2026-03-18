@@ -6,11 +6,13 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Observable, map } from 'rxjs';
-import { SKIP_RESPONSE_WRAP_KEY } from '@common/constants';
+import { DEFAULT_LANGUAGE, SKIP_RESPONSE_WRAP_KEY } from '@common/constants';
+import { I18nContext } from 'nestjs-i18n';
 
 export interface ApiResponse<T> {
   statusCode: number;
   message: string;
+  lang: string;
   data: T | null;
   meta?: unknown;
   timestamp: string;
@@ -33,6 +35,9 @@ export class ResponseInterceptor implements NestInterceptor {
     return next.handle().pipe(
       map((data) => {
         const response = context.switchToHttp().getResponse();
+        const i18n = I18nContext.current();
+        const lang = i18n?.lang ?? DEFAULT_LANGUAGE;
+        const successMessage = i18n?.t('common.success') ?? 'Success';
         const isMessageOnly =
           data &&
           typeof data === 'object' &&
@@ -51,6 +56,7 @@ export class ResponseInterceptor implements NestInterceptor {
           return {
             statusCode: response.statusCode as number,
             message: (data as { message: string }).message,
+            lang,
             data: null,
             timestamp: new Date().toISOString(),
           };
@@ -63,7 +69,8 @@ export class ResponseInterceptor implements NestInterceptor {
           };
           return {
             statusCode: response.statusCode as number,
-            message: 'Success',
+            message: successMessage,
+            lang,
             data: items,
             meta,
             timestamp: new Date().toISOString(),
@@ -72,7 +79,8 @@ export class ResponseInterceptor implements NestInterceptor {
 
         return {
           statusCode: response.statusCode as number,
-          message: 'Success',
+          message: successMessage,
+          lang,
           data,
           timestamp: new Date().toISOString(),
         };

@@ -6,6 +6,7 @@ import { EMAIL_PROVIDER } from './email.constants';
 import { PrismaService } from '@modules/database';
 import { AppConfigService } from '@modules/config';
 import { S3_CLIENT } from '@modules/storage/storage.constants';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 const mockProvider = {
   send: jest.fn(),
@@ -41,6 +42,8 @@ describe('EmailService', () => {
   let service: EmailService;
 
   beforeEach(async () => {
+    mockI18nContext();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailService,

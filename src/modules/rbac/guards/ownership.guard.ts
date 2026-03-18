@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PermissionResolverService } from '../services/permission-resolver.service';
+import { t } from '@common/utils';
 
 @Injectable()
 export class OwnershipGuard implements CanActivate {
@@ -27,7 +28,10 @@ export class OwnershipGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest();
     const userId: string | undefined = request.user?.id;
-    if (!userId) throw new ForbiddenException('No user context');
+    if (!userId)
+      throw new ForbiddenException(
+        t('common.no_user_context', 'No user context'),
+      );
 
     // Check bypass permission first
     if (config.bypassPermission) {
@@ -39,7 +43,10 @@ export class OwnershipGuard implements CanActivate {
     }
 
     const resourceId = request.params[config.paramKey || 'id'] as string;
-    if (!resourceId) throw new ForbiddenException('Resource ID not found');
+    if (!resourceId)
+      throw new ForbiddenException(
+        t('common.resource_id_not_found', 'Resource ID not found'),
+      );
 
     const isOwner =
       'through' in config
@@ -47,7 +54,9 @@ export class OwnershipGuard implements CanActivate {
         : await this.checkDirectOwnership(userId, resourceId, config);
 
     if (!isOwner) {
-      throw new ForbiddenException('You can only access your own resources');
+      throw new ForbiddenException(
+        t('rbac.own_resources_only', 'You can only access your own resources'),
+      );
     }
 
     return true;

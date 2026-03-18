@@ -1,0 +1,8 @@
+{
+  "email_in_use": "Email already in use",
+  "cannot_manage_admin_role": "You do not have permission to manage the Admin role",
+  "invalid_role_ids": "One or more role IDs are invalid",
+  "roles_assigned": "Roles assigned",
+  "roles_removed": "Roles removed",
+  "language_updated": "Language preference updated"
+}

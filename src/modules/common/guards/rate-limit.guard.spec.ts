@@ -3,6 +3,7 @@ import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RateLimitGuard } from './rate-limit.guard';
 import type { CacheService } from '@modules/redis';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('RateLimitGuard', () => {
   let guard: RateLimitGuard;
@@ -10,6 +11,7 @@ describe('RateLimitGuard', () => {
   let cacheService: { increment: jest.Mock };
 
   beforeEach(() => {
+    mockI18nContext();
     reflector = new Reflector();
     cacheService = {
       increment: jest.fn().mockResolvedValue(1),
@@ -76,9 +78,11 @@ describe('RateLimitGuard', () => {
     try {
       await guard.canActivate(ctx);
     } catch (e) {
-      expect((e as HttpException).getStatus()).toBe(
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+      const exc = e as HttpException;
+      expect(exc.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+      const response = exc.getResponse() as Record<string, unknown>;
+      expect(response.message).toBe('common.rate_limit_exceeded');
+      expect(response.errorCode).toBe('COMMON_RATE_LIMIT_EXCEEDED');
     }
   });
 

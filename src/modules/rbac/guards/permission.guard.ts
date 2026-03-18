@@ -11,6 +11,7 @@ import {
   ANY_PERMISSION_KEY,
 } from '@common/constants';
 import { PermissionResolverService } from '../services/permission-resolver.service';
+import { t } from '@common/utils';
 
 @Injectable()
 export class PermissionGuard implements CanActivate {
@@ -45,7 +46,9 @@ export class PermissionGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const userId: string | undefined = request.user?.id;
     if (!userId) {
-      throw new ForbiddenException('No user context');
+      throw new ForbiddenException(
+        t('common.no_user_context', 'No user context'),
+      );
     }
 
     if (requiredAll) {
@@ -54,7 +57,9 @@ export class PermissionGuard implements CanActivate {
         requiredAll,
       );
       if (!hasAll) {
-        throw new ForbiddenException('Insufficient permissions');
+        throw new ForbiddenException(
+          t('rbac.insufficient_permissions', 'Insufficient permissions'),
+        );
       }
     }
 
@@ -64,7 +69,9 @@ export class PermissionGuard implements CanActivate {
         requiredAny,
       );
       if (!hasAny) {
-        throw new ForbiddenException('Insufficient permissions');
+        throw new ForbiddenException(
+          t('rbac.insufficient_permissions', 'Insufficient permissions'),
+        );
       }
     }
 

@@ -7,6 +7,7 @@ import {
 import { RbacService } from './rbac.service';
 import { PrismaService } from '@modules/database';
 import { PermissionResolverService } from './services/permission-resolver.service';
+import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('RbacService', () => {
   let service: RbacService;
@@ -16,6 +17,8 @@ describe('RbacService', () => {
   let permissionResolver: any;
 
   beforeEach(async () => {
+    mockI18nContext();
+
     prisma = {
       baseClient: {
         role: {
@@ -166,7 +169,7 @@ describe('RbacService', () => {
       prisma.baseClient.role.delete.mockResolvedValue({});
 
       const result = await service.deleteRole('r1');
-      expect(result).toEqual({ message: 'Role deleted' });
+      expect(result).toEqual({ message: 'rbac.role_deleted' });
     });
   });
 

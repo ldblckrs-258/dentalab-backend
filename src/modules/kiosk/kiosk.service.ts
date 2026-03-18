@@ -7,7 +7,7 @@ import {
 import * as crypto from 'crypto';
 import { PrismaService } from '@modules/database';
 import { KIOSK_STATUS_ACTIVE, KIOSK_STATUS_COMPLETED } from '@common/constants';
-import { hashToken } from '@common/utils';
+import { hashToken, t } from '@common/utils';
 import type { CreateKioskSessionDto } from './dto/create-kiosk-session.dto';
 import type { AuthenticateKioskDto } from './dto/authenticate-kiosk.dto';
 
@@ -55,14 +55,24 @@ export class KioskService {
     ]);
 
     if (!patient) {
-      throw new NotFoundException('Patient not found');
+      throw new NotFoundException(
+        t('kiosk.patient_not_found', 'Patient not found'),
+      );
     }
     if (dto.appointmentId && !appointment) {
-      throw new BadRequestException('Appointment not found for this patient');
+      throw new BadRequestException(
+        t(
+          'kiosk.appointment_not_found',
+          'Appointment not found for this patient',
+        ),
+      );
     }
     if (forms.length !== dto.formIds.length) {
       throw new BadRequestException(
-        'One or more forms are not available for kiosk use',
+        t(
+          'kiosk.forms_unavailable',
+          'One or more forms are not available for kiosk use',
+        ),
       );
     }
 
@@ -129,7 +139,9 @@ export class KioskService {
     });
 
     if (!session) {
-      throw new UnauthorizedException('Invalid or expired kiosk token');
+      throw new UnauthorizedException(
+        t('kiosk.token_invalid', 'Invalid or expired kiosk token'),
+      );
     }
 
     return {
@@ -160,6 +172,6 @@ export class KioskService {
       },
     });
 
-    return { message: 'Session closed' };
+    return { message: t('kiosk.session_closed', 'Session closed') };
   }
 }
