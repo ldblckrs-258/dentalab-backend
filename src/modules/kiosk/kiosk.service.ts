@@ -1,12 +1,17 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '@modules/database';
-import { KIOSK_STATUS_ACTIVE, KIOSK_STATUS_COMPLETED } from '@common/constants';
+import {
+  KIOSK_STATUS_ACTIVE,
+  KIOSK_STATUS_COMPLETED,
+  KIOSK_STATUS_CLOSED,
+} from '@common/constants';
 import { hashToken, t } from '@common/utils';
 import type { CreateKioskSessionDto } from './dto/create-kiosk-session.dto';
 import type { AuthenticateKioskDto } from './dto/authenticate-kiosk.dto';
@@ -111,7 +116,11 @@ export class KioskService {
     };
   }
 
-  async authenticate(dto: AuthenticateKioskDto) {
+  async authenticate(
+    dto: AuthenticateKioskDto,
+    userAgent?: string,
+    ip?: string,
+  ) {
     const tokenHash = hashToken(dto.token);
 
     const session = await this.prisma.baseClient.kioskSession.findFirst({
@@ -144,6 +153,23 @@ export class KioskService {
       );
     }
 
+    // Device fingerprint validation
+    const fingerprint = hashToken(`${userAgent ?? ''}${ip ?? ''}`);
+    if (!session.device_fingerprint_hash) {
+      // First request — capture fingerprint and IP
+      await this.prisma.baseClient.kioskSession.update({
+        where: { id: session.id },
+        data: {
+          device_fingerprint_hash: fingerprint,
+          initial_ip: ip ?? null,
+        },
+      });
+    } else if (session.device_fingerprint_hash !== fingerprint) {
+      throw new ForbiddenException(
+        t('kiosk.device_mismatch', 'Session accessed from a different device'),
+      );
+    }
+
     return {
       sessionId: session.id,
       expiresAt: session.expires_at,
@@ -163,12 +189,20 @@ export class KioskService {
     return forms.map(mapSessionForm);
   }
 
-  async closeSession(sessionId: string) {
+  async closeSession(
+    sessionId: string,
+    closedBy?: string,
+    closedReason?: string,
+  ) {
+    const status = closedBy ? KIOSK_STATUS_CLOSED : KIOSK_STATUS_COMPLETED;
+
     await this.prisma.baseClient.kioskSession.update({
       where: { id: sessionId },
       data: {
-        status: KIOSK_STATUS_COMPLETED,
+        status,
         closed_at: new Date(),
+        closed_reason: closedReason ?? null,
+        ...(closedBy ? { closer: { connect: { id: closedBy } } } : {}),
       },
     });
 

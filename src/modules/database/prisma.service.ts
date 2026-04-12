@@ -7,15 +7,26 @@ import {
 import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { AppConfigService } from '@modules/config';
-import { SOFT_DELETE_MODELS } from '@common/constants';
+import { SOFT_DELETE_MODELS, SOFT_DELETE_AT_MODELS } from '@common/constants';
 
 function addSoftDeleteFilter(model: string, args: Record<string, any>): void {
-  if (!SOFT_DELETE_MODELS.includes(model)) return;
   const where = (args.where ?? {}) as Record<string, unknown>;
-  if (where.is_active === undefined) {
-    where.is_active = true;
+
+  if (SOFT_DELETE_MODELS.includes(model)) {
+    if (where.is_active === undefined) {
+      where.is_active = true;
+    }
+    args.where = where;
+  } else if (SOFT_DELETE_AT_MODELS.includes(model)) {
+    if (where.deleted_at === undefined) {
+      where.deleted_at = null;
+    }
+    args.where = where;
   }
-  args.where = where;
+}
+
+function getDelegate(client: PrismaClient, model: string) {
+  return (client as any)[model[0].toLowerCase() + model.slice(1)];
 }
 
 function createSoftDeleteExtension(client: PrismaClient) {
@@ -41,33 +52,33 @@ function createSoftDeleteExtension(client: PrismaClient) {
         },
         delete({ model, args }) {
           if (SOFT_DELETE_MODELS.includes(model)) {
-            const delegate = (client as any)[
-              model[0].toLowerCase() + model.slice(1)
-            ];
-            return delegate.update({
+            return getDelegate(client, model).update({
               where: (args as any).where,
               data: { is_active: false },
             });
           }
-          const delegate = (client as any)[
-            model[0].toLowerCase() + model.slice(1)
-          ];
-          return delegate.delete(args);
+          if (SOFT_DELETE_AT_MODELS.includes(model)) {
+            return getDelegate(client, model).update({
+              where: (args as any).where,
+              data: { deleted_at: new Date() },
+            });
+          }
+          return getDelegate(client, model).delete(args);
         },
         deleteMany({ model, args }) {
           if (SOFT_DELETE_MODELS.includes(model)) {
-            const delegate = (client as any)[
-              model[0].toLowerCase() + model.slice(1)
-            ];
-            return delegate.updateMany({
+            return getDelegate(client, model).updateMany({
               where: (args as any).where,
               data: { is_active: false },
             });
           }
-          const delegate = (client as any)[
-            model[0].toLowerCase() + model.slice(1)
-          ];
-          return delegate.deleteMany(args);
+          if (SOFT_DELETE_AT_MODELS.includes(model)) {
+            return getDelegate(client, model).updateMany({
+              where: (args as any).where,
+              data: { deleted_at: new Date() },
+            });
+          }
+          return getDelegate(client, model).deleteMany(args);
         },
       },
     },

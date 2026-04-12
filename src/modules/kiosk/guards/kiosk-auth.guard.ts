@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -36,6 +37,22 @@ export class KioskAuthGuard implements CanActivate {
       throw new UnauthorizedException(
         t('kiosk.token_invalid', 'Invalid or expired kiosk token'),
       );
+    }
+
+    // Device fingerprint validation on subsequent requests
+    if (session.device_fingerprint_hash) {
+      const userAgent = request.headers['user-agent'] ?? '';
+      const ip = request.ip ?? '';
+      const fingerprint = hashToken(`${userAgent}${ip}`);
+
+      if (session.device_fingerprint_hash !== fingerprint) {
+        throw new ForbiddenException(
+          t(
+            'kiosk.device_mismatch',
+            'Session accessed from a different device',
+          ),
+        );
+      }
     }
 
     request.kioskSession = session;

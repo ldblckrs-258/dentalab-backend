@@ -2,7 +2,7 @@
   {
     "name": "password-reset",
     "subject": "Reset your DentaLab password",
-    "type": "auth",
+    "type": "password_reset",
     "file": "password-reset.mjml",
     "variables": {
       "required": ["userName", "resetLink", "expiresIn"],
@@ -12,7 +12,7 @@
   {
     "name": "welcome",
     "subject": "Welcome to DentaLab, {{userName}}!",
-    "type": "auth",
+    "type": "system_alert",
     "file": "welcome.mjml",
     "variables": {
       "required": ["userName", "email", "temporaryPassword", "loginLink"],

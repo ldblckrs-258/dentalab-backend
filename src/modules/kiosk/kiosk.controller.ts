@@ -8,8 +8,10 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   Public,
   CurrentUser,
@@ -19,6 +21,7 @@ import {
 import { KioskService } from './kiosk.service';
 import { CreateKioskSessionDto } from './dto/create-kiosk-session.dto';
 import { AuthenticateKioskDto } from './dto/authenticate-kiosk.dto';
+import { CloseKioskSessionDto } from './dto/close-kiosk-session.dto';
 import { KioskAuthGuard } from './guards/kiosk-auth.guard';
 import { KioskSession } from './decorators/kiosk-session.decorator';
 
@@ -39,8 +42,10 @@ export class KioskController {
   @Post('authenticate')
   @Public()
   @HttpCode(HttpStatus.OK)
-  async authenticate(@Body() dto: AuthenticateKioskDto) {
-    return this.kioskService.authenticate(dto);
+  async authenticate(@Body() dto: AuthenticateKioskDto, @Req() req: Request) {
+    const userAgent = req.headers['user-agent'];
+    const ip = req.ip;
+    return this.kioskService.authenticate(dto, userAgent, ip);
   }
 
   @Get('sessions/:id/forms')
@@ -57,16 +62,14 @@ export class KioskController {
   }
 
   @Patch('sessions/:id/close')
-  @Public()
-  @UseGuards(KioskAuthGuard)
+  @RequirePermissions('kiosk_sessions:create')
+  @Audited('kiosk_session')
   @HttpCode(HttpStatus.OK)
   async closeSession(
     @Param('id') id: string,
-    @KioskSession('id') sessionId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CloseKioskSessionDto,
   ) {
-    if (id !== sessionId) {
-      throw new ForbiddenException('Access denied to this session');
-    }
-    return this.kioskService.closeSession(id);
+    return this.kioskService.closeSession(id, userId, dto.reason);
   }
 }

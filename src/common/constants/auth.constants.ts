@@ -31,3 +31,5 @@ export const SYSTEM_ROLE_ADMIN = 'Admin';
 // Kiosk session statuses
 export const KIOSK_STATUS_ACTIVE = 'active';
 export const KIOSK_STATUS_COMPLETED = 'completed';
+export const KIOSK_STATUS_EXPIRED = 'expired';
+export const KIOSK_STATUS_CLOSED = 'closed';

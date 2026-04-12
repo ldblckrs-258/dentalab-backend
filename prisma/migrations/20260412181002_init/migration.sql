@@ -1,5 +1,5 @@
--- CreateExtension
-CREATE EXTENSION IF NOT EXISTS "vector";
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
 
 -- CreateTable
 CREATE TABLE "users" (
@@ -9,6 +9,7 @@ CREATE TABLE "users" (
     "full_name" TEXT NOT NULL,
     "phone" TEXT,
     "avatar_url" TEXT,
+    "preferred_language" VARCHAR(5) NOT NULL DEFAULT 'vi',
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -32,6 +33,7 @@ CREATE TABLE "permissions" (
     "id" UUID NOT NULL,
     "resource" TEXT NOT NULL,
     "action" TEXT NOT NULL,
+    "scope" TEXT,
     "description" TEXT,
 
     CONSTRAINT "permissions_pkey" PRIMARY KEY ("id")
@@ -137,6 +139,7 @@ CREATE TABLE "provider_schedules" (
 CREATE TABLE "provider_schedule_overrides" (
     "id" UUID NOT NULL,
     "provider_id" UUID NOT NULL,
+    "requested_by" UUID NOT NULL,
     "specific_date" DATE NOT NULL,
     "override_type" TEXT NOT NULL,
     "start_time" TEXT,
@@ -221,6 +224,7 @@ CREATE TABLE "appointment_procedures" (
     "tooth_number" TEXT,
     "fee" DECIMAL(10,2),
     "status" TEXT NOT NULL DEFAULT 'planned',
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "appointment_procedures_pkey" PRIMARY KEY ("id")
 );
@@ -237,6 +241,7 @@ CREATE TABLE "clinical_notes" (
     "plan" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "clinical_notes_pkey" PRIMARY KEY ("id")
 );
@@ -256,6 +261,7 @@ CREATE TABLE "patients" (
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "patients_pkey" PRIMARY KEY ("id")
 );
@@ -271,6 +277,7 @@ CREATE TABLE "patient_insurances" (
     "expiration_date" DATE,
     "is_primary" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "patient_insurances_pkey" PRIMARY KEY ("id")
 );
@@ -285,6 +292,7 @@ CREATE TABLE "patient_files" (
     "file_url" TEXT NOT NULL,
     "file_size" BIGINT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "patient_files_pkey" PRIMARY KEY ("id")
 );
@@ -300,6 +308,7 @@ CREATE TABLE "forms" (
     "is_kiosk_enabled" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "forms_pkey" PRIMARY KEY ("id")
 );
@@ -313,6 +322,7 @@ CREATE TABLE "form_submissions" (
     "kiosk_session_id" UUID,
     "data" JSONB NOT NULL,
     "submitted_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "form_submissions_pkey" PRIMARY KEY ("id")
 );
@@ -327,6 +337,10 @@ CREATE TABLE "kiosk_sessions" (
     "expires_in_minutes" INTEGER NOT NULL DEFAULT 30,
     "expires_at" TIMESTAMP(3) NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'active',
+    "device_fingerprint_hash" TEXT,
+    "initial_ip" TEXT,
+    "closed_by" UUID,
+    "closed_reason" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "closed_at" TIMESTAMP(3),
 
@@ -355,6 +369,7 @@ CREATE TABLE "internal_documents" (
     "is_published" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
 
     CONSTRAINT "internal_documents_pkey" PRIMARY KEY ("id")
 );
@@ -406,8 +421,11 @@ CREATE TABLE "email_templates" (
     "id" UUID NOT NULL,
     "name" TEXT NOT NULL,
     "subject" TEXT NOT NULL,
+    "body_mjml" TEXT NOT NULL,
     "body_html" TEXT NOT NULL,
     "type" TEXT NOT NULL,
+    "variables" JSONB,
+    "is_system" BOOLEAN NOT NULL DEFAULT false,
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -419,11 +437,26 @@ CREATE TABLE "email_templates" (
 CREATE TABLE "email_logs" (
     "id" UUID NOT NULL,
     "template_id" UUID NOT NULL,
-    "appointment_id" UUID,
+    "resend_id" TEXT,
+    "from_address" TEXT NOT NULL,
     "recipient_email" TEXT NOT NULL,
+    "subject" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
-    "sent_at" TIMESTAMP(3),
+    "variables" JSONB,
     "error_message" TEXT,
+    "attachments" JSONB,
+    "tags" JSONB,
+    "batch_id" TEXT,
+    "entity_type" TEXT,
+    "entity_id" UUID,
+    "sent_at" TIMESTAMP(3),
+    "delivered_at" TIMESTAMP(3),
+    "bounced_at" TIMESTAMP(3),
+    "complained_at" TIMESTAMP(3),
+    "webhook_events" JSONB,
+    "is_active" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "email_logs_pkey" PRIMARY KEY ("id")
 );
@@ -443,8 +476,18 @@ CREATE TABLE "rag_documents" (
     "content_hash" TEXT,
     "ingestion_time_ms" DOUBLE PRECISION,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "rag_documents_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "rag_document_permissions" (
+    "id" UUID NOT NULL,
+    "rag_document_id" UUID NOT NULL,
+    "permission_id" UUID NOT NULL,
+
+    CONSTRAINT "rag_document_permissions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -465,7 +508,7 @@ CREATE TABLE "child_chunks" (
     "parent_chunk_id" UUID NOT NULL,
     "rag_document_id" UUID NOT NULL,
     "content" TEXT NOT NULL,
-    "embedding" vector(1536),
+    "embedding" vector(1024),
     "search_vector" tsvector,
     "chunk_index" INTEGER NOT NULL,
     "metadata" JSONB,
@@ -480,6 +523,7 @@ CREATE TABLE "chat_sessions" (
     "user_id" UUID NOT NULL,
     "title" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "chat_sessions_pkey" PRIMARY KEY ("id")
 );
@@ -503,7 +547,19 @@ CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "permissions_resource_action_key" ON "permissions"("resource", "action");
+CREATE UNIQUE INDEX "permissions_resource_action_scope_key" ON "permissions"("resource", "action", "scope");
+
+-- CreateIndex
+CREATE INDEX "audit_logs_resource_resource_id_idx" ON "audit_logs"("resource", "resource_id");
+
+-- CreateIndex
+CREATE INDEX "audit_logs_user_id_created_at_idx" ON "audit_logs"("user_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_token_hash_idx" ON "refresh_tokens"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "password_reset_tokens_token_hash_idx" ON "password_reset_tokens"("token_hash");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "providers_user_id_key" ON "providers"("user_id");
@@ -512,10 +568,64 @@ CREATE UNIQUE INDEX "providers_user_id_key" ON "providers"("user_id");
 CREATE UNIQUE INDEX "procedures_ada_code_key" ON "procedures"("ada_code");
 
 -- CreateIndex
+CREATE INDEX "appointments_provider_id_start_time_idx" ON "appointments"("provider_id", "start_time");
+
+-- CreateIndex
+CREATE INDEX "appointments_patient_id_idx" ON "appointments"("patient_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "clinical_notes_appointment_id_key" ON "clinical_notes"("appointment_id");
 
 -- CreateIndex
+CREATE INDEX "clinical_notes_patient_id_deleted_at_idx" ON "clinical_notes"("patient_id", "deleted_at");
+
+-- CreateIndex
+CREATE INDEX "patients_deleted_at_idx" ON "patients"("deleted_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "kiosk_sessions_token_hash_key" ON "kiosk_sessions"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "kiosk_sessions_token_hash_idx" ON "kiosk_sessions"("token_hash");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "inventory_items_sku_key" ON "inventory_items"("sku");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "email_templates_name_key" ON "email_templates"("name");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "email_logs_resend_id_key" ON "email_logs"("resend_id");
+
+-- CreateIndex
+CREATE INDEX "email_logs_resend_id_idx" ON "email_logs"("resend_id");
+
+-- CreateIndex
+CREATE INDEX "email_logs_recipient_email_idx" ON "email_logs"("recipient_email");
+
+-- CreateIndex
+CREATE INDEX "email_logs_status_idx" ON "email_logs"("status");
+
+-- CreateIndex
+CREATE INDEX "email_logs_template_id_idx" ON "email_logs"("template_id");
+
+-- CreateIndex
+CREATE INDEX "email_logs_entity_type_entity_id_idx" ON "email_logs"("entity_type", "entity_id");
+
+-- CreateIndex
+CREATE INDEX "email_logs_batch_id_idx" ON "email_logs"("batch_id");
+
+-- CreateIndex
+CREATE INDEX "rag_documents_source_type_source_id_idx" ON "rag_documents"("source_type", "source_id");
+
+-- CreateIndex
+CREATE INDEX "rag_document_permissions_rag_document_id_idx" ON "rag_document_permissions"("rag_document_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "rag_document_permissions_rag_document_id_permission_id_key" ON "rag_document_permissions"("rag_document_id", "permission_id");
+
+-- CreateIndex
+CREATE INDEX "child_chunks_rag_document_id_idx" ON "child_chunks"("rag_document_id");
 
 -- AddForeignKey
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -558,6 +668,9 @@ ALTER TABLE "provider_schedules" ADD CONSTRAINT "provider_schedules_provider_id_
 
 -- AddForeignKey
 ALTER TABLE "provider_schedule_overrides" ADD CONSTRAINT "provider_schedule_overrides_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "providers"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "provider_schedule_overrides" ADD CONSTRAINT "provider_schedule_overrides_requested_by_fkey" FOREIGN KEY ("requested_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "provider_schedule_overrides" ADD CONSTRAINT "provider_schedule_overrides_reviewed_by_fkey" FOREIGN KEY ("reviewed_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -635,6 +748,9 @@ ALTER TABLE "kiosk_sessions" ADD CONSTRAINT "kiosk_sessions_appointment_id_fkey"
 ALTER TABLE "kiosk_sessions" ADD CONSTRAINT "kiosk_sessions_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "kiosk_sessions" ADD CONSTRAINT "kiosk_sessions_closed_by_fkey" FOREIGN KEY ("closed_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "kiosk_session_forms" ADD CONSTRAINT "kiosk_session_forms_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "kiosk_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -659,7 +775,10 @@ ALTER TABLE "inventory_transactions" ADD CONSTRAINT "inventory_transactions_perf
 ALTER TABLE "email_logs" ADD CONSTRAINT "email_logs_template_id_fkey" FOREIGN KEY ("template_id") REFERENCES "email_templates"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "email_logs" ADD CONSTRAINT "email_logs_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "rag_document_permissions" ADD CONSTRAINT "rag_document_permissions_rag_document_id_fkey" FOREIGN KEY ("rag_document_id") REFERENCES "rag_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "rag_document_permissions" ADD CONSTRAINT "rag_document_permissions_permission_id_fkey" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "parent_chunks" ADD CONSTRAINT "parent_chunks_rag_document_id_fkey" FOREIGN KEY ("rag_document_id") REFERENCES "rag_documents"("id") ON DELETE CASCADE ON UPDATE CASCADE;

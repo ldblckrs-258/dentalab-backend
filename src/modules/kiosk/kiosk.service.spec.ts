@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { KioskService } from './kiosk.service';
 import { PrismaService } from '@modules/database';
+import { KIOSK_STATUS_COMPLETED, KIOSK_STATUS_CLOSED } from '@common/constants';
 import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('KioskService', () => {
@@ -140,14 +141,38 @@ describe('KioskService', () => {
   });
 
   describe('closeSession', () => {
-    it('should close the session', async () => {
+    it('should close the session without staff user', async () => {
       prisma.baseClient.kioskSession.update.mockResolvedValue({});
 
       const result = await service.closeSession('session-1');
       expect(result.message).toBe('kiosk.session_closed');
       expect(prisma.baseClient.kioskSession.update).toHaveBeenCalledWith({
         where: { id: 'session-1' },
-        data: { status: 'completed', closed_at: expect.any(Date) },
+        data: {
+          status: KIOSK_STATUS_COMPLETED,
+          closed_at: expect.any(Date),
+          closed_reason: null,
+        },
+      });
+    });
+
+    it('should close the session with staff user and reason', async () => {
+      prisma.baseClient.kioskSession.update.mockResolvedValue({});
+
+      const result = await service.closeSession(
+        'session-1',
+        'staff-user-1',
+        'Patient left',
+      );
+      expect(result.message).toBe('kiosk.session_closed');
+      expect(prisma.baseClient.kioskSession.update).toHaveBeenCalledWith({
+        where: { id: 'session-1' },
+        data: {
+          status: KIOSK_STATUS_CLOSED,
+          closed_at: expect.any(Date),
+          closed_reason: 'Patient left',
+          closer: { connect: { id: 'staff-user-1' } },
+        },
       });
     });
   });

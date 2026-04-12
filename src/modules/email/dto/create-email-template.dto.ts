@@ -1,6 +1,5 @@
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
-
-const TEMPLATE_TYPES = ['auth', 'reminder', 'notification', 'marketing'];
+import { EMAIL_TEMPLATE_TYPES } from '../email.constants';
 
 export class CreateEmailTemplateDto {
   @IsString()
@@ -13,7 +12,7 @@ export class CreateEmailTemplateDto {
   @IsString()
   body_mjml: string;
 
-  @IsIn(TEMPLATE_TYPES)
+  @IsIn([...EMAIL_TEMPLATE_TYPES])
   type: string;
 
   @IsOptional()

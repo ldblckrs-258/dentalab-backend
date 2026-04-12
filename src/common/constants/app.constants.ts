@@ -30,13 +30,23 @@ export const SENSITIVE_FIELDS = [
 export const SUPPORTED_LANGUAGES = ['vi', 'en'] as const;
 export const DEFAULT_LANGUAGE = 'vi';
 
-// Soft-deletable models
+// Soft-deletable models — operational flag (is_active)
 export const SOFT_DELETE_MODELS = [
   'User',
-  'Patient',
   'Provider',
   'Procedure',
   'AppointmentType',
-  'InventoryItem',
   'EmailTemplate',
+  'UserPermissionOverride',
+];
+
+// Soft-deletable models — permanent logical deletion (deleted_at)
+export const SOFT_DELETE_AT_MODELS = [
+  'Patient',
+  'ClinicalNote',
+  'PatientFile',
+  'Form',
+  'FormSubmission',
+  'InternalDocument',
+  'AppointmentProcedure',
 ];

@@ -11,16 +11,16 @@ datasource db {
 // ──────────────────────────────────────────
 
 model User {
-  id            String   @id @default(uuid()) @db.Uuid
-  email         String   @unique
-  password_hash String
-  full_name     String
-  phone         String?
+  id                 String   @id @default(uuid()) @db.Uuid
+  email              String   @unique
+  password_hash      String
+  full_name          String
+  phone              String?
   avatar_url         String?
-  preferred_language String  @default("vi") @db.VarChar(5)
-  is_active          Boolean @default(true)
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  preferred_language String   @default("vi") @db.VarChar(5)
+  is_active          Boolean  @default(true)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
 
   user_roles                  UserRole[]
   user_permission_overrides   UserPermissionOverride[]
@@ -28,15 +28,17 @@ model User {
   password_reset_tokens       PasswordResetToken[]
   audit_logs                  AuditLog[]
   provider                    Provider?
-  created_appointments        Appointment[]            @relation("CreatedByUser")
-  cancelled_appointments      Appointment[]            @relation("CancelledByUser")
+  created_appointments        Appointment[]              @relation("CreatedByUser")
+  cancelled_appointments      Appointment[]              @relation("CancelledByUser")
   uploaded_files              PatientFile[]
   created_forms               Form[]
-  created_kiosk_sessions      KioskSession[]
+  created_kiosk_sessions      KioskSession[]             @relation("KioskCreatedByUser")
+  closed_kiosk_sessions       KioskSession[]             @relation("KioskClosedByUser")
   authored_documents          InternalDocument[]
   document_version_changes    DocumentVersion[]
   inventory_transactions      InventoryTransaction[]
   chat_sessions               ChatSession[]
+  requested_overrides         ProviderScheduleOverride[] @relation("RequestedByUser")
   reviewed_overrides          ProviderScheduleOverride[] @relation("ReviewedByUser")
   granted_overrides           UserPermissionOverride[]   @relation("GrantedByUser")
   revoked_overrides           UserPermissionOverride[]   @relation("RevokedByUser")
@@ -66,6 +68,7 @@ model Permission {
 
   role_permissions          RolePermission[]
   user_permission_overrides UserPermissionOverride[]
+  rag_document_permissions  RagDocumentPermission[]
 
   @@unique([resource, action, scope])
   @@map("permissions")
@@ -128,6 +131,8 @@ model AuditLog {
 
   user User? @relation(fields: [user_id], references: [id])
 
+  @@index([resource, resource_id])
+  @@index([user_id, created_at])
   @@map("audit_logs")
 }
 
@@ -139,6 +144,7 @@ model RefreshToken {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([token_hash])
   @@map("refresh_tokens")
 }
 
@@ -152,6 +158,7 @@ model PasswordResetToken {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([token_hash])
   @@map("password_reset_tokens")
 }
 
@@ -179,11 +186,11 @@ model Provider {
 }
 
 model ProviderSchedule {
-  id          String  @id @default(uuid()) @db.Uuid
-  provider_id String  @db.Uuid
-  day_of_week Int     // 0=Sunday, 6=Saturday
-  start_time  String  // "HH:mm" format
-  end_time    String  // "HH:mm" format
+  id           String  @id @default(uuid()) @db.Uuid
+  provider_id  String  @db.Uuid
+  day_of_week  Int     // 0=Sunday, 6=Saturday
+  start_time   String  // "HH:mm" format
+  end_time     String  // "HH:mm" format
   is_available Boolean @default(true)
 
   provider Provider @relation(fields: [provider_id], references: [id], onDelete: Cascade)
@@ -194,29 +201,31 @@ model ProviderSchedule {
 model ProviderScheduleOverride {
   id            String    @id @default(uuid()) @db.Uuid
   provider_id   String    @db.Uuid
+  requested_by  String    @db.Uuid
   specific_date DateTime  @db.Date
   override_type String    // 'day_off' | 'custom_hours'
   start_time    String?   // "HH:mm" format
   end_time      String?   // "HH:mm" format
   reason        String?
-  status        String    @default("pending") // 'pending' | 'approved' | 'rejected'
+  status        String    @default("pending") // 'pending' | 'approved' | 'rejected' | 'cancelled'
   requested_at  DateTime  @default(now())
   reviewed_by   String?   @db.Uuid
   reviewed_at   DateTime?
   review_note   String?
 
   provider     Provider @relation(fields: [provider_id], references: [id], onDelete: Cascade)
+  requester    User     @relation("RequestedByUser", fields: [requested_by], references: [id])
   reviewer     User?    @relation("ReviewedByUser", fields: [reviewed_by], references: [id])
 
   @@map("provider_schedule_overrides")
 }
 
 model AppointmentType {
-  id              String  @id @default(uuid()) @db.Uuid
-  name            String
+  id               String  @id @default(uuid()) @db.Uuid
+  name             String
   duration_minutes Int
-  color           String?
-  is_active       Boolean @default(true)
+  color            String?
+  is_active        Boolean @default(true)
 
   appointments Appointment[]
 
@@ -224,13 +233,13 @@ model AppointmentType {
 }
 
 model Procedure {
-  id              String  @id @default(uuid()) @db.Uuid
-  ada_code        String  @unique
-  name            String
-  category        String?
+  id               String   @id @default(uuid()) @db.Uuid
+  ada_code         String   @unique
+  name             String
+  category         String?
   duration_minutes Int?
-  default_fee     Decimal? @db.Decimal(10, 2)
-  is_active       Boolean @default(true)
+  default_fee      Decimal? @db.Decimal(10, 2)
+  is_active        Boolean  @default(true)
 
   appointment_procedures AppointmentProcedure[]
 
@@ -238,17 +247,17 @@ model Procedure {
 }
 
 model TreatmentPlan {
-  id                  String   @id @default(uuid()) @db.Uuid
-  patient_id          String   @db.Uuid
-  provider_id         String   @db.Uuid
-  name                String
-  status              String   @default("draft") // 'draft' | 'proposed' | 'accepted' | 'in_progress' | 'completed'
-  start_date          DateTime? @db.Date
-  end_date            DateTime? @db.Date
-  estimated_total_cost Decimal? @db.Decimal(10, 2)
-  notes               String?
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  id                   String    @id @default(uuid()) @db.Uuid
+  patient_id           String    @db.Uuid
+  provider_id          String    @db.Uuid
+  name                 String
+  status               String    @default("draft") // 'draft' | 'proposed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
+  start_date           DateTime? @db.Date
+  end_date             DateTime? @db.Date
+  estimated_total_cost Decimal?  @db.Decimal(10, 2)
+  notes                String?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
 
   patient      Patient       @relation(fields: [patient_id], references: [id])
   provider     Provider      @relation(fields: [provider_id], references: [id])
@@ -266,7 +275,7 @@ model Appointment {
   created_by          String    @db.Uuid
   start_time          DateTime
   end_time            DateTime
-  status              String    @default("scheduled") // 'scheduled' | 'confirmed' | 'checked_in' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
+  status              String    @default("scheduled") // 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
   notes               String?
   cancelled_by        String?   @db.Uuid
   cancelled_at        DateTime?
@@ -285,16 +294,19 @@ model Appointment {
   form_submissions   FormSubmission[]
   kiosk_sessions     KioskSession[]
 
+  @@index([provider_id, start_time])
+  @@index([patient_id])
   @@map("appointments")
 }
 
 model AppointmentProcedure {
-  id             String  @id @default(uuid()) @db.Uuid
-  appointment_id String  @db.Uuid
-  procedure_id   String  @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  appointment_id String    @db.Uuid
+  procedure_id   String    @db.Uuid
   tooth_number   String?
-  fee            Decimal? @db.Decimal(10, 2)
-  status         String  @default("planned") // 'planned' | 'in_progress' | 'completed'
+  fee            Decimal?  @db.Decimal(10, 2)
+  status         String    @default("planned") // 'planned' | 'in_progress' | 'completed'
+  deleted_at     DateTime?
 
   appointment Appointment @relation(fields: [appointment_id], references: [id], onDelete: Cascade)
   procedure   Procedure   @relation(fields: [procedure_id], references: [id])
@@ -303,21 +315,23 @@ model AppointmentProcedure {
 }
 
 model ClinicalNote {
-  id             String   @id @default(uuid()) @db.Uuid
-  patient_id     String   @db.Uuid
-  provider_id    String   @db.Uuid
-  appointment_id String   @unique @db.Uuid
+  id             String    @id @default(uuid()) @db.Uuid
+  patient_id     String    @db.Uuid
+  provider_id    String    @db.Uuid
+  appointment_id String    @unique @db.Uuid
   subjective     String?
   objective      String?
   assessment     String?
   plan           String?
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+  deleted_at     DateTime?
 
   patient     Patient     @relation(fields: [patient_id], references: [id])
   provider    Provider    @relation(fields: [provider_id], references: [id])
   appointment Appointment @relation(fields: [appointment_id], references: [id])
 
+  @@index([patient_id, deleted_at])
   @@map("clinical_notes")
 }
 
@@ -326,7 +340,7 @@ model ClinicalNote {
 // ──────────────────────────────────────────
 
 model Patient {
-  id                      String   @id @default(uuid()) @db.Uuid
+  id                      String    @id @default(uuid()) @db.Uuid
   first_name              String
   last_name               String
   date_of_birth           DateTime? @db.Date
@@ -336,9 +350,10 @@ model Patient {
   address                 String?
   emergency_contact_name  String?
   emergency_contact_phone String?
-  is_active               Boolean  @default(true)
-  created_at              DateTime @default(now())
-  updated_at              DateTime @updatedAt
+  is_active               Boolean   @default(true)
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+  deleted_at              DateTime?
 
   insurances       PatientInsurance[]
   files            PatientFile[]
@@ -348,6 +363,7 @@ model Patient {
   treatment_plans  TreatmentPlan[]
   kiosk_sessions   KioskSession[]
 
+  @@index([deleted_at])
   @@map("patients")
 }
 
@@ -361,6 +377,7 @@ model PatientInsurance {
   expiration_date DateTime? @db.Date
   is_primary      Boolean   @default(false)
   created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
   patient Patient @relation(fields: [patient_id], references: [id], onDelete: Cascade)
 
@@ -368,14 +385,15 @@ model PatientInsurance {
 }
 
 model PatientFile {
-  id          String   @id @default(uuid()) @db.Uuid
-  patient_id  String   @db.Uuid
-  uploaded_by String   @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
+  patient_id  String    @db.Uuid
+  uploaded_by String    @db.Uuid
   file_name   String
   file_type   String
   file_url    String
   file_size   BigInt
-  created_at  DateTime @default(now())
+  created_at  DateTime  @default(now())
+  deleted_at  DateTime?
 
   patient  Patient @relation(fields: [patient_id], references: [id], onDelete: Cascade)
   uploader User    @relation(fields: [uploaded_by], references: [id])
@@ -388,18 +406,19 @@ model PatientFile {
 // ──────────────────────────────────────────
 
 model Form {
-  id               String   @id @default(uuid()) @db.Uuid
-  created_by       String   @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
+  created_by       String    @db.Uuid
   title            String
   description      String?
   schema           Json
-  is_published     Boolean  @default(false)
-  is_kiosk_enabled Boolean  @default(false)
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
+  is_published     Boolean   @default(false)
+  is_kiosk_enabled Boolean   @default(false)
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  deleted_at       DateTime?
 
-  creator          User              @relation(fields: [created_by], references: [id])
-  submissions      FormSubmission[]
+  creator             User              @relation(fields: [created_by], references: [id])
+  submissions         FormSubmission[]
   kiosk_session_forms KioskSessionForm[]
 
   @@map("forms")
@@ -413,6 +432,7 @@ model FormSubmission {
   kiosk_session_id String?   @db.Uuid
   data             Json
   submitted_at     DateTime  @default(now())
+  deleted_at       DateTime?
 
   patient       Patient       @relation(fields: [patient_id], references: [id])
   form          Form          @relation(fields: [form_id], references: [id])
@@ -423,23 +443,29 @@ model FormSubmission {
 }
 
 model KioskSession {
-  id                 String    @id @default(uuid()) @db.Uuid
-  patient_id         String    @db.Uuid
-  appointment_id     String?   @db.Uuid
-  created_by         String    @db.Uuid
-  token_hash         String
-  expires_in_minutes Int       @default(30)
-  expires_at         DateTime
-  status             String    @default("active") // 'active' | 'completed' | 'expired'
-  created_at         DateTime  @default(now())
-  closed_at          DateTime?
+  id                      String    @id @default(uuid()) @db.Uuid
+  patient_id              String    @db.Uuid
+  appointment_id          String?   @db.Uuid
+  created_by              String    @db.Uuid
+  token_hash              String    @unique
+  expires_in_minutes      Int       @default(30)
+  expires_at              DateTime
+  status                  String    @default("active") // 'active' | 'completed' | 'expired' | 'closed'
+  device_fingerprint_hash String?
+  initial_ip              String?
+  closed_by               String?   @db.Uuid
+  closed_reason           String?
+  created_at              DateTime  @default(now())
+  closed_at               DateTime?
 
   patient          Patient            @relation(fields: [patient_id], references: [id])
   appointment      Appointment?       @relation(fields: [appointment_id], references: [id])
-  creator          User               @relation(fields: [created_by], references: [id])
+  creator          User               @relation("KioskCreatedByUser", fields: [created_by], references: [id])
+  closer           User?              @relation("KioskClosedByUser", fields: [closed_by], references: [id])
   session_forms    KioskSessionForm[]
   form_submissions FormSubmission[]
 
+  @@index([token_hash])
   @@map("kiosk_sessions")
 }
 
@@ -457,15 +483,16 @@ model KioskSessionForm {
 }
 
 model InternalDocument {
-  id              String   @id @default(uuid()) @db.Uuid
-  created_by      String   @db.Uuid
+  id              String    @id @default(uuid()) @db.Uuid
+  created_by      String    @db.Uuid
   title           String
   content         String?
   category        String?
-  current_version Int      @default(1)
-  is_published    Boolean  @default(false)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  current_version Int       @default(1)
+  is_published    Boolean   @default(false)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  deleted_at      DateTime?
 
   creator  User              @relation(fields: [created_by], references: [id])
   versions DocumentVersion[]
@@ -508,7 +535,7 @@ model InventoryTransaction {
   id              String   @id @default(uuid()) @db.Uuid
   item_id         String   @db.Uuid
   quantity_change Int
-  type            String   // 'purchase' | 'usage' | 'adjustment' | 'return'
+  type            String   // 'purchase' | 'return' | 'usage' | 'adjustment' | 'damage'
   reference_id    String?
   performed_by    String   @db.Uuid
   notes           String?
@@ -525,8 +552,8 @@ model EmailTemplate {
   name       String   @unique
   subject    String   // Handlebars template string for subject
   body_mjml  String   // MJML source with Handlebars placeholders
-  body_html  String   // Compiled HTML (MJML → HTML output)
-  type       String   // 'auth' | 'reminder' | 'notification' | 'marketing'
+  body_html  String   // Compiled HTML (MJML -> HTML output)
+  type       String   // 'password_reset' | 'appointment_confirmation' | 'appointment_reminder' | 'appointment_cancellation' | 'kiosk_invitation' | 'clinic_notice' | 'system_alert'
   variables  Json?    // Schema: { required: string[], optional: string[] }
   is_system  Boolean  @default(false)
   is_active  Boolean  @default(true)
@@ -551,7 +578,7 @@ model EmailLog {
   attachments     Json?     // [{filename, size, content_type}]
   tags            Json?     // [{name, value}]
   batch_id        String?
-  entity_type     String?   // 'user' | 'appointment' | 'patient' etc.
+  entity_type     String?   // CHECK: 'appointment' | 'password_reset' | 'kiosk_session' | 'patient' | 'system'
   entity_id       String?   @db.Uuid
   sent_at         DateTime?
   delivered_at    DateTime?
@@ -562,7 +589,7 @@ model EmailLog {
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
-  template    EmailTemplate @relation(fields: [template_id], references: [id])
+  template EmailTemplate @relation(fields: [template_id], references: [id])
 
   @@index([resend_id])
   @@index([recipient_email])
@@ -591,11 +618,27 @@ model RagDocument {
   content_hash        String?
   ingestion_time_ms   Float?
   created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
 
-  parent_chunks ParentChunk[]
-  child_chunks  ChildChunk[]
+  parent_chunks        ParentChunk[]
+  child_chunks         ChildChunk[]
+  document_permissions RagDocumentPermission[]
 
+  @@index([source_type, source_id])
   @@map("rag_documents")
+}
+
+model RagDocumentPermission {
+  id              String @id @default(uuid()) @db.Uuid
+  rag_document_id String @db.Uuid
+  permission_id   String @db.Uuid
+
+  rag_document RagDocument @relation(fields: [rag_document_id], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+
+  @@unique([rag_document_id, permission_id])
+  @@index([rag_document_id])
+  @@map("rag_document_permissions")
 }
 
 model ParentChunk {
@@ -617,7 +660,7 @@ model ChildChunk {
   parent_chunk_id String                       @db.Uuid
   rag_document_id String                       @db.Uuid
   content         String
-  embedding       Unsupported("vector(1536)")?
+  embedding       Unsupported("vector(1024)")?
   search_vector   Unsupported("tsvector")?
   chunk_index     Int
   metadata        Json?
@@ -626,6 +669,7 @@ model ChildChunk {
   parent_chunk ParentChunk @relation(fields: [parent_chunk_id], references: [id], onDelete: Cascade)
   rag_document RagDocument @relation(fields: [rag_document_id], references: [id], onDelete: Cascade)
 
+  @@index([rag_document_id])
   @@map("child_chunks")
 }
 
@@ -634,6 +678,7 @@ model ChatSession {
   user_id    String   @db.Uuid
   title      String?
   created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   user     User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
   messages ChatMessage[]

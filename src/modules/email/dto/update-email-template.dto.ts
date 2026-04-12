@@ -1,6 +1,5 @@
 import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
-
-const TEMPLATE_TYPES = ['auth', 'reminder', 'notification', 'marketing'];
+import { EMAIL_TEMPLATE_TYPES } from '../email.constants';
 
 export class UpdateEmailTemplateDto {
   @IsOptional()
@@ -12,7 +11,7 @@ export class UpdateEmailTemplateDto {
   body_mjml?: string;
 
   @IsOptional()
-  @IsIn(TEMPLATE_TYPES)
+  @IsIn([...EMAIL_TEMPLATE_TYPES])
   type?: string;
 
   @IsOptional()
