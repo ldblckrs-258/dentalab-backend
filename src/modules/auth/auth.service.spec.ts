@@ -12,6 +12,7 @@ import { PrismaService } from '@modules/database';
 import { AppConfigService } from '@modules/config';
 import { CacheService } from '@modules/redis';
 import { QueueProducerService } from '@modules/queue';
+import { StorageService } from '@modules/storage';
 import { mockI18nContext } from '@common/test/i18n-mock';
 
 jest.mock('bcrypt', () => ({
@@ -92,6 +93,10 @@ describe('AuthService', () => {
         },
         { provide: CacheService, useValue: cacheService },
         { provide: QueueProducerService, useValue: queueProducer },
+        {
+          provide: StorageService,
+          useValue: { resolveAvatarUrl: jest.fn((url: string | null) => url) },
+        },
       ],
     }).compile();
 

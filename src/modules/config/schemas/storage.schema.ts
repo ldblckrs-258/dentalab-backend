@@ -7,6 +7,7 @@ export const storageSchema = z.object({
   S3_ACCESS_KEY: z.string().min(1),
   S3_SECRET_KEY: z.string().min(1),
   S3_MAX_FILE_SIZE: z.coerce.number().default(52428800), // 50MB
+  S3_PUBLIC_URL: z.string().optional(),
 });
 
 export type StorageConfig = z.infer<typeof storageSchema>;

@@ -12,6 +12,7 @@ import { PrismaService } from '@modules/database';
 import type { EmailSendResetPasswordPayload } from '@modules/queue';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import { CacheService } from '@modules/redis';
+import { StorageService } from '@modules/storage';
 import {
   ForbiddenException,
   HttpException,
@@ -45,6 +46,7 @@ export class AuthService {
     private readonly config: AppConfigService,
     private readonly cacheService: CacheService,
     private readonly queueProducer: QueueProducerService,
+    private readonly storageService: StorageService,
   ) {}
 
   async login(dto: LoginDto) {
@@ -232,7 +234,7 @@ export class AuthService {
       email: user.email,
       fullName: user.full_name,
       phone: user.phone,
-      avatarUrl: user.avatar_url,
+      avatarUrl: this.storageService.resolveAvatarUrl(user.avatar_url),
       isActive: user.is_active,
       roles: user.user_roles.map((ur) => ur.role.name),
       permissions,

@@ -19,10 +19,13 @@ export function validateFileSize(size: number, maxSize: number): void {
   }
 }
 
-export function validateMimeType(mimeType: string): void {
-  if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
+export function validateMimeType(
+  mimeType: string,
+  allowedTypes: string[] = ALLOWED_MIME_TYPES,
+): void {
+  if (!allowedTypes.includes(mimeType)) {
     throw new BadRequestException(
-      `File type '${mimeType}' is not allowed. Allowed types: ${ALLOWED_MIME_TYPES.join(', ')}`,
+      `File type '${mimeType}' is not allowed. Allowed types: ${allowedTypes.join(', ')}`,
     );
   }
 }

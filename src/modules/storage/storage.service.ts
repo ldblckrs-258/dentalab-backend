@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import sharp from 'sharp';
 import {
   S3Client,
   PutObjectCommand,
@@ -8,7 +9,13 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { AppConfigService } from '@modules/config';
-import { S3_CLIENT, DEFAULT_PRESIGNED_EXPIRY } from './storage.constants';
+import {
+  S3_CLIENT,
+  DEFAULT_PRESIGNED_EXPIRY,
+  AVATAR_ALLOWED_MIME_TYPES,
+  AVATAR_DIMENSION,
+  AVATAR_MAX_SIZE,
+} from './storage.constants';
 import {
   buildObjectKey,
   validateFileSize,
@@ -35,11 +42,15 @@ export class StorageService {
   private readonly logger = new Logger(StorageService.name);
   private readonly bucket: string;
 
+  private readonly publicBaseUrl: string;
+
   constructor(
     @Inject(S3_CLIENT) private readonly s3: S3Client,
     private readonly config: AppConfigService,
   ) {
     this.bucket = config.storage.S3_BUCKET;
+    const base = config.storage.S3_PUBLIC_URL || config.storage.S3_ENDPOINT;
+    this.publicBaseUrl = `${base.replace(/\/+$/, '')}/${this.bucket}`;
   }
 
   async upload(file: Buffer, options: UploadOptions): Promise<StorageFile> {
@@ -133,5 +144,38 @@ export class StorageService {
     } catch {
       return false;
     }
+  }
+
+  getPublicUrl(key: string): string {
+    return `${this.publicBaseUrl}/${key}`;
+  }
+
+  isStorageKey(value: string): boolean {
+    return !value.startsWith('http://') && !value.startsWith('https://');
+  }
+
+  resolveAvatarUrl(avatarUrl: string | null): string | null {
+    if (!avatarUrl) return null;
+    return this.isStorageKey(avatarUrl)
+      ? this.getPublicUrl(avatarUrl)
+      : avatarUrl;
+  }
+
+  async processAvatar(file: Buffer): Promise<Buffer> {
+    validateFileSize(file.length, AVATAR_MAX_SIZE);
+
+    const metadata = await sharp(file).metadata();
+    const detectedMime = metadata.format
+      ? `image/${metadata.format}`
+      : 'unknown';
+    validateMimeType(detectedMime, AVATAR_ALLOWED_MIME_TYPES);
+
+    return sharp(file)
+      .resize(AVATAR_DIMENSION, AVATAR_DIMENSION, {
+        fit: 'cover',
+        position: 'centre',
+      })
+      .webp({ quality: 85 })
+      .toBuffer();
   }
 }

@@ -22,7 +22,7 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
-    "types": ["jest"],
+    "types": ["jest", "multer"],
     "paths": {
       "@common/*": ["src/common/*"],
       "@modules/*": ["src/modules/*"]

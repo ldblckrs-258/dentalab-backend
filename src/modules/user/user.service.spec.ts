@@ -11,6 +11,7 @@ import { PrismaService } from '@modules/database';
 import { CacheService } from '@modules/redis';
 import { PermissionResolverService } from '@modules/rbac';
 import { QueueProducerService } from '@modules/queue';
+import { StorageService } from '@modules/storage';
 import { mockI18nContext } from '@common/test/i18n-mock';
 
 jest.mock('bcrypt', () => ({
@@ -93,6 +94,21 @@ describe('UserService', () => {
         { provide: CacheService, useValue: cacheService },
         { provide: PermissionResolverService, useValue: permissionResolver },
         { provide: QueueProducerService, useValue: { publish: jest.fn() } },
+        {
+          provide: StorageService,
+          useValue: {
+            resolveAvatarUrl: jest.fn((url: string | null) => url),
+            isStorageKey: jest.fn(() => true),
+            upload: jest
+              .fn()
+              .mockResolvedValue({ key: 'avatars/user-1/uuid-avatar.webp' }),
+            delete: jest.fn().mockResolvedValue(undefined),
+            processAvatar: jest.fn().mockResolvedValue(Buffer.from('processed')),
+            getPublicUrl: jest.fn(
+              (key: string) => `http://localhost:9020/admin/${key}`,
+            ),
+          },
+        },
       ],
     }).compile();
 

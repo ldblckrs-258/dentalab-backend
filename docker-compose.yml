@@ -57,6 +57,7 @@ services:
       sleep 3;
       mc alias set local http://minio:9000 dentalab_admin dentalab_secret;
       mc mb local/dentalab --ignore-existing;
+      mc anonymous set download local/dentalab/avatars/;
       exit 0;
       "
 

@@ -8,6 +8,7 @@ import { activeOverrideWhere, OVERRIDE_SELECT, t } from '@common/utils';
 import { PrismaService } from '@modules/database';
 import { buildPaginatedResponse, buildPrismaQuery } from '@modules/pagination';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
+import { StorageService } from '@modules/storage';
 import type {
   EmailSendWelcomePayload,
   EventPayload,
@@ -19,6 +20,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
@@ -56,12 +58,35 @@ function flattenUserRoles<T extends { user_roles: { role: unknown }[] }>(
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
     private readonly permissionResolver: PermissionResolverService,
     private readonly queueProducer: QueueProducerService,
+    private readonly storageService: StorageService,
   ) {}
+
+  private async deleteStoredAvatar(avatarUrl: string | null): Promise<void> {
+    if (avatarUrl && this.storageService.isStorageKey(avatarUrl)) {
+      await this.storageService
+        .delete(avatarUrl)
+        .catch((err) =>
+          this.logger.warn(`Failed to delete old avatar: ${avatarUrl}`, err),
+        );
+    }
+  }
+
+  private resolveAvatarInUser<T extends { avatar_url?: string | null }>(
+    user: T | null,
+  ): T | null {
+    if (!user) return null;
+    return {
+      ...user,
+      avatar_url: this.storageService.resolveAvatarUrl(user.avatar_url ?? null),
+    };
+  }
 
   async findAll(query: UserQueryDto) {
     const prismaArgs = buildPrismaQuery(query, [
@@ -93,7 +118,11 @@ export class UserService {
       this.prisma.baseClient.user.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data.map(flattenUserRoles), total, query);
+    return buildPaginatedResponse(
+      data.map((u) => this.resolveAvatarInUser(flattenUserRoles(u))),
+      total,
+      query,
+    );
   }
 
   async findById(id: string) {
@@ -112,7 +141,7 @@ export class UserService {
     if (!user)
       throw new NotFoundException(t('common.user_not_found', 'User not found'));
 
-    return { ...flattenUserRoles(user), overrides };
+    return { ...this.resolveAvatarInUser(flattenUserRoles(user)), overrides };
   }
 
   private async assertCanManageAdminRole(
@@ -200,7 +229,7 @@ export class UserService {
       welcomePayload as EventPayload,
     );
 
-    return flattenUserRoles(user);
+    return this.resolveAvatarInUser(flattenUserRoles(user));
   }
 
   async update(id: string, dto: UpdateUserDto) {
@@ -209,12 +238,61 @@ export class UserService {
       data: {
         full_name: dto.full_name,
         phone: dto.phone,
-        avatar_url: dto.avatar_url,
       },
       select: USER_WITH_ROLES_SELECT,
     });
 
-    return flattenUserRoles(user);
+    return this.resolveAvatarInUser(flattenUserRoles(user));
+  }
+
+  async uploadAvatar(
+    userId: string,
+    file: Express.Multer.File,
+    uploadedBy: string,
+  ) {
+    const user = await this.prisma.baseClient.user.findUnique({
+      where: { id: userId },
+      select: { avatar_url: true },
+    });
+    if (!user)
+      throw new NotFoundException(t('common.user_not_found', 'User not found'));
+
+    const processed = await this.storageService.processAvatar(file.buffer);
+
+    const { key } = await this.storageService.upload(processed, {
+      category: 'avatars',
+      entityId: userId,
+      originalFilename: 'avatar.webp',
+      contentType: 'image/webp',
+      uploadedBy,
+    });
+
+    await this.deleteStoredAvatar(user.avatar_url);
+
+    await this.prisma.baseClient.user.update({
+      where: { id: userId },
+      data: { avatar_url: key },
+    });
+
+    return { avatarUrl: this.storageService.getPublicUrl(key) };
+  }
+
+  async removeAvatar(userId: string) {
+    const user = await this.prisma.baseClient.user.findUnique({
+      where: { id: userId },
+      select: { avatar_url: true },
+    });
+    if (!user)
+      throw new NotFoundException(t('common.user_not_found', 'User not found'));
+
+    await this.deleteStoredAvatar(user.avatar_url);
+
+    await this.prisma.baseClient.user.update({
+      where: { id: userId },
+      data: { avatar_url: null },
+    });
+
+    return { message: t('user.avatar_removed', 'Avatar removed') };
   }
 
   async updateStatus(id: string, dto: UpdateUserStatusDto) {
