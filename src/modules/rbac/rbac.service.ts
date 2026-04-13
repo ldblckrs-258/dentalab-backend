@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -221,6 +222,25 @@ export class RbacService {
     dto: CreateOverrideDto,
     grantedBy: string,
   ) {
+    // Enforce one active override per (user_id, permission_id) pair
+    const existing =
+      await this.prisma.baseClient.userPermissionOverride.findFirst({
+        where: {
+          ...activeOverrideWhere(userId),
+          permission_id: dto.permissionId,
+        },
+        select: { id: true },
+      });
+
+    if (existing) {
+      throw new ConflictException(
+        t(
+          'rbac.override_already_active',
+          'An active override already exists for this user-permission pair. Revoke it first.',
+        ),
+      );
+    }
+
     const override = await this.prisma.baseClient.userPermissionOverride.create(
       {
         data: {

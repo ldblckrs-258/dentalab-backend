@@ -9,5 +9,6 @@
   "insufficient_permissions": "Không đủ quyền",
   "own_resources_only": "Bạn chỉ có thể truy cập tài nguyên của chính mình",
   "override_not_found": "Không tìm thấy ghi đè quyền",
-  "override_revoked": "Đã thu hồi ghi đè quyền"
+  "override_revoked": "Đã thu hồi ghi đè quyền",
+  "override_already_active": "Đã tồn tại một ghi đè quyền đang hoạt động cho cặp user-permission này. Hãy thu hồi trước."
 }

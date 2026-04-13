@@ -1,0 +1,4 @@
+{
+  "not_found": "Provider not found",
+  "user_not_doctor": "User must have the Doctor role to create a provider profile"
+}

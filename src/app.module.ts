@@ -12,6 +12,7 @@ import { RbacModule } from '@modules/rbac';
 import { AuditModule } from '@modules/audit';
 import { HealthModule } from '@modules/health';
 import { UserModule } from '@modules/user';
+import { ProviderModule } from '@modules/provider';
 import { EmailModule } from '@modules/email';
 import { KioskModule } from '@modules/kiosk';
 import { DEFAULT_LANGUAGE } from '@common/constants';
@@ -36,8 +37,8 @@ const isDev = process.env.NODE_ENV !== 'production';
       resolvers: [AcceptLanguageResolver],
       ...(isDev && {
         typesOutputPath: path.join(
-          __dirname,
-          '../src/generated/i18n.generated.ts',
+          process.cwd(),
+          'src/generated/i18n.generated.ts',
         ),
       }),
     }),
@@ -47,6 +48,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     RbacModule,
     AuditModule,
     UserModule,
+    ProviderModule,
     KioskModule,
     HealthModule,
   ],

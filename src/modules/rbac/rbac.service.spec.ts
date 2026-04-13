@@ -43,6 +43,7 @@ describe('RbacService', () => {
         },
         userPermissionOverride: {
           findMany: jest.fn().mockResolvedValue([]),
+          findFirst: jest.fn().mockResolvedValue(null),
           findUnique: jest.fn(),
           create: jest.fn(),
           update: jest.fn(),

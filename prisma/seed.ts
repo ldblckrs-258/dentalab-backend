@@ -45,6 +45,24 @@ const PERMISSIONS: {
   { resource: 'users', action: 'update' },
   { resource: 'users', action: 'delete' },
   { resource: 'audit_logs', action: 'read' },
+  {
+    resource: 'audit_logs',
+    action: 'read',
+    scope: 'all',
+    description: 'View all audit logs',
+  },
+  {
+    resource: 'audit_logs',
+    action: 'read',
+    scope: 'operations',
+    description: 'View resource & operations audit logs',
+  },
+
+  // Providers
+  { resource: 'providers', action: 'create' },
+  { resource: 'providers', action: 'read' },
+  { resource: 'providers', action: 'update' },
+  { resource: 'providers', action: 'delete' },
 
   // Appointments & Procedures
   { resource: 'appointments', action: 'create' },
@@ -178,6 +196,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat_sessions', 'delete'),
     perm('rag_patient_notes', 'read'),
     perm('rag_internal_docs', 'read'),
+    perm('audit_logs', 'read'),
   ],
 
   Receptionist: [
@@ -198,6 +217,7 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat_sessions', 'read'),
     perm('chat_sessions', 'delete'),
     perm('rag_internal_docs', 'read'),
+    perm('audit_logs', 'read'),
   ],
 
   Manager: [
@@ -217,6 +237,8 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat_sessions', 'delete'),
     perm('rag_internal_docs', 'read'),
     perm('email_logs', 'read'),
+    perm('audit_logs', 'read'),
+    scopedPerm('audit_logs', 'read', 'operations'),
   ],
 };
 

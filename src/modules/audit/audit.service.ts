@@ -1,6 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@modules/database';
+import { PermissionResolverService } from '@modules/rbac';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
+import { t } from '@common/utils';
 import type { AuditQueryDto } from './dto/audit-query.dto';
 
 export interface AuditEntry {
@@ -13,13 +20,30 @@ export interface AuditEntry {
   ipAddress?: string;
 }
 
+/** Resources belonging to the "Tài nguyên & Vận hành" module (Module 4) */
+const OPERATIONS_RESOURCES = [
+  'form',
+  'kiosk_session',
+  'internal_document',
+  'document_version',
+  'inventory_item',
+  'inventory_transaction',
+  'email_template',
+  'email_log',
+  'provider_schedule',
+  'schedule_override',
+];
+
 const USER_SELECT = { select: { email: true, full_name: true } } as const;
 
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly permissionResolver: PermissionResolverService,
+  ) {}
 
   async log(entry: AuditEntry): Promise<void> {
     try {
@@ -41,7 +65,7 @@ export class AuditService {
     }
   }
 
-  async findAll(query: AuditQueryDto) {
+  async findAll(query: AuditQueryDto, currentUserId: string) {
     const prismaArgs = buildPrismaQuery(
       query,
       ['created_at', 'action', 'resource'],
@@ -61,6 +85,27 @@ export class AuditService {
       };
     }
 
+    // Scope-based filtering
+    const scope = await this.resolveAuditScope(currentUserId);
+
+    if (scope === 'operations') {
+      if (query.resource && !OPERATIONS_RESOURCES.includes(query.resource)) {
+        throw new ForbiddenException(
+          t('rbac.insufficient_permissions', 'Insufficient permissions'),
+        );
+      }
+      if (!query.resource) {
+        where.resource = { in: OPERATIONS_RESOURCES };
+      }
+    } else if (scope === 'own') {
+      if (query.userId && query.userId !== currentUserId) {
+        throw new ForbiddenException(
+          t('rbac.insufficient_permissions', 'Insufficient permissions'),
+        );
+      }
+      where.user_id = currentUserId;
+    }
+
     const [data, total] = await Promise.all([
       this.prisma.baseClient.auditLog.findMany({
         ...prismaArgs,
@@ -73,12 +118,41 @@ export class AuditService {
     return buildPaginatedResponse(data, total, query);
   }
 
-  async findById(id: string) {
+  async findById(id: string, currentUserId: string) {
     const log = await this.prisma.baseClient.auditLog.findUnique({
       where: { id },
       include: { user: USER_SELECT },
     });
-    if (!log) throw new NotFoundException('Audit log not found');
+    if (!log)
+      throw new NotFoundException(t('common.not_found', 'Audit log not found'));
+
+    // Scope-based access check
+    const scope = await this.resolveAuditScope(currentUserId);
+
+    if (
+      scope === 'operations' &&
+      !OPERATIONS_RESOURCES.includes(log.resource)
+    ) {
+      throw new ForbiddenException(
+        t('rbac.insufficient_permissions', 'Insufficient permissions'),
+      );
+    }
+    if (scope === 'own' && log.user_id !== currentUserId) {
+      throw new ForbiddenException(
+        t('rbac.insufficient_permissions', 'Insufficient permissions'),
+      );
+    }
+
     return log;
+  }
+
+  private async resolveAuditScope(
+    userId: string,
+  ): Promise<'all' | 'operations' | 'own'> {
+    const permissions =
+      await this.permissionResolver.resolvePermissions(userId);
+    if (permissions.includes('audit_logs:read:all')) return 'all';
+    if (permissions.includes('audit_logs:read:operations')) return 'operations';
+    return 'own';
   }
 }

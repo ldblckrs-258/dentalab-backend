@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
-import { RequirePermissions } from '@common/decorators';
+import { RequirePermissions, CurrentUser } from '@common/decorators';
+import type { AuthenticatedUser } from '@common/interfaces';
 import { AuditService } from './audit.service';
 import { AuditQueryDto } from './dto/audit-query.dto';
 
@@ -9,13 +10,19 @@ export class AuditController {
 
   @Get()
   @RequirePermissions('audit_logs:read')
-  async findAll(@Query() query: AuditQueryDto) {
-    return this.auditService.findAll(query);
+  async findAll(
+    @Query() query: AuditQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.auditService.findAll(query, user.id);
   }
 
   @Get(':id')
   @RequirePermissions('audit_logs:read')
-  async findById(@Param('id') id: string) {
-    return this.auditService.findById(id);
+  async findById(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.auditService.findById(id, user.id);
   }
 }
