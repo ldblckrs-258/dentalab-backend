@@ -2,7 +2,7 @@ import { Transform } from 'class-transformer';
 import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { SUPPORTED_LANGUAGES } from '@common/constants';
 
-export class UpdateUserDto {
+export class UpdateMyProfileDto {
   @IsOptional()
   @IsString()
   @MinLength(2)

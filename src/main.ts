@@ -1,9 +1,9 @@
-import { NestFactory } from '@nestjs/core';
+import { AppValidationPipe } from '@common/pipes/app-validation.pipe';
+import { AppConfigService } from '@modules/config';
 import { Logger } from '@nestjs/common';
-import { I18nValidationPipe, I18nValidationExceptionFilter } from 'nestjs-i18n';
+import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
-import { AppConfigService } from '@modules/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -30,20 +30,13 @@ async function bootstrap() {
 
   // Global validation pipe
   app.useGlobalPipes(
-    new I18nValidationPipe({
+    new AppValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,
       },
-    }),
-  );
-
-  // Global i18n validation exception filter
-  app.useGlobalFilters(
-    new I18nValidationExceptionFilter({
-      detailedErrors: true,
     }),
   );
 

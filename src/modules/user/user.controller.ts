@@ -17,7 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AssignRolesDto } from './dto/assign-roles.dto';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateLanguageDto } from './dto/update-language.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
@@ -55,29 +55,15 @@ export class UserController {
     return this.userService.findAll(query);
   }
 
-  @Patch('me/avatar')
+  @Patch('me')
   @Audited('user')
   @UseInterceptors(FileInterceptor('avatar', avatarMulterOptions))
-  uploadMyAvatar(
-    @UploadedFile() file: Express.Multer.File,
+  updateMyProfile(
+    @Body() dto: UpdateMyProfileDto,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser('id') userId: string,
   ) {
-    return this.userService.uploadAvatar(userId, file, userId);
-  }
-
-  @Delete('me/avatar')
-  @Audited('user')
-  removeMyAvatar(@CurrentUser('id') userId: string) {
-    return this.userService.removeAvatar(userId);
-  }
-
-  @Patch('me/language')
-  @Audited('user')
-  async updateLanguage(
-    @Body() dto: UpdateLanguageDto,
-    @CurrentUser('id') userId: string,
-  ) {
-    return this.userService.updateLanguage(userId, dto.language);
+    return this.userService.updateMyProfile(userId, dto, file);
   }
 
   @Get(':id')
@@ -99,27 +85,14 @@ export class UserController {
   @Patch(':id')
   @RequirePermissions('users:update')
   @Audited('user')
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.userService.update(id, dto);
-  }
-
-  @Patch(':id/avatar')
-  @RequirePermissions('users:update')
-  @Audited('user')
   @UseInterceptors(FileInterceptor('avatar', avatarMulterOptions))
-  uploadUserAvatar(
+  update(
     @Param('id') id: string,
-    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: UpdateUserDto,
+    @UploadedFile() file: Express.Multer.File | undefined,
     @CurrentUser('id') actorId: string,
   ) {
-    return this.userService.uploadAvatar(id, file, actorId);
-  }
-
-  @Delete(':id/avatar')
-  @RequirePermissions('users:update')
-  @Audited('user')
-  removeUserAvatar(@Param('id') id: string) {
-    return this.userService.removeAvatar(id);
+    return this.userService.update(id, dto, file, actorId);
   }
 
   @Patch(':id/status')

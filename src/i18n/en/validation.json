@@ -1,3 +1,18 @@
 {
-  "password_requirements": "Password must contain at least one lowercase, one uppercase and one digit"
+  "password_requirements": "Password must contain at least one lowercase, one uppercase and one digit",
+  "isNotEmpty": "{property} should not be empty",
+  "isString": "{property} must be a string",
+  "isInt": "{property} must be an integer number",
+  "isNumber": "{property} must be a number",
+  "isBoolean": "{property} must be a boolean value",
+  "isEmail": "{property} must be an email",
+  "isUuid": "{property} must be a UUID",
+  "isIn": "{property} must be one of the following values: {values}",
+  "isDateString": "{property} must be a valid ISO 8601 date string",
+  "isUrl": "{property} must be a URL",
+  "min": "{property} must not be less than {min}",
+  "max": "{property} must not be greater than {max}",
+  "minLength": "{property} must be at least {minLength} characters",
+  "maxLength": "{property} must be at most {maxLength} characters",
+  "matches": "{property} format is invalid"
 }

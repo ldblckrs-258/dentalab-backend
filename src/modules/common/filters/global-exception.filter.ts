@@ -1,3 +1,4 @@
+import { DEFAULT_LANGUAGE, ErrorCode } from '@common/constants';
 import {
   ArgumentsHost,
   Catch,
@@ -5,10 +6,10 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  ValidationError,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { I18nContext } from 'nestjs-i18n';
-import { DEFAULT_LANGUAGE, ErrorCode } from '@common/constants';
+import { I18nContext, I18nValidationException } from 'nestjs-i18n';
 import { InfrastructureException } from './infrastructure.exception';
 
 const HTTP_STATUS_ERROR_CODES: Record<number, string> = {
@@ -110,6 +111,17 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     message: string;
     details?: unknown;
   } {
+    // Validation errors from I18nValidationPipe
+    if (exception instanceof I18nValidationException) {
+      const messages = this.formatValidationErrors(exception.errors, i18n);
+      return {
+        statusCode: HttpStatus.BAD_REQUEST,
+        errorCode: ErrorCode.COMMON_BAD_REQUEST,
+        message: messages[0] || 'Validation failed',
+        details: messages,
+      };
+    }
+
     // NestJS HttpException
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
@@ -176,5 +188,57 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
   private httpStatusToErrorCode(status: number): string {
     return HTTP_STATUS_ERROR_CODES[status] ?? ErrorCode.COMMON_UNKNOWN_ERROR;
+  }
+
+  private formatValidationErrors(
+    errors: ValidationError[],
+    i18n?: I18nContext,
+  ): string[] {
+    const messages: string[] = [];
+    for (const error of errors) {
+      if (error.constraints) {
+        for (const [constraint, defaultMessage] of Object.entries(
+          error.constraints,
+        )) {
+          const key = `validation.${constraint}`;
+          const args = {
+            property: error.property,
+            value: error.value,
+            ...this.extractConstraintArgs(constraint, defaultMessage),
+          };
+          const translated = i18n?.t(key, { args });
+          messages.push(
+            translated && translated !== key
+              ? (translated as string)
+              : defaultMessage,
+          );
+        }
+      }
+      if (error.children?.length) {
+        messages.push(...this.formatValidationErrors(error.children, i18n));
+      }
+    }
+    return messages;
+  }
+
+  private extractConstraintArgs(
+    constraint: string,
+    defaultMessage: string,
+  ): Record<string, string> {
+    switch (constraint) {
+      case 'isIn': {
+        const idx = defaultMessage.lastIndexOf(': ');
+        return idx !== -1 ? { values: defaultMessage.substring(idx + 2) } : {};
+      }
+      case 'min':
+      case 'max':
+      case 'minLength':
+      case 'maxLength': {
+        const match = defaultMessage.match(/\d+/);
+        return match ? { [constraint]: match[0] } : {};
+      }
+      default:
+        return {};
+    }
   }
 }

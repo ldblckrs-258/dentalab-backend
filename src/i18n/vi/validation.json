@@ -1,3 +1,18 @@
 {
-  "password_requirements": "Mật khẩu phải chứa ít nhất một chữ thường, một chữ hoa và một chữ số"
+  "password_requirements": "Mật khẩu phải chứa ít nhất một chữ thường, một chữ hoa và một chữ số",
+  "isNotEmpty": "{property} không được để trống",
+  "isString": "{property} phải là chuỗi ký tự",
+  "isInt": "{property} phải là số nguyên",
+  "isNumber": "{property} phải là số",
+  "isBoolean": "{property} phải là giá trị boolean",
+  "isEmail": "{property} phải là email hợp lệ",
+  "isUuid": "{property} phải là UUID hợp lệ",
+  "isIn": "{property} phải là một trong các giá trị: {values}",
+  "isDateString": "{property} phải là chuỗi ngày giờ ISO 8601 hợp lệ",
+  "isUrl": "{property} phải là URL hợp lệ",
+  "min": "{property} không được nhỏ hơn {min}",
+  "max": "{property} không được lớn hơn {max}",
+  "minLength": "{property} phải có ít nhất {minLength} ký tự",
+  "maxLength": "{property} không được vượt quá {maxLength} ký tự",
+  "matches": "{property} có định dạng không hợp lệ"
 }

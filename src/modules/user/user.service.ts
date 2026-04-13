@@ -27,6 +27,7 @@ import * as bcrypt from 'bcrypt';
 import type { AssignRolesDto } from './dto/assign-roles.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import type { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
 import type { UserQueryDto } from './dto/user-query.dto';
 
@@ -232,67 +233,50 @@ export class UserService {
     return this.resolveAvatarInUser(flattenUserRoles(user));
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    const user = await this.prisma.baseClient.user.update({
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    file?: Express.Multer.File,
+    actorId?: string,
+  ) {
+    const user = await this.prisma.baseClient.user.findUnique({
+      where: { id },
+      select: { avatar_url: true },
+    });
+    if (!user)
+      throw new NotFoundException(t('common.user_not_found', 'User not found'));
+
+    let avatarKey: string | null | undefined;
+    if (file) {
+      const processed = await this.storageService.processAvatar(file.buffer);
+      const { key } = await this.storageService.upload(processed, {
+        category: 'avatars',
+        entityId: id,
+        originalFilename: 'avatar.webp',
+        contentType: 'image/webp',
+        uploadedBy: actorId ?? id,
+      });
+      await this.deleteStoredAvatar(user.avatar_url);
+      avatarKey = key;
+    } else if (dto.remove_avatar) {
+      await this.deleteStoredAvatar(user.avatar_url);
+      avatarKey = null;
+    }
+
+    const updated = await this.prisma.baseClient.user.update({
       where: { id },
       data: {
-        full_name: dto.full_name,
-        phone: dto.phone,
+        ...(dto.full_name !== undefined && { full_name: dto.full_name }),
+        ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(dto.preferred_language !== undefined && {
+          preferred_language: dto.preferred_language,
+        }),
+        ...(avatarKey !== undefined && { avatar_url: avatarKey }),
       },
       select: USER_WITH_ROLES_SELECT,
     });
 
-    return this.resolveAvatarInUser(flattenUserRoles(user));
-  }
-
-  async uploadAvatar(
-    userId: string,
-    file: Express.Multer.File,
-    uploadedBy: string,
-  ) {
-    const user = await this.prisma.baseClient.user.findUnique({
-      where: { id: userId },
-      select: { avatar_url: true },
-    });
-    if (!user)
-      throw new NotFoundException(t('common.user_not_found', 'User not found'));
-
-    const processed = await this.storageService.processAvatar(file.buffer);
-
-    const { key } = await this.storageService.upload(processed, {
-      category: 'avatars',
-      entityId: userId,
-      originalFilename: 'avatar.webp',
-      contentType: 'image/webp',
-      uploadedBy,
-    });
-
-    await this.deleteStoredAvatar(user.avatar_url);
-
-    await this.prisma.baseClient.user.update({
-      where: { id: userId },
-      data: { avatar_url: key },
-    });
-
-    return { id: userId, avatarUrl: this.storageService.getPublicUrl(key) };
-  }
-
-  async removeAvatar(userId: string) {
-    const user = await this.prisma.baseClient.user.findUnique({
-      where: { id: userId },
-      select: { avatar_url: true },
-    });
-    if (!user)
-      throw new NotFoundException(t('common.user_not_found', 'User not found'));
-
-    await this.deleteStoredAvatar(user.avatar_url);
-
-    await this.prisma.baseClient.user.update({
-      where: { id: userId },
-      data: { avatar_url: null },
-    });
-
-    return { id: userId, message: t('user.avatar_removed', 'Avatar removed') };
+    return this.resolveAvatarInUser(flattenUserRoles(updated));
   }
 
   async updateStatus(id: string, dto: UpdateUserStatusDto) {
@@ -392,13 +376,49 @@ export class UserService {
     return { message: t('user.roles_removed', 'Roles removed') };
   }
 
-  async updateLanguage(userId: string, language: string) {
-    await this.prisma.client.user.update({
+  async updateMyProfile(
+    userId: string,
+    dto: UpdateMyProfileDto,
+    file?: Express.Multer.File,
+  ) {
+    const user = await this.prisma.baseClient.user.findUnique({
       where: { id: userId },
-      data: { preferred_language: language },
+      select: { avatar_url: true },
     });
-    return {
-      message: t('user.language_updated', 'Language preference updated'),
-    };
+    if (!user)
+      throw new NotFoundException(t('common.user_not_found', 'User not found'));
+
+    // Handle avatar
+    let avatarKey: string | null | undefined;
+    if (file) {
+      const processed = await this.storageService.processAvatar(file.buffer);
+      const { key } = await this.storageService.upload(processed, {
+        category: 'avatars',
+        entityId: userId,
+        originalFilename: 'avatar.webp',
+        contentType: 'image/webp',
+        uploadedBy: userId,
+      });
+      await this.deleteStoredAvatar(user.avatar_url);
+      avatarKey = key;
+    } else if (dto.remove_avatar) {
+      await this.deleteStoredAvatar(user.avatar_url);
+      avatarKey = null;
+    }
+
+    const updated = await this.prisma.baseClient.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.full_name !== undefined && { full_name: dto.full_name }),
+        ...(dto.phone !== undefined && { phone: dto.phone }),
+        ...(dto.preferred_language !== undefined && {
+          preferred_language: dto.preferred_language,
+        }),
+        ...(avatarKey !== undefined && { avatar_url: avatarKey }),
+      },
+      select: USER_WITH_ROLES_SELECT,
+    });
+
+    return this.resolveAvatarInUser(flattenUserRoles(updated));
   }
 }
