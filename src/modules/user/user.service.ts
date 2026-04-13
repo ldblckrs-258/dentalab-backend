@@ -274,7 +274,7 @@ export class UserService {
       data: { avatar_url: key },
     });
 
-    return { avatarUrl: this.storageService.getPublicUrl(key) };
+    return { id: userId, avatarUrl: this.storageService.getPublicUrl(key) };
   }
 
   async removeAvatar(userId: string) {
@@ -292,7 +292,7 @@ export class UserService {
       data: { avatar_url: null },
     });
 
-    return { message: t('user.avatar_removed', 'Avatar removed') };
+    return { id: userId, message: t('user.avatar_removed', 'Avatar removed') };
   }
 
   async updateStatus(id: string, dto: UpdateUserStatusDto) {

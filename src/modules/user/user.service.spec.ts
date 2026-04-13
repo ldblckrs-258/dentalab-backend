@@ -103,7 +103,9 @@ describe('UserService', () => {
               .fn()
               .mockResolvedValue({ key: 'avatars/user-1/uuid-avatar.webp' }),
             delete: jest.fn().mockResolvedValue(undefined),
-            processAvatar: jest.fn().mockResolvedValue(Buffer.from('processed')),
+            processAvatar: jest
+              .fn()
+              .mockResolvedValue(Buffer.from('processed')),
             getPublicUrl: jest.fn(
               (key: string) => `http://localhost:9020/admin/${key}`,
             ),

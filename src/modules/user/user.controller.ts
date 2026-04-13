@@ -1,3 +1,6 @@
+import { Audited, CurrentUser, RequirePermissions } from '@common/decorators';
+import type { AuthenticatedUser } from '@common/interfaces';
+import { AVATAR_ALLOWED_MIME_TYPES, AVATAR_MAX_SIZE } from '@modules/storage';
 import {
   BadRequestException,
   Body,
@@ -12,16 +15,13 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { RequirePermissions, Audited, CurrentUser } from '@common/decorators';
-import type { AuthenticatedUser } from '@common/interfaces';
-import { AVATAR_MAX_SIZE, AVATAR_ALLOWED_MIME_TYPES } from '@modules/storage';
-import { UserService } from './user.service';
-import { UserQueryDto } from './dto/user-query.dto';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
-import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { AssignRolesDto } from './dto/assign-roles.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateLanguageDto } from './dto/update-language.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UserQueryDto } from './dto/user-query.dto';
+import { UserService } from './user.service';
 
 const AVATAR_ALLOWED_EXTENSIONS = /\.(jpe?g|png|webp)$/i;
 
@@ -58,7 +58,7 @@ export class UserController {
   @Patch('me/avatar')
   @Audited('user')
   @UseInterceptors(FileInterceptor('avatar', avatarMulterOptions))
-  async uploadMyAvatar(
+  uploadMyAvatar(
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('id') userId: string,
   ) {
@@ -67,7 +67,7 @@ export class UserController {
 
   @Delete('me/avatar')
   @Audited('user')
-  async removeMyAvatar(@CurrentUser('id') userId: string) {
+  removeMyAvatar(@CurrentUser('id') userId: string) {
     return this.userService.removeAvatar(userId);
   }
 
@@ -107,7 +107,7 @@ export class UserController {
   @RequirePermissions('users:update')
   @Audited('user')
   @UseInterceptors(FileInterceptor('avatar', avatarMulterOptions))
-  async uploadUserAvatar(
+  uploadUserAvatar(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('id') actorId: string,
@@ -118,7 +118,7 @@ export class UserController {
   @Delete(':id/avatar')
   @RequirePermissions('users:update')
   @Audited('user')
-  async removeUserAvatar(@Param('id') id: string) {
+  removeUserAvatar(@Param('id') id: string) {
     return this.userService.removeAvatar(id);
   }
 
