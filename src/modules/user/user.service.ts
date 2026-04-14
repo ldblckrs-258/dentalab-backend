@@ -4,7 +4,13 @@ import {
   CACHE_KEY_BLACKLIST,
   SYSTEM_ROLE_ADMIN,
 } from '@common/constants';
-import { activeOverrideWhere, OVERRIDE_SELECT, t } from '@common/utils';
+import {
+  activeOverrideWhere,
+  OVERRIDE_SELECT,
+  resolveLang,
+  t,
+} from '@common/utils';
+import { I18nContext } from 'nestjs-i18n';
 import { PrismaService } from '@modules/database';
 import { buildPaginatedResponse, buildPrismaQuery } from '@modules/pagination';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
@@ -222,6 +228,7 @@ export class UserService {
       userId: user!.id,
       email: dto.email,
       fullName: dto.fullName,
+      lang: resolveLang(I18nContext.current()?.lang),
       ...(dto.sendTempPassword && { temporaryPassword: dto.password }),
     };
     this.queueProducer.publish(

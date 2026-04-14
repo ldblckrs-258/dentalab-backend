@@ -1,31 +1,41 @@
-<!-- Content section for welcome -->
-<mj-section background-color="#ffffff" padding="30px 20px">
-  <mj-column>
-    <mj-text font-size="20px" font-weight="bold">Welcome to DentaLab!</mj-text>
-    <mj-text>Hello {{ userName }},</mj-text>
-    <mj-text>
+<!-- Welcome email content -->
+<mj-section padding="0 24px" css-class="panel-wrap">
+  <mj-column
+    background-color="#ffffff"
+    border="1px solid #e4e4e7"
+    border-radius="16px"
+    padding="32px 28px"
+  >
+    <mj-text font-size="22px" font-weight="700" color="#27272a" padding="0 0 8px">
+      {{welcomeHeading}}
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 16px">
+      {{greeting}}
+    </mj-text>
+    <mj-text padding="0">
       {{#if temporaryPassword}}
-      An account has been created for you. Here are your login credentials:
+      <p style="margin:0 0 12px;color:#52525b;">{{credentialsIntro}}</p>
       <div
         style="
-          margin-top: 12px;
-          padding: 12px 20px;
-          background-color: #f4f4f5;
-          border-radius: 6px;
+          margin:0 0 12px;
+          padding:16px 20px;
+          background-color:#f4f4f5;
+          border:1px solid #e4e4e7;
+          border-radius:12px;
+          font-size:14px;
+          color:#27272a;
         "
       >
-        <strong>Email:</strong> {{ email }}<br />
-        <strong>Temporary Password:</strong> {{ temporaryPassword }}
+        <div style="margin-bottom:6px;"><strong style="color:#71717a;">{{emailLabel}}</strong> {{email}}</div>
+        <div><strong style="color:#71717a;">{{tempPasswordLabel}}</strong> <code style="background:#ffffff;padding:2px 8px;border-radius:6px;border:1px solid #e4e4e7;color:#6366f1;font-weight:600;">{{temporaryPassword}}</code></div>
       </div>
-      <p style="margin-top: 12px">
-        Please change your password after your first login.
-      </p>
+      <p style="margin:0;color:#71717a;font-size:13px;">{{passwordChangeNote}}</p>
       {{else}}
-      Your account has been created. You can sign in using your email (<strong
-        >{{ email }}</strong
-      >) and the password provided to you by your administrator.
+      <p style="margin:0;color:#52525b;">{{noPasswordIntro}}</p>
       {{/if}}
     </mj-text>
-    <mj-button href="{{loginLink}}"> Login Now </mj-button>
+    <mj-button href="{{loginLink}}" padding="24px 0 0">
+      {{loginButton}}
+    </mj-button>
   </mj-column>
 </mj-section>

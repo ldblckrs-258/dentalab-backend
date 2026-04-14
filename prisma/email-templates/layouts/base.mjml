@@ -1,28 +1,35 @@
 <mjml>
   <mj-head>
     <mj-attributes>
-      <mj-all font-family="Arial, sans-serif" />
-      <mj-text font-size="14px" color="#333333" line-height="1.6" />
+      <mj-all font-family="Inter, Arial, sans-serif" />
+      <mj-text font-size="14px" color="#27272a" line-height="1.6" />
       <mj-button
-        background-color="#2563eb"
+        background-color="#6366f1"
         color="#ffffff"
-        border-radius="6px"
-        font-size="16px"
-        inner-padding="12px 24px"
+        border-radius="999px"
+        font-size="14px"
+        font-weight="600"
+        inner-padding="14px 28px"
       />
     </mj-attributes>
+    <mj-style>
+      .brand-name { color: #6366f1; font-weight: 700; letter-spacing: -0.02em; }
+      .panel {
+        background: #ffffff;
+        border: 1px solid #e4e4e7;
+        border-radius: 16px;
+      }
+    </mj-style>
   </mj-head>
-  <mj-body background-color="#f4f4f5">
-    <!-- Header -->
-    <mj-section background-color="#ffffff" padding="20px 0">
-      <mj-column>
-        <mj-text
-          align="center"
-          font-size="24px"
-          font-weight="bold"
-          color="#2563eb"
-        >
-          DentaLab
+  <mj-body background-color="#fafafa">
+    <!-- Header (mirrors side-banner-layout: logo icon + "DentaLab" text in primary color) -->
+    <mj-section padding="28px 24px 20px">
+      <mj-column vertical-align="middle">
+        <mj-text align="center" font-size="22px" padding="0">
+          <a href="{{loginLink}}" style="text-decoration:none;display:inline-block;line-height:1;">
+            <img src="{{logoUrl}}" alt="DentaLab" width="28" height="28" style="vertical-align:middle;border:0;display:inline-block;margin-right:6px;" />
+            <span class="brand-name" style="vertical-align:middle;color:#6366f1;font-weight:700;">DentaLab</span>
+          </a>
         </mj-text>
       </mj-column>
     </mj-section>
@@ -31,12 +38,14 @@
     {{{content}}}
 
     <!-- Footer -->
-    <mj-section padding="20px 0">
+    <mj-section padding="8px 24px 24px">
       <mj-column>
-        <mj-text align="center" font-size="12px" color="#9ca3af">
-          DentaLab - Dental Practice Management System<br />
-          This is an automated message. Please do not reply directly to this
-          email.
+        <mj-divider border-color="#e4e4e7" border-width="1px" padding="0 0 16px" />
+        <mj-text align="center" font-size="12px" color="#71717a" padding="0">
+          &copy; {{year}} DentaLab &middot; Dental Practice Management System
+        </mj-text>
+        <mj-text align="center" font-size="11px" color="#a1a1aa" padding="6px 0 0">
+          {{footerNote}}
         </mj-text>
       </mj-column>
     </mj-section>

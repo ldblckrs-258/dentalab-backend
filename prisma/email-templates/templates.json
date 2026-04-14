@@ -1,21 +1,47 @@
 [
   {
     "name": "password-reset",
-    "subject": "Reset your DentaLab password",
+    "subject": "{{subject}}",
     "type": "password_reset",
     "file": "password-reset.mjml",
     "variables": {
-      "required": ["userName", "resetLink", "expiresIn"],
+      "required": [
+        "subject",
+        "heading",
+        "greeting",
+        "intro",
+        "buttonText",
+        "expiryNote",
+        "resetLink",
+        "logoUrl",
+        "year",
+        "footerNote"
+      ],
       "optional": []
     }
   },
   {
     "name": "welcome",
-    "subject": "Welcome to DentaLab, {{userName}}!",
+    "subject": "{{subject}}",
     "type": "system_alert",
     "file": "welcome.mjml",
     "variables": {
-      "required": ["userName", "email", "loginLink"],
+      "required": [
+        "subject",
+        "email",
+        "loginLink",
+        "welcomeHeading",
+        "greeting",
+        "credentialsIntro",
+        "noPasswordIntro",
+        "emailLabel",
+        "tempPasswordLabel",
+        "passwordChangeNote",
+        "loginButton",
+        "logoUrl",
+        "year",
+        "footerNote"
+      ],
       "optional": ["temporaryPassword"]
     }
   }

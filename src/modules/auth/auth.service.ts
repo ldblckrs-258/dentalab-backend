@@ -21,6 +21,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { I18nContext } from 'nestjs-i18n';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import type { ChangePasswordDto } from './dto/change-password.dto';
@@ -275,7 +276,7 @@ export class AuthService {
   async forgotPassword(dto: ForgotPasswordDto): Promise<void> {
     const user = await this.prisma.client.user.findUnique({
       where: { email: dto.email },
-      select: { id: true, email: true },
+      select: { id: true, email: true, preferredLanguage: true },
     });
 
     // Always return success to prevent email enumeration
@@ -298,6 +299,7 @@ export class AuthService {
       email: user.email,
       resetToken,
       expiresAt: expiresAt.toISOString(),
+      lang: I18nContext.current()?.lang ?? user.preferredLanguage,
     };
     this.queueProducer.publish(ROUTING_KEY.EMAIL_SEND_RESET_PASSWORD, payload);
   }

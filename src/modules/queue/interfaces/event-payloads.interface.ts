@@ -44,6 +44,7 @@ export interface EmailSendResetPasswordPayload {
   email: string;
   resetToken: string;
   expiresAt: string;
+  lang?: string;
 }
 
 export interface EmailSendWelcomePayload {
@@ -51,6 +52,7 @@ export interface EmailSendWelcomePayload {
   email: string;
   fullName: string;
   temporaryPassword?: string;
+  lang?: string;
 }
 
 export interface InventoryLowStockPayload {

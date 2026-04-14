@@ -3,5 +3,25 @@
   "can_only_resend_failed": "Chỉ có thể gửi lại email thất bại hoặc bị trả lại",
   "template_not_found": "Không tìm thấy mẫu email",
   "cannot_delete_system_template": "Không thể xóa mẫu hệ thống",
-  "template_deleted": "Đã xóa mẫu email"
+  "template_deleted": "Đã xóa mẫu email",
+  "footerNote": "Đây là email tự động. Vui lòng không trả lời trực tiếp email này.",
+  "welcome": {
+    "subject": "Chào mừng đến với DentaLab, {userName}!",
+    "heading": "Chào mừng đến với DentaLab!",
+    "greeting": "Xin chào {userName},",
+    "credentialsIntro": "Tài khoản của bạn đã được tạo. Dưới đây là thông tin đăng nhập:",
+    "noPasswordIntro": "Tài khoản của bạn đã được tạo. Bạn có thể đăng nhập bằng email và mật khẩu do quản trị viên cung cấp.",
+    "emailLabel": "Email:",
+    "tempPasswordLabel": "Mật khẩu tạm thời:",
+    "passwordChangeNote": "Vì lý do bảo mật, vui lòng đổi mật khẩu này ngay sau lần đăng nhập đầu tiên.",
+    "loginButton": "Đăng nhập ngay"
+  },
+  "passwordReset": {
+    "subject": "Đặt lại mật khẩu DentaLab của bạn",
+    "heading": "Đặt lại mật khẩu",
+    "greeting": "Xin chào {userName},",
+    "intro": "Chúng tôi nhận được yêu cầu đặt lại mật khẩu của bạn. Nhấn nút bên dưới để đặt mật khẩu mới. Nếu bạn không thực hiện yêu cầu này, bạn có thể bỏ qua email này một cách an toàn.",
+    "buttonText": "Đặt lại mật khẩu",
+    "expiryNote": "Liên kết này sẽ hết hạn sau {expiresIn}."
+  }
 }
