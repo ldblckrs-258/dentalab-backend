@@ -27,15 +27,15 @@ describe('UserService', () => {
   const mockUser = {
     id: 'user-1',
     email: 'test@example.com',
-    full_name: 'Test User',
+    fullName: 'Test User',
     phone: null,
-    avatar_url: null,
-    is_active: true,
-    created_at: new Date(),
-    updated_at: new Date(),
+    avatarUrl: null,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
-  const mockUserWithRoles = { ...mockUser, user_roles: [] };
+  const mockUserWithRoles = { ...mockUser, userRoles: [] };
 
   beforeEach(async () => {
     mockI18nContext();
@@ -153,7 +153,7 @@ describe('UserService', () => {
         service.create(
           {
             email: 'test@example.com',
-            full_name: 'Test',
+            fullName: 'Test',
             password: 'Test1234',
           },
           'actor-1',
@@ -168,7 +168,7 @@ describe('UserService', () => {
       await service.create(
         {
           email: 'new@example.com',
-          full_name: 'New User',
+          fullName: 'New User',
           password: 'Test1234',
           roleIds: ['role-1'],
         },
@@ -184,16 +184,16 @@ describe('UserService', () => {
     it('should invalidate cache and blacklist tokens when deactivating', async () => {
       prisma.baseClient.user.update.mockResolvedValue({
         ...mockUser,
-        is_active: false,
+        isActive: false,
       });
       prisma.baseClient.refreshToken.findMany.mockResolvedValue([
         {
-          token_hash: 'hash1',
-          expires_at: new Date(Date.now() + 100000),
+          tokenHash: 'hash1',
+          expiresAt: new Date(Date.now() + 100000),
         },
       ]);
 
-      await service.updateStatus('user-1', { is_active: false });
+      await service.updateStatus('user-1', { isActive: false });
 
       expect(permissionResolver.invalidateCache).toHaveBeenCalledWith('user-1');
       expect(cacheService.set).toHaveBeenCalledWith(
@@ -203,17 +203,17 @@ describe('UserService', () => {
         expect.any(Number),
       );
       expect(prisma.baseClient.refreshToken.deleteMany).toHaveBeenCalledWith({
-        where: { user_id: 'user-1' },
+        where: { userId: 'user-1' },
       });
     });
 
     it('should NOT invalidate cache when activating', async () => {
       prisma.baseClient.user.update.mockResolvedValue({
         ...mockUser,
-        is_active: true,
+        isActive: true,
       });
 
-      await service.updateStatus('user-1', { is_active: true });
+      await service.updateStatus('user-1', { isActive: true });
 
       expect(permissionResolver.invalidateCache).not.toHaveBeenCalled();
     });
@@ -259,7 +259,7 @@ describe('UserService', () => {
         service.create(
           {
             email: 'new@example.com',
-            full_name: 'New Admin',
+            fullName: 'New Admin',
             password: 'Test1234',
             roleIds: [adminRoleId],
           },
@@ -277,7 +277,7 @@ describe('UserService', () => {
       await service.create(
         {
           email: 'new@example.com',
-          full_name: 'New Admin',
+          fullName: 'New Admin',
           password: 'Test1234',
           roleIds: [adminRoleId],
         },
@@ -295,7 +295,7 @@ describe('UserService', () => {
       await service.create(
         {
           email: 'new@example.com',
-          full_name: 'New User',
+          fullName: 'New User',
           password: 'Test1234',
           roleIds: ['doctor-role-id'],
         },

@@ -34,27 +34,27 @@ import type { UserQueryDto } from './dto/user-query.dto';
 const USER_SELECT = {
   id: true,
   email: true,
-  full_name: true,
+  fullName: true,
   phone: true,
-  avatar_url: true,
-  is_active: true,
-  created_at: true,
-  updated_at: true,
+  avatarUrl: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
 } as const;
 
 const USER_WITH_ROLES_SELECT = {
   ...USER_SELECT,
-  user_roles: {
+  userRoles: {
     select: { role: { select: { id: true, name: true } } },
   },
 } as const;
 
-function flattenUserRoles<T extends { user_roles: { role: unknown }[] }>(
+function flattenUserRoles<T extends { userRoles: { role: unknown }[] }>(
   user: T | null,
 ) {
   if (!user) return null;
-  const { user_roles, ...rest } = user;
-  return { ...rest, roles: user_roles.map((ur) => ur.role) };
+  const { userRoles, ...rest } = user;
+  return { ...rest, roles: userRoles.map((ur) => ur.role) };
 }
 
 @Injectable()
@@ -79,35 +79,35 @@ export class UserService {
     }
   }
 
-  private resolveAvatarInUser<T extends { avatar_url?: string | null }>(
+  private resolveAvatarInUser<T extends { avatarUrl?: string | null }>(
     user: T | null,
   ): T | null {
     if (!user) return null;
     return {
       ...user,
-      avatar_url: this.storageService.resolveAvatarUrl(user.avatar_url ?? null),
+      avatarUrl: this.storageService.resolveAvatarUrl(user.avatarUrl ?? null),
     };
   }
 
   async findAll(query: UserQueryDto) {
     const prismaArgs = buildPrismaQuery(query, [
-      'full_name',
+      'fullName',
       'email',
-      'created_at',
+      'createdAt',
     ]);
 
     const where: Record<string, unknown> = {};
     if (query.search) {
       where.OR = [
-        { full_name: { contains: query.search, mode: 'insensitive' } },
+        { fullName: { contains: query.search, mode: 'insensitive' } },
         { email: { contains: query.search, mode: 'insensitive' } },
       ];
     }
     if (query.roleId) {
-      where.user_roles = { some: { role_id: query.roleId } };
+      where.userRoles = { some: { roleId: query.roleId } };
     }
     if (query.isActive !== undefined) {
-      where.is_active = query.isActive === 'true';
+      where.isActive = query.isActive === 'true';
     }
 
     const [data, total] = await Promise.all([
@@ -135,7 +135,7 @@ export class UserService {
       this.prisma.baseClient.userPermissionOverride.findMany({
         where: activeOverrideWhere(id),
         select: OVERRIDE_SELECT,
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
       }),
     ]);
 
@@ -196,17 +196,17 @@ export class UserService {
       const created = await tx.user.create({
         data: {
           email: dto.email,
-          full_name: dto.full_name,
+          fullName: dto.fullName,
           phone: dto.phone,
-          password_hash: passwordHash,
+          passwordHash: passwordHash,
         },
       });
 
       if (dto.roleIds?.length) {
         await tx.userRole.createMany({
           data: dto.roleIds.map((roleId) => ({
-            user_id: created.id,
-            role_id: roleId,
+            userId: created.id,
+            roleId: roleId,
           })),
           skipDuplicates: true,
         });
@@ -218,17 +218,18 @@ export class UserService {
       });
     });
 
-    // Publish welcome email event
-    const welcomePayload: EmailSendWelcomePayload = {
-      userId: user!.id,
-      email: dto.email,
-      fullName: dto.full_name,
-      temporaryPassword: dto.password,
-    };
-    this.queueProducer.publish(
-      ROUTING_KEY.EMAIL_SEND_WELCOME as string,
-      welcomePayload as EventPayload,
-    );
+    if (dto.sendTempPassword) {
+      const welcomePayload: EmailSendWelcomePayload = {
+        userId: user!.id,
+        email: dto.email,
+        fullName: dto.fullName,
+        temporaryPassword: dto.password,
+      };
+      this.queueProducer.publish(
+        ROUTING_KEY.EMAIL_SEND_WELCOME as string,
+        welcomePayload as EventPayload,
+      );
+    }
 
     return this.resolveAvatarInUser(flattenUserRoles(user));
   }
@@ -241,7 +242,7 @@ export class UserService {
   ) {
     const user = await this.prisma.baseClient.user.findUnique({
       where: { id },
-      select: { avatar_url: true },
+      select: { avatarUrl: true },
     });
     if (!user)
       throw new NotFoundException(t('common.user_not_found', 'User not found'));
@@ -256,22 +257,22 @@ export class UserService {
         contentType: 'image/webp',
         uploadedBy: actorId ?? id,
       });
-      await this.deleteStoredAvatar(user.avatar_url);
+      await this.deleteStoredAvatar(user.avatarUrl);
       avatarKey = key;
-    } else if (dto.remove_avatar) {
-      await this.deleteStoredAvatar(user.avatar_url);
+    } else if (dto.removeAvatar) {
+      await this.deleteStoredAvatar(user.avatarUrl);
       avatarKey = null;
     }
 
     const updated = await this.prisma.baseClient.user.update({
       where: { id },
       data: {
-        ...(dto.full_name !== undefined && { full_name: dto.full_name }),
+        ...(dto.fullName !== undefined && { fullName: dto.fullName }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.preferred_language !== undefined && {
-          preferred_language: dto.preferred_language,
+        ...(dto.preferredLanguage !== undefined && {
+          preferredLanguage: dto.preferredLanguage,
         }),
-        ...(avatarKey !== undefined && { avatar_url: avatarKey }),
+        ...(avatarKey !== undefined && { avatarUrl: avatarKey }),
       },
       select: USER_WITH_ROLES_SELECT,
     });
@@ -282,15 +283,15 @@ export class UserService {
   async updateStatus(id: string, dto: UpdateUserStatusDto) {
     const updated = await this.prisma.baseClient.user.update({
       where: { id },
-      data: { is_active: dto.is_active },
+      data: { isActive: dto.isActive },
       select: USER_SELECT,
     });
 
     // Side-effects when deactivating
-    if (!dto.is_active) {
+    if (!dto.isActive) {
       const tokens = await this.prisma.baseClient.refreshToken.findMany({
-        where: { user_id: id },
-        select: { token_hash: true, expires_at: true },
+        where: { userId: id },
+        select: { tokenHash: true, expiresAt: true },
       });
 
       // Blacklist all refresh tokens and invalidate permission cache
@@ -298,19 +299,19 @@ export class UserService {
         this.permissionResolver.invalidateCache(id),
         ...tokens.map((t) => {
           const remainingTtl = Math.ceil(
-            (t.expires_at.getTime() - Date.now()) / 1000,
+            (t.expiresAt.getTime() - Date.now()) / 1000,
           );
           return remainingTtl > 0
             ? this.cacheService.set(
                 CACHE_DOMAIN_AUTH,
-                `${CACHE_KEY_BLACKLIST}:${t.token_hash}`,
+                `${CACHE_KEY_BLACKLIST}:${t.tokenHash}`,
                 true,
                 remainingTtl,
               )
             : Promise.resolve();
         }),
         this.prisma.baseClient.refreshToken.deleteMany({
-          where: { user_id: id },
+          where: { userId: id },
         }),
       ]);
     }
@@ -346,8 +347,8 @@ export class UserService {
 
     await this.prisma.baseClient.userRole.createMany({
       data: dto.roleIds.map((roleId) => ({
-        user_id: id,
-        role_id: roleId,
+        userId: id,
+        roleId: roleId,
       })),
       skipDuplicates: true,
     });
@@ -366,8 +367,8 @@ export class UserService {
 
     await this.prisma.baseClient.userRole.deleteMany({
       where: {
-        user_id: id,
-        role_id: { in: dto.roleIds },
+        userId: id,
+        roleId: { in: dto.roleIds },
       },
     });
 
@@ -383,7 +384,7 @@ export class UserService {
   ) {
     const user = await this.prisma.baseClient.user.findUnique({
       where: { id: userId },
-      select: { avatar_url: true },
+      select: { avatarUrl: true },
     });
     if (!user)
       throw new NotFoundException(t('common.user_not_found', 'User not found'));
@@ -399,22 +400,22 @@ export class UserService {
         contentType: 'image/webp',
         uploadedBy: userId,
       });
-      await this.deleteStoredAvatar(user.avatar_url);
+      await this.deleteStoredAvatar(user.avatarUrl);
       avatarKey = key;
-    } else if (dto.remove_avatar) {
-      await this.deleteStoredAvatar(user.avatar_url);
+    } else if (dto.removeAvatar) {
+      await this.deleteStoredAvatar(user.avatarUrl);
       avatarKey = null;
     }
 
     const updated = await this.prisma.baseClient.user.update({
       where: { id: userId },
       data: {
-        ...(dto.full_name !== undefined && { full_name: dto.full_name }),
+        ...(dto.fullName !== undefined && { fullName: dto.fullName }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.preferred_language !== undefined && {
-          preferred_language: dto.preferred_language,
+        ...(dto.preferredLanguage !== undefined && {
+          preferredLanguage: dto.preferredLanguage,
         }),
-        ...(avatarKey !== undefined && { avatar_url: avatarKey }),
+        ...(avatarKey !== undefined && { avatarUrl: avatarKey }),
       },
       select: USER_WITH_ROLES_SELECT,
     });

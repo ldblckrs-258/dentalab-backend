@@ -34,7 +34,7 @@ const OPERATIONS_RESOURCES = [
   'schedule_override',
 ];
 
-const USER_SELECT = { select: { email: true, full_name: true } } as const;
+const USER_SELECT = { select: { email: true, fullName: true } } as const;
 
 @Injectable()
 export class AuditService {
@@ -49,13 +49,13 @@ export class AuditService {
     try {
       await this.prisma.baseClient.auditLog.create({
         data: {
-          user_id: entry.userId,
+          userId: entry.userId,
           action: entry.action,
           resource: entry.resource,
-          resource_id: entry.resourceId,
-          old_data: entry.oldData as any,
-          new_data: entry.newData as any,
-          ip_address: entry.ipAddress,
+          resourceId: entry.resourceId,
+          oldData: entry.oldData as any,
+          newData: entry.newData as any,
+          ipAddress: entry.ipAddress,
         },
       });
     } catch (error) {
@@ -68,18 +68,18 @@ export class AuditService {
   async findAll(query: AuditQueryDto, currentUserId: string) {
     const prismaArgs = buildPrismaQuery(
       query,
-      ['created_at', 'action', 'resource'],
-      { created_at: 'desc' },
+      ['createdAt', 'action', 'resource'],
+      { createdAt: 'desc' },
     );
 
     const where: Record<string, unknown> = {};
-    if (query.userId) where.user_id = query.userId;
+    if (query.userId) where.userId = query.userId;
     if (query.action) where.action = query.action;
     if (query.resource) where.resource = query.resource;
-    if (query.resourceId) where.resource_id = query.resourceId;
-    if (query.ipAddress) where.ip_address = query.ipAddress;
+    if (query.resourceId) where.resourceId = query.resourceId;
+    if (query.ipAddress) where.ipAddress = query.ipAddress;
     if (query.from || query.to) {
-      where.created_at = {
+      where.createdAt = {
         ...(query.from ? { gte: new Date(query.from) } : {}),
         ...(query.to ? { lte: new Date(query.to) } : {}),
       };
@@ -103,7 +103,7 @@ export class AuditService {
           t('rbac.insufficient_permissions', 'Insufficient permissions'),
         );
       }
-      where.user_id = currentUserId;
+      where.userId = currentUserId;
     }
 
     const [data, total] = await Promise.all([
@@ -137,7 +137,7 @@ export class AuditService {
         t('rbac.insufficient_permissions', 'Insufficient permissions'),
       );
     }
-    if (scope === 'own' && log.user_id !== currentUserId) {
+    if (scope === 'own' && log.userId !== currentUserId) {
       throw new ForbiddenException(
         t('rbac.insufficient_permissions', 'Insufficient permissions'),
       );

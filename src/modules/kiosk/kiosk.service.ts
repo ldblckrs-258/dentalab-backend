@@ -19,7 +19,7 @@ import type { AuthenticateKioskDto } from './dto/authenticate-kiosk.dto';
 interface SessionFormRow {
   form: { id: string; title: string; schema: unknown };
   status: string;
-  completed_at: Date | null;
+  completedAt: Date | null;
 }
 
 function mapSessionForm(sf: SessionFormRow) {
@@ -28,7 +28,7 @@ function mapSessionForm(sf: SessionFormRow) {
     title: sf.form.title,
     schema: sf.form.schema,
     status: sf.status,
-    completedAt: sf.completed_at,
+    completedAt: sf.completedAt,
   };
 }
 
@@ -40,20 +40,20 @@ export class KioskService {
     // Validate patient and forms in parallel (appointment is optional)
     const [patient, forms, appointment] = await Promise.all([
       this.prisma.baseClient.patient.findFirst({
-        where: { id: dto.patientId, is_active: true },
+        where: { id: dto.patientId, isActive: true },
         select: { id: true },
       }),
       this.prisma.baseClient.form.findMany({
         where: {
           id: { in: dto.formIds },
-          is_kiosk_enabled: true,
-          is_published: true,
+          isKioskEnabled: true,
+          isPublished: true,
         },
         select: { id: true },
       }),
       dto.appointmentId
         ? this.prisma.baseClient.appointment.findFirst({
-            where: { id: dto.appointmentId, patient_id: dto.patientId },
+            where: { id: dto.appointmentId, patientId: dto.patientId },
             select: { id: true },
           })
         : Promise.resolve(undefined),
@@ -89,20 +89,20 @@ export class KioskService {
     const session = await this.prisma.transaction(async (tx) => {
       const created = await tx.kioskSession.create({
         data: {
-          patient_id: dto.patientId,
-          appointment_id: dto.appointmentId,
-          created_by: createdBy,
-          token_hash: tokenHash,
-          expires_in_minutes: expiresInMinutes,
-          expires_at: expiresAt,
+          patientId: dto.patientId,
+          appointmentId: dto.appointmentId,
+          createdBy: createdBy,
+          tokenHash: tokenHash,
+          expiresInMinutes: expiresInMinutes,
+          expiresAt: expiresAt,
           status: KIOSK_STATUS_ACTIVE,
         },
       });
 
       await tx.kioskSessionForm.createMany({
         data: dto.formIds.map((formId) => ({
-          session_id: created.id,
-          form_id: formId,
+          sessionId: created.id,
+          formId: formId,
         })),
       });
 
@@ -125,19 +125,19 @@ export class KioskService {
 
     const session = await this.prisma.baseClient.kioskSession.findFirst({
       where: {
-        token_hash: tokenHash,
+        tokenHash: tokenHash,
         status: KIOSK_STATUS_ACTIVE,
-        expires_at: { gt: new Date() },
+        expiresAt: { gt: new Date() },
       },
       include: {
         patient: {
           select: {
             id: true,
-            first_name: true,
-            last_name: true,
+            firstName: true,
+            lastName: true,
           },
         },
-        session_forms: {
+        sessionForms: {
           include: {
             form: {
               select: { id: true, title: true, schema: true },
@@ -155,16 +155,16 @@ export class KioskService {
 
     // Device fingerprint validation
     const fingerprint = hashToken(`${userAgent ?? ''}${ip ?? ''}`);
-    if (!session.device_fingerprint_hash) {
+    if (!session.deviceFingerprintHash) {
       // First request — capture fingerprint and IP
       await this.prisma.baseClient.kioskSession.update({
         where: { id: session.id },
         data: {
-          device_fingerprint_hash: fingerprint,
-          initial_ip: ip ?? null,
+          deviceFingerprintHash: fingerprint,
+          initialIp: ip ?? null,
         },
       });
-    } else if (session.device_fingerprint_hash !== fingerprint) {
+    } else if (session.deviceFingerprintHash !== fingerprint) {
       throw new ForbiddenException(
         t('kiosk.device_mismatch', 'Session accessed from a different device'),
       );
@@ -172,15 +172,15 @@ export class KioskService {
 
     return {
       sessionId: session.id,
-      expiresAt: session.expires_at,
+      expiresAt: session.expiresAt,
       patient: session.patient,
-      forms: session.session_forms.map(mapSessionForm),
+      forms: session.sessionForms.map(mapSessionForm),
     };
   }
 
   async getSessionForms(sessionId: string) {
     const forms = await this.prisma.baseClient.kioskSessionForm.findMany({
-      where: { session_id: sessionId },
+      where: { sessionId: sessionId },
       include: {
         form: { select: { id: true, title: true, schema: true } },
       },
@@ -200,8 +200,8 @@ export class KioskService {
       where: { id: sessionId },
       data: {
         status,
-        closed_at: new Date(),
-        closed_reason: closedReason ?? null,
+        closedAt: new Date(),
+        closedReason: closedReason ?? null,
         ...(closedBy ? { closer: { connect: { id: closedBy } } } : {}),
       },
     });

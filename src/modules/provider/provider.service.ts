@@ -15,12 +15,12 @@ const SYSTEM_ROLE_DOCTOR = 'Doctor';
 
 const PROVIDER_SELECT = {
   id: true,
-  user_id: true,
+  userId: true,
   specialty: true,
-  license_number: true,
-  is_active: true,
-  created_at: true,
-  updated_at: true,
+  licenseNumber: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
 } as const;
 
 const PROVIDER_WITH_USER_SELECT = {
@@ -29,10 +29,10 @@ const PROVIDER_WITH_USER_SELECT = {
     select: {
       id: true,
       email: true,
-      full_name: true,
+      fullName: true,
       phone: true,
-      avatar_url: true,
-      is_active: true,
+      avatarUrl: true,
+      isActive: true,
     },
   },
 } as const;
@@ -42,24 +42,24 @@ export class ProviderService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(query: ProviderQueryDto) {
-    const prismaArgs = buildPrismaQuery(query, ['created_at', 'specialty'], {
-      created_at: 'desc',
+    const prismaArgs = buildPrismaQuery(query, ['createdAt', 'specialty'], {
+      createdAt: 'desc',
     });
 
     const where: Record<string, unknown> = {};
     if (query.search) {
       where.OR = [
         { specialty: { contains: query.search, mode: 'insensitive' } },
-        { license_number: { contains: query.search, mode: 'insensitive' } },
+        { licenseNumber: { contains: query.search, mode: 'insensitive' } },
         {
           user: {
-            full_name: { contains: query.search, mode: 'insensitive' },
+            fullName: { contains: query.search, mode: 'insensitive' },
           },
         },
       ];
     }
     if (query.isActive !== undefined) {
-      where.is_active = query.isActive === 'true';
+      where.isActive = query.isActive === 'true';
     }
 
     const [data, total] = await Promise.all([
@@ -91,14 +91,14 @@ export class ProviderService {
     const [user, hasDoctorRole] = await Promise.all([
       this.prisma.baseClient.user.findUnique({
         where: { id: dto.userId },
-        select: { id: true, is_active: true },
+        select: { id: true, isActive: true },
       }),
       this.prisma.baseClient.userRole.findFirst({
         where: {
-          user_id: dto.userId,
+          userId: dto.userId,
           role: { name: SYSTEM_ROLE_DOCTOR },
         },
-        select: { user_id: true },
+        select: { userId: true },
       }),
     ]);
 
@@ -116,9 +116,9 @@ export class ProviderService {
 
     const provider = await this.prisma.baseClient.provider.create({
       data: {
-        user_id: dto.userId,
+        userId: dto.userId,
         specialty: dto.specialty,
-        license_number: dto.license_number,
+        licenseNumber: dto.licenseNumber,
       },
       select: PROVIDER_WITH_USER_SELECT,
     });
@@ -133,7 +133,7 @@ export class ProviderService {
       where: { id },
       data: {
         specialty: dto.specialty,
-        license_number: dto.license_number,
+        licenseNumber: dto.licenseNumber,
       },
       select: PROVIDER_WITH_USER_SELECT,
     });
@@ -144,7 +144,7 @@ export class ProviderService {
 
     return this.prisma.baseClient.provider.update({
       where: { id },
-      data: { is_active: dto.is_active },
+      data: { isActive: dto.isActive },
       select: PROVIDER_SELECT,
     });
   }

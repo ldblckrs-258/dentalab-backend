@@ -6,7 +6,7 @@ export class UpdateMyProfileDto {
   @IsOptional()
   @IsString()
   @MinLength(2)
-  full_name?: string;
+  fullName?: string;
 
   @IsOptional()
   @IsString()
@@ -15,9 +15,9 @@ export class UpdateMyProfileDto {
   @IsOptional()
   @IsString()
   @IsIn(SUPPORTED_LANGUAGES)
-  preferred_language?: string;
+  preferredLanguage?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
-  remove_avatar?: boolean;
+  removeAvatar?: boolean;
 }

@@ -28,18 +28,18 @@ export class RbacService {
   // ── Roles ──
 
   async findAllRoles(query: PaginationQueryDto) {
-    const prismaArgs = buildPrismaQuery(query, ['name', 'created_at']);
+    const prismaArgs = buildPrismaQuery(query, ['name', 'createdAt']);
     const [rawData, total] = await Promise.all([
       this.prisma.baseClient.role.findMany({
         ...prismaArgs,
-        include: { _count: { select: { user_roles: true } } },
+        include: { _count: { select: { userRoles: true } } },
       }),
       this.prisma.baseClient.role.count(),
     ]);
 
     const data = rawData.map(({ _count, ...rest }) => ({
       ...rest,
-      userCount: _count.user_roles,
+      userCount: _count.userRoles,
     }));
 
     return buildPaginatedResponse(data, total, query);
@@ -49,7 +49,7 @@ export class RbacService {
     const role = await this.prisma.baseClient.role.findUnique({
       where: { id },
       include: {
-        role_permissions: {
+        rolePermissions: {
           select: {
             permission: {
               select: {
@@ -61,17 +61,17 @@ export class RbacService {
             },
           },
         },
-        _count: { select: { user_roles: true } },
+        _count: { select: { userRoles: true } },
       },
     });
     if (!role)
       throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
-    const { role_permissions, _count, ...rest } = role;
+    const { rolePermissions, _count, ...rest } = role;
     return {
       ...rest,
-      permissions: role_permissions.map((rp) => rp.permission),
-      userCount: _count.user_roles,
+      permissions: rolePermissions.map((rp) => rp.permission),
+      userCount: _count.userRoles,
     };
   }
 
@@ -80,7 +80,7 @@ export class RbacService {
       data: {
         name: dto.name,
         description: dto.description,
-        is_system: false,
+        isSystem: false,
       },
     });
   }
@@ -93,7 +93,7 @@ export class RbacService {
       throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
     // System roles: only description can be changed
-    if (role.is_system && dto.name && dto.name !== role.name) {
+    if (role.isSystem && dto.name && dto.name !== role.name) {
       throw new ForbiddenException(
         t('rbac.cannot_rename_system_role', 'Cannot rename a system role'),
       );
@@ -102,7 +102,7 @@ export class RbacService {
     return this.prisma.baseClient.role.update({
       where: { id },
       data: {
-        name: role.is_system ? undefined : dto.name,
+        name: role.isSystem ? undefined : dto.name,
         description: dto.description,
       },
     });
@@ -111,16 +111,16 @@ export class RbacService {
   async deleteRole(id: string) {
     const role = await this.prisma.baseClient.role.findUnique({
       where: { id },
-      include: { _count: { select: { user_roles: true } } },
+      include: { _count: { select: { userRoles: true } } },
     });
     if (!role)
       throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
-    if (role.is_system) {
+    if (role.isSystem) {
       throw new ForbiddenException(
         t('rbac.cannot_delete_system_role', 'Cannot delete a system role'),
       );
     }
-    if (role._count.user_roles > 0) {
+    if (role._count.userRoles > 0) {
       throw new BadRequestException(
         t(
           'rbac.cannot_delete_role_with_users',
@@ -172,8 +172,8 @@ export class RbacService {
 
     await this.prisma.baseClient.rolePermission.createMany({
       data: dto.permissionIds.map((permissionId) => ({
-        role_id: roleId,
-        permission_id: permissionId,
+        roleId: roleId,
+        permissionId: permissionId,
       })),
       skipDuplicates: true,
     });
@@ -195,8 +195,8 @@ export class RbacService {
 
     await this.prisma.baseClient.rolePermission.deleteMany({
       where: {
-        role_id: roleId,
-        permission_id: { in: dto.permissionIds },
+        roleId: roleId,
+        permissionId: { in: dto.permissionIds },
       },
     });
 
@@ -213,7 +213,7 @@ export class RbacService {
     return this.prisma.baseClient.userPermissionOverride.findMany({
       where: activeOverrideWhere(userId),
       select: OVERRIDE_SELECT,
-      orderBy: { created_at: 'desc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -222,12 +222,12 @@ export class RbacService {
     dto: CreateOverrideDto,
     grantedBy: string,
   ) {
-    // Enforce one active override per (user_id, permission_id) pair
+    // Enforce one active override per (userId, permissionId) pair
     const existing =
       await this.prisma.baseClient.userPermissionOverride.findFirst({
         where: {
           ...activeOverrideWhere(userId),
-          permission_id: dto.permissionId,
+          permissionId: dto.permissionId,
         },
         select: { id: true },
       });
@@ -244,12 +244,12 @@ export class RbacService {
     const override = await this.prisma.baseClient.userPermissionOverride.create(
       {
         data: {
-          user_id: userId,
-          permission_id: dto.permissionId,
-          grant_type: dto.grantType,
+          userId: userId,
+          permissionId: dto.permissionId,
+          grantType: dto.grantType,
           reason: dto.reason,
-          granted_by: grantedBy,
-          expires_at: dto.expiresAt ? new Date(dto.expiresAt) : null,
+          grantedBy: grantedBy,
+          expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
         },
         select: OVERRIDE_SELECT,
       },
@@ -273,13 +273,13 @@ export class RbacService {
     await this.prisma.baseClient.userPermissionOverride.update({
       where: { id: overrideId },
       data: {
-        is_active: false,
-        revoked_by: revokedBy,
-        revoked_at: new Date(),
+        isActive: false,
+        revokedBy: revokedBy,
+        revokedAt: new Date(),
       },
     });
 
-    await this.permissionResolver.invalidateCache(override.user_id);
+    await this.permissionResolver.invalidateCache(override.userId);
 
     return {
       message: t('rbac.override_revoked', 'Override revoked'),

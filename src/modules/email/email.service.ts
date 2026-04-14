@@ -59,16 +59,16 @@ export class EmailService {
 
     const log = await this.prisma.baseClient.emailLog.create({
       data: {
-        template_id: templateId,
-        from_address: fromAddress,
-        recipient_email: Array.isArray(params.to)
+        templateId: templateId,
+        fromAddress: fromAddress,
+        recipientEmail: Array.isArray(params.to)
           ? params.to.join(', ')
           : params.to,
         subject,
         status: EMAIL_STATUS.PENDING,
         variables: params.variables as any,
-        entity_type: params.entityType,
-        entity_id: params.entityId,
+        entityType: params.entityType,
+        entityId: params.entityId,
         attachments: attachments?.map((a) => ({
           filename: a.filename,
           size: a.content.length,
@@ -92,9 +92,9 @@ export class EmailService {
       return this.prisma.baseClient.emailLog.update({
         where: { id: log.id },
         data: {
-          resend_id: result.id,
+          resendId: result.id,
           status: EMAIL_STATUS.SENT,
-          sent_at: new Date(),
+          sentAt: new Date(),
         },
       });
     } catch (error) {
@@ -102,7 +102,7 @@ export class EmailService {
         where: { id: log.id },
         data: {
           status: EMAIL_STATUS.FAILED,
-          error_message: error instanceof Error ? error.message : String(error),
+          errorMessage: error instanceof Error ? error.message : String(error),
         },
       });
       throw error;
@@ -145,16 +145,16 @@ export class EmailService {
       rendered.map((r) =>
         this.prisma.baseClient.emailLog.create({
           data: {
-            template_id: templateId,
-            from_address: fromAddress,
-            recipient_email: r.to,
+            templateId: templateId,
+            fromAddress: fromAddress,
+            recipientEmail: r.to,
             subject: r.subject,
             status: EMAIL_STATUS.PENDING,
             variables: r.variables as any,
-            entity_type: r.entityType,
-            entity_id: r.entityId,
+            entityType: r.entityType,
+            entityId: r.entityId,
             tags: params.tags as any,
-            batch_id: batchId,
+            batchId: batchId,
           },
         }),
       ),
@@ -177,9 +177,9 @@ export class EmailService {
           this.prisma.baseClient.emailLog.update({
             where: { id: log.id },
             data: {
-              resend_id: result.results[i]?.id,
+              resendId: result.results[i]?.id,
               status: 'sent',
-              sent_at: new Date(),
+              sentAt: new Date(),
             },
           }),
         ),
@@ -191,7 +191,7 @@ export class EmailService {
             where: { id: log.id },
             data: {
               status: EMAIL_STATUS.FAILED,
-              error_message:
+              errorMessage:
                 error instanceof Error ? error.message : String(error),
             },
           }),
@@ -223,37 +223,37 @@ export class EmailService {
     }
 
     return this.sendTemplatedEmail({
-      to: log.recipient_email,
+      to: log.recipientEmail,
       templateName: log.template.name,
       variables: (log.variables as Record<string, unknown>) ?? {},
-      entityType: log.entity_type ?? undefined,
-      entityId: log.entity_id ?? undefined,
+      entityType: log.entityType ?? undefined,
+      entityId: log.entityId ?? undefined,
     });
   }
 
   async findAll(query: EmailQueryDto) {
     const prismaArgs = buildPrismaQuery(query, [
-      'recipient_email',
+      'recipientEmail',
       'status',
-      'created_at',
-      'sent_at',
+      'createdAt',
+      'sentAt',
     ]);
 
     const where: Record<string, unknown> = {};
     if (query.status) where.status = query.status;
     if (query.templateName) where.template = { name: query.templateName };
     if (query.recipientEmail) {
-      where.recipient_email = {
+      where.recipientEmail = {
         contains: query.recipientEmail,
         mode: 'insensitive',
       };
     }
-    if (query.entityType) where.entity_type = query.entityType;
-    if (query.entityId) where.entity_id = query.entityId;
+    if (query.entityType) where.entityType = query.entityType;
+    if (query.entityId) where.entityId = query.entityId;
     if (query.search) {
       where.OR = [
         {
-          recipient_email: {
+          recipientEmail: {
             contains: query.search,
             mode: 'insensitive',
           },

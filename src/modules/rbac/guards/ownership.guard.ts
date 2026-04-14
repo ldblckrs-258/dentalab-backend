@@ -73,7 +73,7 @@ export class OwnershipGuard implements CanActivate {
       where: {
         id: resourceId,
         [config.ownerField]: userId,
-        is_active: true,
+        isActive: true,
       },
       select: { id: true },
     });
@@ -95,7 +95,7 @@ export class OwnershipGuard implements CanActivate {
     ].findFirst({
       where: {
         [config.through.userField]: userId,
-        is_active: true,
+        isActive: true,
       },
       select: { [foreignKey]: true },
     });
@@ -110,7 +110,7 @@ export class OwnershipGuard implements CanActivate {
       where: {
         id: resourceId,
         [config.ownerField]: intermediateId,
-        is_active: true,
+        isActive: true,
       },
       select: { id: true },
     });

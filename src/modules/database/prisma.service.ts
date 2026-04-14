@@ -13,13 +13,13 @@ function addSoftDeleteFilter(model: string, args: Record<string, any>): void {
   const where = (args.where ?? {}) as Record<string, unknown>;
 
   if (SOFT_DELETE_MODELS.includes(model)) {
-    if (where.is_active === undefined) {
-      where.is_active = true;
+    if (where.isActive === undefined) {
+      where.isActive = true;
     }
     args.where = where;
   } else if (SOFT_DELETE_AT_MODELS.includes(model)) {
-    if (where.deleted_at === undefined) {
-      where.deleted_at = null;
+    if (where.deletedAt === undefined) {
+      where.deletedAt = null;
     }
     args.where = where;
   }
@@ -54,13 +54,13 @@ function createSoftDeleteExtension(client: PrismaClient) {
           if (SOFT_DELETE_MODELS.includes(model)) {
             return getDelegate(client, model).update({
               where: (args as any).where,
-              data: { is_active: false },
+              data: { isActive: false },
             });
           }
           if (SOFT_DELETE_AT_MODELS.includes(model)) {
             return getDelegate(client, model).update({
               where: (args as any).where,
-              data: { deleted_at: new Date() },
+              data: { deletedAt: new Date() },
             });
           }
           return getDelegate(client, model).delete(args);
@@ -69,13 +69,13 @@ function createSoftDeleteExtension(client: PrismaClient) {
           if (SOFT_DELETE_MODELS.includes(model)) {
             return getDelegate(client, model).updateMany({
               where: (args as any).where,
-              data: { is_active: false },
+              data: { isActive: false },
             });
           }
           if (SOFT_DELETE_AT_MODELS.includes(model)) {
             return getDelegate(client, model).updateMany({
               where: (args as any).where,
-              data: { deleted_at: new Date() },
+              data: { deletedAt: new Date() },
             });
           }
           return getDelegate(client, model).deleteMany(args);

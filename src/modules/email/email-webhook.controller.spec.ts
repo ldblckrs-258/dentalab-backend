@@ -58,7 +58,7 @@ describe('EmailWebhookController', () => {
     mockPrisma.baseClient.emailLog.findUnique.mockResolvedValue({
       id: 'log-1',
       status: 'sent',
-      webhook_events: [],
+      webhookEvents: [],
     });
     mockPrisma.baseClient.emailLog.update.mockResolvedValue({});
 
@@ -70,7 +70,7 @@ describe('EmailWebhookController', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'delivered',
-          delivered_at: expect.any(Date),
+          deliveredAt: expect.any(Date),
         }),
       }),
     );
@@ -81,7 +81,7 @@ describe('EmailWebhookController', () => {
     mockPrisma.baseClient.emailLog.findUnique.mockResolvedValue({
       id: 'log-1',
       status: 'sent',
-      webhook_events: [],
+      webhookEvents: [],
     });
     mockPrisma.baseClient.emailLog.update.mockResolvedValue({});
 
@@ -98,8 +98,8 @@ describe('EmailWebhookController', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           status: 'bounced',
-          bounced_at: expect.any(Date),
-          error_message: 'Mailbox full',
+          bouncedAt: expect.any(Date),
+          errorMessage: 'Mailbox full',
         }),
       }),
     );

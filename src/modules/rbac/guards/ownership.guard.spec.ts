@@ -105,7 +105,7 @@ describe('OwnershipGuard', () => {
       );
       expect(result).toBe(true);
       expect(prisma.baseClient.chatSession.findFirst).toHaveBeenCalledWith({
-        where: { id: 'session-1', user_id: 'user-1', is_active: true },
+        where: { id: 'session-1', user_id: 'user-1', isActive: true },
         select: { id: true },
       });
     });
@@ -227,7 +227,7 @@ describe('OwnershipGuard', () => {
       );
       expect(result).toBe(true);
       expect(prisma.baseClient.chatSession.findFirst).toHaveBeenCalledWith({
-        where: { id: 'session-1', user_id: 'user-1', is_active: true },
+        where: { id: 'session-1', user_id: 'user-1', isActive: true },
         select: { id: true },
       });
     });

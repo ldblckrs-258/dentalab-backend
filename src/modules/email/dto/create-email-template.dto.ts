@@ -10,7 +10,7 @@ export class CreateEmailTemplateDto {
   subject: string;
 
   @IsString()
-  body_mjml: string;
+  bodyMjml: string;
 
   @IsIn([...EMAIL_TEMPLATE_TYPES])
   type: string;

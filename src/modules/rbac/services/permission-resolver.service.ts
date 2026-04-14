@@ -30,11 +30,11 @@ export class PermissionResolverService {
     // Fetch role permissions and user overrides in parallel
     const [userRoles, overrides] = await Promise.all([
       this.prisma.baseClient.userRole.findMany({
-        where: { user_id: userId },
+        where: { userId: userId },
         include: {
           role: {
             include: {
-              role_permissions: {
+              rolePermissions: {
                 include: {
                   permission: {
                     select: { resource: true, action: true, scope: true },
@@ -47,9 +47,9 @@ export class PermissionResolverService {
       }),
       this.prisma.baseClient.userPermissionOverride.findMany({
         where: {
-          user_id: userId,
-          is_active: true,
-          OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+          userId: userId,
+          isActive: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         },
         include: {
           permission: {
@@ -61,16 +61,16 @@ export class PermissionResolverService {
 
     const permissionSet = new Set<string>();
     for (const ur of userRoles) {
-      for (const rp of ur.role.role_permissions) {
+      for (const rp of ur.role.rolePermissions) {
         permissionSet.add(this.buildPermissionKey(rp.permission));
       }
     }
 
     for (const override of overrides) {
       const permKey = this.buildPermissionKey(override.permission);
-      if (override.grant_type === 'deny') {
+      if (override.grantType === 'deny') {
         permissionSet.delete(permKey);
-      } else if (override.grant_type === 'grant') {
+      } else if (override.grantType === 'grant') {
         permissionSet.add(permKey);
       }
     }
@@ -111,10 +111,10 @@ export class PermissionResolverService {
 
   async invalidateCacheForRole(roleId: string): Promise<void> {
     const userRoles = await this.prisma.baseClient.userRole.findMany({
-      where: { role_id: roleId },
-      select: { user_id: true },
+      where: { roleId: roleId },
+      select: { userId: true },
     });
 
-    await Promise.all(userRoles.map((ur) => this.invalidateCache(ur.user_id)));
+    await Promise.all(userRoles.map((ur) => this.invalidateCache(ur.userId)));
   }
 }

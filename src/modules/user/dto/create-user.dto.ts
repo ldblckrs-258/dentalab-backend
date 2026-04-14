@@ -1,6 +1,7 @@
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -17,7 +18,7 @@ export class CreateUserDto {
 
   @IsString()
   @MinLength(2)
-  full_name: string;
+  fullName: string;
 
   @IsOptional()
   @IsString()
@@ -35,4 +36,8 @@ export class CreateUserDto {
   @IsUUID('4', { each: true })
   @ArrayMinSize(1)
   roleIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  sendTempPassword?: boolean = false;
 }

@@ -14,14 +14,14 @@ const prisma = new PrismaClient({ adapter });
 
 // ── Default Roles ──
 const DEFAULT_ROLES = [
-  { name: 'Admin', description: 'Full system administrator', is_system: true },
+  { name: 'Admin', description: 'Full system administrator', isSystem: true },
   {
     name: 'Doctor',
     description: 'Dentist / healthcare provider',
-    is_system: true,
+    isSystem: true,
   },
-  { name: 'Receptionist', description: 'Front desk staff', is_system: true },
-  { name: 'Manager', description: 'Operations manager', is_system: true },
+  { name: 'Receptionist', description: 'Front desk staff', isSystem: true },
+  { name: 'Manager', description: 'Operations manager', isSystem: true },
 ];
 
 // ── All Permissions ──
@@ -283,8 +283,8 @@ async function main() {
     const data = perms
       .filter((p) => permMap[p]) // Only map permissions that exist
       .map((p) => ({
-        role_id: roleId,
-        permission_id: permMap[p],
+        roleId: roleId,
+        permissionId: permMap[p],
       }));
 
     await prisma.rolePermission.createMany({
@@ -322,21 +322,21 @@ async function main() {
       where: { name: def.name },
       update: {
         subject: def.subject,
-        body_mjml: fullMjml,
-        body_html: html,
+        bodyMjml: fullMjml,
+        bodyHtml: html,
         type: def.type,
         variables: def.variables,
-        is_system: true,
+        isSystem: true,
       },
       create: {
         name: def.name,
         subject: def.subject,
-        body_mjml: fullMjml,
-        body_html: html,
+        bodyMjml: fullMjml,
+        bodyHtml: html,
         type: def.type,
         variables: def.variables,
-        is_system: true,
-        is_active: true,
+        isSystem: true,
+        isActive: true,
       },
     });
     console.log(`    ✓ Template: ${def.name}`);
@@ -354,24 +354,24 @@ async function main() {
     update: {},
     create: {
       email: adminEmail,
-      password_hash: passwordHash,
-      full_name: 'System Admin',
-      is_active: true,
+      passwordHash: passwordHash,
+      fullName: 'System Admin',
+      isActive: true,
     },
   });
 
   // Assign Admin role
   await prisma.userRole.upsert({
     where: {
-      user_id_role_id: {
-        user_id: adminUser.id,
-        role_id: roles['Admin'],
+      userId_roleId: {
+        userId: adminUser.id,
+        roleId: roles['Admin'],
       },
     },
     update: {},
     create: {
-      user_id: adminUser.id,
-      role_id: roles['Admin'],
+      userId: adminUser.id,
+      roleId: roles['Admin'],
     },
   });
   console.log(`    ✓ Admin user: ${adminEmail}`);

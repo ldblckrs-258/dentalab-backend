@@ -49,7 +49,7 @@ describe('PermissionResolverService', () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([
         {
           role: {
-            role_permissions: [
+            rolePermissions: [
               { permission: { resource: 'user', action: 'read' } },
               { permission: { resource: 'user', action: 'write' } },
             ],
@@ -75,12 +75,9 @@ describe('PermissionResolverService', () => {
       ).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            user_id: 'user-1',
-            is_active: true,
-            OR: [
-              { expires_at: null },
-              { expires_at: { gt: expect.any(Date) } },
-            ],
+            userId: 'user-1',
+            isActive: true,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
           }),
         }),
       );
@@ -91,7 +88,7 @@ describe('PermissionResolverService', () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([]);
       prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([
         {
-          grant_type: 'grant',
+          grantType: 'grant',
           permission: { resource: 'admin', action: 'access' },
         },
       ]);
@@ -105,7 +102,7 @@ describe('PermissionResolverService', () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([
         {
           role: {
-            role_permissions: [
+            rolePermissions: [
               {
                 permission: {
                   resource: 'users',
@@ -135,7 +132,7 @@ describe('PermissionResolverService', () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([
         {
           role: {
-            role_permissions: [
+            rolePermissions: [
               {
                 permission: { resource: 'users', action: 'read', scope: null },
               },
@@ -172,7 +169,7 @@ describe('PermissionResolverService', () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([]);
       prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([
         {
-          grant_type: 'grant',
+          grantType: 'grant',
           permission: { resource: 'users', action: 'create', scope: 'admin' },
         },
       ]);
@@ -186,7 +183,7 @@ describe('PermissionResolverService', () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([
         {
           role: {
-            role_permissions: [
+            rolePermissions: [
               {
                 permission: {
                   resource: 'users',
@@ -207,7 +204,7 @@ describe('PermissionResolverService', () => {
       ]);
       prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([
         {
-          grant_type: 'deny',
+          grantType: 'deny',
           permission: { resource: 'users', action: 'create', scope: 'admin' },
         },
       ]);
@@ -221,7 +218,7 @@ describe('PermissionResolverService', () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([
         {
           role: {
-            role_permissions: [
+            rolePermissions: [
               { permission: { resource: 'user', action: 'delete' } },
               { permission: { resource: 'user', action: 'read' } },
             ],
@@ -230,7 +227,7 @@ describe('PermissionResolverService', () => {
       ]);
       prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([
         {
-          grant_type: 'deny',
+          grantType: 'deny',
           permission: { resource: 'user', action: 'delete' },
         },
       ]);
@@ -298,8 +295,8 @@ describe('PermissionResolverService', () => {
   describe('invalidateCacheForRole', () => {
     it('should invalidate cache for all users with the role', async () => {
       prisma.baseClient.userRole.findMany.mockResolvedValue([
-        { user_id: 'u1' },
-        { user_id: 'u2' },
+        { userId: 'u1' },
+        { userId: 'u2' },
       ]);
 
       await service.invalidateCacheForRole('r1');

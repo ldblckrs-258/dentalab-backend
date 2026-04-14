@@ -22,7 +22,7 @@ export class EmailTemplateService {
   ) {}
 
   async findAll(query: PaginationQueryDto) {
-    const prismaArgs = buildPrismaQuery(query, ['name', 'type', 'created_at']);
+    const prismaArgs = buildPrismaQuery(query, ['name', 'type', 'createdAt']);
 
     const where: Record<string, unknown> = {};
     if (query.search) {
@@ -42,11 +42,11 @@ export class EmailTemplateService {
           subject: true,
           type: true,
           variables: true,
-          is_system: true,
-          is_active: true,
-          created_at: true,
-          updated_at: true,
-          _count: { select: { email_logs: true } },
+          isSystem: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { emailLogs: true } },
         },
       }),
       this.prisma.baseClient.emailTemplate.count({ where }),
@@ -67,17 +67,17 @@ export class EmailTemplateService {
   }
 
   async create(dto: CreateEmailTemplateDto) {
-    const bodyHtml = this.templateService.compileMjmlToHtml(dto.body_mjml);
+    const bodyHtml = this.templateService.compileMjmlToHtml(dto.bodyMjml);
 
     return this.prisma.baseClient.emailTemplate.create({
       data: {
         name: dto.name,
         subject: dto.subject,
-        body_mjml: dto.body_mjml,
-        body_html: bodyHtml,
+        bodyMjml: dto.bodyMjml,
+        bodyHtml: bodyHtml,
         type: dto.type,
         variables: dto.variables as any,
-        is_system: false,
+        isSystem: false,
       },
     });
   }
@@ -96,11 +96,11 @@ export class EmailTemplateService {
     if (dto.subject !== undefined) data.subject = dto.subject;
     if (dto.type !== undefined) data.type = dto.type;
     if (dto.variables !== undefined) data.variables = dto.variables;
-    if (dto.is_active !== undefined) data.is_active = dto.is_active;
+    if (dto.isActive !== undefined) data.isActive = dto.isActive;
 
-    if (dto.body_mjml !== undefined) {
-      data.body_mjml = dto.body_mjml;
-      data.body_html = this.templateService.compileMjmlToHtml(dto.body_mjml);
+    if (dto.bodyMjml !== undefined) {
+      data.bodyMjml = dto.bodyMjml;
+      data.bodyHtml = this.templateService.compileMjmlToHtml(dto.bodyMjml);
     }
 
     // Invalidate compiled cache so next render picks up changes
@@ -121,7 +121,7 @@ export class EmailTemplateService {
         t('email.template_not_found', 'Email template not found'),
       );
 
-    if (template.is_system) {
+    if (template.isSystem) {
       throw new BadRequestException(
         t(
           'email.cannot_delete_system_template',

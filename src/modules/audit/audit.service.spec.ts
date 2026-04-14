@@ -55,7 +55,7 @@ describe('AuditService', () => {
 
       expect(prisma.baseClient.auditLog.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          user_id: 'u1',
+          userId: 'u1',
           action: 'create',
           resource: 'user',
         }),
@@ -106,7 +106,7 @@ describe('AuditService', () => {
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            user_id: 'u1',
+            userId: 'u1',
             action: 'create',
             resource: 'user',
           }),
@@ -129,7 +129,7 @@ describe('AuditService', () => {
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            created_at: {
+            createdAt: {
               gte: expect.any(Date),
               lte: expect.any(Date),
             },
@@ -147,7 +147,7 @@ describe('AuditService', () => {
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            ip_address: '192.168.1.1',
+            ipAddress: '192.168.1.1',
           }),
         }),
       );
@@ -183,7 +183,7 @@ describe('AuditService', () => {
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            user_id: DOCTOR_USER_ID,
+            userId: DOCTOR_USER_ID,
           }),
         }),
       );
@@ -215,8 +215,8 @@ describe('AuditService', () => {
         id: 'log-1',
         action: 'create',
         resource: 'user',
-        user_id: 'other-user',
-        user: { email: 'admin@test.com', full_name: 'Admin' },
+        userId: 'other-user',
+        user: { email: 'admin@test.com', fullName: 'Admin' },
       };
       prisma.baseClient.auditLog.findUnique.mockResolvedValue(mockLog);
 
@@ -244,7 +244,7 @@ describe('AuditService', () => {
         id: 'log-1',
         action: 'create',
         resource: 'user',
-        user_id: 'other-user',
+        userId: 'other-user',
       };
       prisma.baseClient.auditLog.findUnique.mockResolvedValue(mockLog);
 
@@ -261,7 +261,7 @@ describe('AuditService', () => {
         id: 'log-1',
         action: 'create',
         resource: 'user',
-        user_id: DOCTOR_USER_ID,
+        userId: DOCTOR_USER_ID,
       };
       prisma.baseClient.auditLog.findUnique.mockResolvedValue(mockLog);
 

@@ -22,8 +22,8 @@ describe('JwtStrategy', () => {
     const user = {
       id: 'user-1',
       email: 'test@example.com',
-      full_name: 'Test',
-      is_active: true,
+      fullName: 'Test',
+      isActive: true,
     };
     prisma.client.user.findUnique.mockResolvedValue(user);
 
@@ -51,8 +51,8 @@ describe('JwtStrategy', () => {
     prisma.client.user.findUnique.mockResolvedValue({
       id: 'user-1',
       email: 'test@example.com',
-      full_name: 'Test',
-      is_active: false,
+      fullName: 'Test',
+      isActive: false,
     });
 
     await expect(

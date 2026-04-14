@@ -29,9 +29,9 @@ describe('AuthService', () => {
   const mockUser = {
     id: 'user-1',
     email: 'test@example.com',
-    full_name: 'Test User',
-    is_active: true,
-    password_hash: 'hashed-password',
+    fullName: 'Test User',
+    isActive: true,
+    passwordHash: 'hashed-password',
   };
 
   beforeEach(async () => {
@@ -138,7 +138,7 @@ describe('AuthService', () => {
         prisma.client as Record<string, Record<string, jest.Mock>>
       ).user.findUnique.mockResolvedValue({
         ...mockUser,
-        is_active: false,
+        isActive: false,
       });
 
       await expect(
@@ -213,7 +213,7 @@ describe('AuthService', () => {
         prisma.client as Record<string, Record<string, jest.Mock>>
       ).user.findUnique.mockResolvedValue({
         ...mockUser,
-        is_active: false,
+        isActive: false,
       });
 
       await expect(
@@ -270,8 +270,8 @@ describe('AuthService', () => {
         prisma.baseClient as Record<string, Record<string, jest.Mock>>
       ).refreshToken.findFirst.mockResolvedValue({
         id: 'rt-1',
-        expires_at: new Date(Date.now() + 100000),
-        user: { ...mockUser, is_active: false },
+        expiresAt: new Date(Date.now() + 100000),
+        user: { ...mockUser, isActive: false },
       });
 
       await expect(
@@ -285,8 +285,8 @@ describe('AuthService', () => {
         prisma.baseClient as Record<string, Record<string, jest.Mock>>
       ).refreshToken.findFirst.mockResolvedValue({
         id: 'rt-1',
-        token_hash: 'hash',
-        expires_at: new Date(Date.now() + 100000),
+        tokenHash: 'hash',
+        expiresAt: new Date(Date.now() + 100000),
         user: mockUser,
       });
       (
@@ -309,7 +309,7 @@ describe('AuthService', () => {
         prisma.baseClient as Record<string, Record<string, jest.Mock>>
       ).refreshToken.findFirst.mockResolvedValue({
         id: 'rt-1',
-        expires_at: new Date(Date.now() + 100000),
+        expiresAt: new Date(Date.now() + 100000),
       });
       (
         prisma.baseClient as Record<string, Record<string, jest.Mock>>
@@ -356,7 +356,7 @@ describe('AuthService', () => {
         prisma.client as Record<string, Record<string, jest.Mock>>
       ).user.findUnique.mockResolvedValue({
         id: 'user-1',
-        password_hash: 'hash',
+        passwordHash: 'hash',
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
@@ -373,7 +373,7 @@ describe('AuthService', () => {
         prisma.client as Record<string, Record<string, jest.Mock>>
       ).user.findUnique.mockResolvedValue({
         id: 'user-1',
-        password_hash: 'hash',
+        passwordHash: 'hash',
       });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       (bcrypt.hash as jest.Mock).mockResolvedValue('new-hash');
@@ -388,7 +388,7 @@ describe('AuthService', () => {
           .update,
       ).toHaveBeenCalledWith({
         where: { id: 'user-1' },
-        data: { password_hash: 'new-hash' },
+        data: { passwordHash: 'new-hash' },
       });
     });
   });
@@ -442,8 +442,8 @@ describe('AuthService', () => {
         prisma.baseClient as Record<string, Record<string, jest.Mock>>
       ).passwordResetToken.findFirst.mockResolvedValue({
         id: 'prt-1',
-        user_id: 'user-1',
-        token_hash: 'hash',
+        userId: 'user-1',
+        tokenHash: 'hash',
       });
       (bcrypt.hash as jest.Mock).mockResolvedValue('new-hash');
 

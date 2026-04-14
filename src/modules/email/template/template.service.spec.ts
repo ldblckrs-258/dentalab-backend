@@ -7,15 +7,15 @@ const mockTemplate = {
   id: 'template-uuid',
   name: 'password-reset',
   subject: 'Reset your DentaLab password',
-  body_mjml:
+  bodyMjml:
     '<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{userName}}</mj-text></mj-column></mj-section></mj-body></mjml>',
-  body_html: '<html><body><p>Hello {{userName}}</p></body></html>',
+  bodyHtml: '<html><body><p>Hello {{userName}}</p></body></html>',
   type: 'auth',
   variables: { required: ['userName', 'resetLink', 'expiresIn'], optional: [] },
-  is_system: true,
-  is_active: true,
-  created_at: new Date(),
-  updated_at: new Date(),
+  isSystem: true,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 const mockPrisma = {
@@ -80,7 +80,7 @@ describe('TemplateService', () => {
     it('should throw BadRequestException for disabled template', async () => {
       mockPrisma.baseClient.emailTemplate.findUnique.mockResolvedValue({
         ...mockTemplate,
-        is_active: false,
+        isActive: false,
       });
 
       await expect(service.render('password-reset', {})).rejects.toThrow(

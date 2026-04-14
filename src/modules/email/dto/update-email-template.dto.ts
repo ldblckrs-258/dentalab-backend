@@ -8,7 +8,7 @@ export class UpdateEmailTemplateDto {
 
   @IsOptional()
   @IsString()
-  body_mjml?: string;
+  bodyMjml?: string;
 
   @IsOptional()
   @IsIn([...EMAIL_TEMPLATE_TYPES])
@@ -19,5 +19,5 @@ export class UpdateEmailTemplateDto {
 
   @IsOptional()
   @IsBoolean()
-  is_active?: boolean;
+  isActive?: boolean;
 }

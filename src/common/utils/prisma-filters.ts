@@ -1,17 +1,17 @@
 export function activeOverrideWhere(userId: string) {
   return {
-    user_id: userId,
-    is_active: true,
-    OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+    userId,
+    isActive: true,
+    OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
   };
 }
 
 export const OVERRIDE_SELECT = {
   id: true,
-  grant_type: true,
+  grantType: true,
   reason: true,
-  expires_at: true,
-  created_at: true,
+  expiresAt: true,
+  createdAt: true,
   permission: {
     select: { id: true, resource: true, action: true, scope: true },
   },

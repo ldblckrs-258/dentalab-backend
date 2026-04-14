@@ -4,7 +4,7 @@ import type { PaginationQueryDto } from './pagination-query.dto';
 
 describe('pagination.helper', () => {
   describe('buildPrismaQuery', () => {
-    const allowedSortFields = ['name', 'created_at', 'email'];
+    const allowedSortFields = ['name', 'createdAt', 'email'];
 
     it('should use defaults when no params provided', () => {
       const dto: PaginationQueryDto = {};
@@ -12,7 +12,7 @@ describe('pagination.helper', () => {
       expect(result).toEqual({
         take: 20,
         skip: 0,
-        orderBy: { created_at: 'desc' },
+        orderBy: { createdAt: 'desc' },
       });
     });
 

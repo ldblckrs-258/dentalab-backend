@@ -25,8 +25,8 @@ export class TemplateService {
    * Returns compiled HTML, rendered subject, and the template's DB id.
    *
    * Two-stage compilation:
-   *  - Seed time: MJML (with {{handlebars}}) → body_html via mjml()
-   *  - Render time: body_html (HTML with {{handlebars}}) → final HTML via Handlebars
+   *  - Seed time: MJML (with {{handlebars}}) → bodyHtml via mjml()
+   *  - Render time: bodyHtml (HTML with {{handlebars}}) → final HTML via Handlebars
    */
   async render(
     templateName: string,
@@ -35,7 +35,7 @@ export class TemplateService {
     const template = await this.getTemplate(templateName);
     const compiled = this.getOrCompile(template.name, {
       subject: template.subject,
-      bodyHtml: template.body_html,
+      bodyHtml: template.bodyHtml,
     });
 
     const subject = compiled.subject(variables);
@@ -72,7 +72,7 @@ export class TemplateService {
     if (!template) {
       throw new NotFoundException(`Email template '${name}' not found`);
     }
-    if (!template.is_active) {
+    if (!template.isActive) {
       throw new BadRequestException(`Email template '${name}' is disabled`);
     }
     return template;

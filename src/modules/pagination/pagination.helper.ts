@@ -15,7 +15,7 @@ export interface PrismaQueryArgs {
 export function buildPrismaQuery(
   dto: PaginationQueryDto,
   allowedSortFields: string[],
-  defaultSort: Record<string, 'asc' | 'desc'> = { created_at: 'desc' },
+  defaultSort: Record<string, 'asc' | 'desc'> = { createdAt: 'desc' },
 ): PrismaQueryArgs {
   const limit = dto.limit ?? 20;
   const args: PrismaQueryArgs = { take: limit };

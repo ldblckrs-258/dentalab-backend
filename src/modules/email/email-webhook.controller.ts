@@ -55,7 +55,7 @@ export class EmailWebhookController {
     const { type, data } = event;
 
     const emailLog = await this.prisma.baseClient.emailLog.findUnique({
-      where: { resend_id: data.email_id },
+      where: { resendId: data.email_id },
     });
 
     if (!emailLog) {
@@ -64,27 +64,27 @@ export class EmailWebhookController {
     }
 
     const updateData: Record<string, unknown> = {
-      webhook_events: [...((emailLog.webhook_events as any[]) ?? []), event],
+      webhookEvents: [...((emailLog.webhookEvents as any[]) ?? []), event],
     };
 
     switch (type) {
       case WEBHOOK_EVENT_TYPE.DELIVERED:
         updateData.status = EMAIL_STATUS.DELIVERED;
-        updateData.delivered_at = new Date();
+        updateData.deliveredAt = new Date();
         break;
       case WEBHOOK_EVENT_TYPE.BOUNCED:
         updateData.status = EMAIL_STATUS.BOUNCED;
-        updateData.bounced_at = new Date();
-        updateData.error_message = data.bounce?.message;
+        updateData.bouncedAt = new Date();
+        updateData.errorMessage = data.bounce?.message;
         break;
       case WEBHOOK_EVENT_TYPE.COMPLAINED:
         updateData.status = EMAIL_STATUS.COMPLAINED;
-        updateData.complained_at = new Date();
+        updateData.complainedAt = new Date();
         break;
       case WEBHOOK_EVENT_TYPE.SENT:
         if (emailLog.status === EMAIL_STATUS.PENDING) {
           updateData.status = EMAIL_STATUS.SENT;
-          updateData.sent_at = new Date();
+          updateData.sentAt = new Date();
         }
         break;
       default:

@@ -35,8 +35,8 @@ describe('KioskService', () => {
           kioskSession: {
             create: jest.fn().mockResolvedValue({
               id: 'session-1',
-              token_hash: 'hash',
-              expires_at: new Date(Date.now() + 1800000),
+              tokenHash: 'hash',
+              expiresAt: new Date(Date.now() + 1800000),
             }),
           },
           kioskSessionForm: {
@@ -120,13 +120,13 @@ describe('KioskService', () => {
     it('should return patient and forms for valid token', async () => {
       prisma.baseClient.kioskSession.findFirst.mockResolvedValue({
         id: 'session-1',
-        expires_at: new Date(Date.now() + 1800000),
+        expiresAt: new Date(Date.now() + 1800000),
         patient: { id: 'p1', first_name: 'John', last_name: 'Doe' },
-        session_forms: [
+        sessionForms: [
           {
             form: { id: 'f1', title: 'Intake Form', schema: {} },
             status: 'pending',
-            completed_at: null,
+            completedAt: null,
           },
         ],
       });
@@ -150,8 +150,8 @@ describe('KioskService', () => {
         where: { id: 'session-1' },
         data: {
           status: KIOSK_STATUS_COMPLETED,
-          closed_at: expect.any(Date),
-          closed_reason: null,
+          closedAt: expect.any(Date),
+          closedReason: null,
         },
       });
     });
@@ -169,8 +169,8 @@ describe('KioskService', () => {
         where: { id: 'session-1' },
         data: {
           status: KIOSK_STATUS_CLOSED,
-          closed_at: expect.any(Date),
-          closed_reason: 'Patient left',
+          closedAt: expect.any(Date),
+          closedReason: 'Patient left',
           closer: { connect: { id: 'staff-user-1' } },
         },
       });

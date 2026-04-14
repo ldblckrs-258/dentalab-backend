@@ -33,9 +33,9 @@ import type { ResetPasswordDto } from './dto/reset-password.dto';
 const USER_AUTH_SELECT = {
   id: true,
   email: true,
-  full_name: true,
-  is_active: true,
-  password_hash: true,
+  fullName: true,
+  isActive: true,
+  passwordHash: true,
 } as const;
 
 @Injectable()
@@ -88,7 +88,7 @@ export class AuthService {
       );
     }
 
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw new ForbiddenException(
         t('auth.account_deactivated', 'Account is deactivated'),
       );
@@ -96,7 +96,7 @@ export class AuthService {
 
     const isPasswordValid = await bcrypt.compare(
       dto.password,
-      user.password_hash,
+      user.passwordHash,
     );
     if (!isPasswordValid) {
       await this.cacheService.increment(
@@ -122,7 +122,7 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        fullName: user.full_name,
+        fullName: user.fullName,
       },
     };
   }
@@ -144,17 +144,17 @@ export class AuthService {
     // Find token in DB with only needed user fields
     const storedToken = await this.prisma.baseClient.refreshToken.findFirst({
       where: {
-        token_hash: tokenHash,
-        expires_at: { gt: new Date() },
+        tokenHash: tokenHash,
+        expiresAt: { gt: new Date() },
       },
       include: {
         user: {
-          select: { id: true, email: true, full_name: true, is_active: true },
+          select: { id: true, email: true, fullName: true, isActive: true },
         },
       },
     });
 
-    if (!storedToken || !storedToken.user.is_active) {
+    if (!storedToken || !storedToken.user.isActive) {
       throw new UnauthorizedException(
         t('auth.refresh_token_invalid', 'Invalid or expired refresh token'),
       );
@@ -164,7 +164,7 @@ export class AuthService {
     await this.blacklistAndDeleteToken(
       storedToken.id,
       tokenHash,
-      storedToken.expires_at,
+      storedToken.expiresAt,
     );
 
     // Generate new token pair
@@ -178,7 +178,7 @@ export class AuthService {
       user: {
         id: storedToken.user.id,
         email: storedToken.user.email,
-        fullName: storedToken.user.full_name,
+        fullName: storedToken.user.fullName,
       },
     };
   }
@@ -187,15 +187,15 @@ export class AuthService {
     const tokenHash = hashToken(refreshToken);
 
     const storedToken = await this.prisma.baseClient.refreshToken.findFirst({
-      where: { token_hash: tokenHash, user_id: userId },
-      select: { id: true, expires_at: true },
+      where: { tokenHash: tokenHash, userId: userId },
+      select: { id: true, expiresAt: true },
     });
 
     if (storedToken) {
       await this.blacklistAndDeleteToken(
         storedToken.id,
         tokenHash,
-        storedToken.expires_at,
+        storedToken.expiresAt,
       );
     }
   }
@@ -209,13 +209,13 @@ export class AuthService {
         select: {
           id: true,
           email: true,
-          full_name: true,
+          fullName: true,
           phone: true,
-          avatar_url: true,
-          is_active: true,
-          created_at: true,
-          updated_at: true,
-          user_roles: {
+          avatarUrl: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          userRoles: {
             include: { role: { select: { name: true } } },
           },
         },
@@ -232,21 +232,21 @@ export class AuthService {
     return {
       id: user.id,
       email: user.email,
-      fullName: user.full_name,
+      fullName: user.fullName,
       phone: user.phone,
-      avatarUrl: this.storageService.resolveAvatarUrl(user.avatar_url),
-      isActive: user.is_active,
-      roles: user.user_roles.map((ur) => ur.role.name),
+      avatarUrl: this.storageService.resolveAvatarUrl(user.avatarUrl),
+      isActive: user.isActive,
+      roles: user.userRoles.map((ur) => ur.role.name),
       permissions,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
     const user = await this.prisma.client.user.findUnique({
       where: { id: userId },
-      select: { id: true, password_hash: true },
+      select: { id: true, passwordHash: true },
     });
 
     if (!user) {
@@ -257,7 +257,7 @@ export class AuthService {
 
     const isCurrentValid = await bcrypt.compare(
       dto.currentPassword,
-      user.password_hash,
+      user.passwordHash,
     );
     if (!isCurrentValid) {
       throw new UnauthorizedException(
@@ -268,7 +268,7 @@ export class AuthService {
     const newHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
     await this.prisma.baseClient.user.update({
       where: { id: userId },
-      data: { password_hash: newHash },
+      data: { passwordHash: newHash },
     });
   }
 
@@ -287,9 +287,9 @@ export class AuthService {
 
     await this.prisma.baseClient.passwordResetToken.create({
       data: {
-        user_id: user.id,
-        token_hash: tokenHash,
-        expires_at: expiresAt,
+        userId: user.id,
+        tokenHash: tokenHash,
+        expiresAt: expiresAt,
       },
     });
 
@@ -308,9 +308,9 @@ export class AuthService {
     const resetToken =
       await this.prisma.baseClient.passwordResetToken.findFirst({
         where: {
-          token_hash: tokenHash,
-          used_at: null,
-          expires_at: { gt: new Date() },
+          tokenHash: tokenHash,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
         },
       });
 
@@ -324,17 +324,17 @@ export class AuthService {
 
     await this.prisma.transaction(async (tx) => {
       await tx.user.update({
-        where: { id: resetToken.user_id },
-        data: { password_hash: newHash },
+        where: { id: resetToken.userId },
+        data: { passwordHash: newHash },
       });
 
       await tx.passwordResetToken.update({
         where: { id: resetToken.id },
-        data: { used_at: new Date() },
+        data: { usedAt: new Date() },
       });
 
       await tx.refreshToken.deleteMany({
-        where: { user_id: resetToken.user_id },
+        where: { userId: resetToken.userId },
       });
     });
   }
@@ -366,11 +366,11 @@ export class AuthService {
   ): Promise<string[]> {
     const [userRoles, overrides] = await Promise.all([
       this.prisma.baseClient.userRole.findMany({
-        where: { user_id: userId },
+        where: { userId: userId },
         include: {
           role: {
             include: {
-              role_permissions: {
+              rolePermissions: {
                 include: {
                   permission: {
                     select: { resource: true, action: true, scope: true },
@@ -383,9 +383,9 @@ export class AuthService {
       }),
       this.prisma.baseClient.userPermissionOverride.findMany({
         where: {
-          user_id: userId,
-          is_active: true,
-          OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
+          userId: userId,
+          isActive: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         },
         include: {
           permission: {
@@ -406,14 +406,14 @@ export class AuthService {
 
     const permSet = new Set<string>();
     for (const ur of userRoles) {
-      for (const rp of ur.role.role_permissions) {
+      for (const rp of ur.role.rolePermissions) {
         permSet.add(buildKey(rp.permission));
       }
     }
     for (const o of overrides) {
       const key = buildKey(o.permission);
-      if (o.grant_type === 'deny') permSet.delete(key);
-      else if (o.grant_type === 'grant') permSet.add(key);
+      if (o.grantType === 'deny') permSet.delete(key);
+      else if (o.grantType === 'grant') permSet.add(key);
     }
 
     return Array.from(permSet).sort();
@@ -433,9 +433,9 @@ export class AuthService {
 
     await this.prisma.baseClient.refreshToken.create({
       data: {
-        user_id: userId,
-        token_hash: refreshTokenHash,
-        expires_at: new Date(Date.now() + refreshExpiryMs),
+        userId: userId,
+        tokenHash: refreshTokenHash,
+        expiresAt: new Date(Date.now() + refreshExpiryMs),
       },
     });
 

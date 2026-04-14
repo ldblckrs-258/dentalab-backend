@@ -84,7 +84,7 @@ describe('EmailService', () => {
       expect(mockPrisma.baseClient.emailLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            template_id: 'tmpl-1',
+            templateId: 'tmpl-1',
             status: 'pending',
           }),
         }),
@@ -93,7 +93,7 @@ describe('EmailService', () => {
       expect(mockPrisma.baseClient.emailLog.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            resend_id: 'resend-1',
+            resendId: 'resend-1',
             status: 'sent',
           }),
         }),
@@ -125,7 +125,7 @@ describe('EmailService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             status: 'failed',
-            error_message: 'API error',
+            errorMessage: 'API error',
           }),
         }),
       );
@@ -136,11 +136,11 @@ describe('EmailService', () => {
     it('should resend a failed email', async () => {
       mockPrisma.baseClient.emailLog.findUnique.mockResolvedValue({
         id: 'log-1',
-        recipient_email: 'user@test.com',
+        recipientEmail: 'user@test.com',
         status: 'failed',
         variables: { userName: 'John' },
-        entity_type: 'user',
-        entity_id: 'user-1',
+        entityType: 'user',
+        entityId: 'user-1',
         template: { name: 'welcome' },
       });
       mockTemplateService.render.mockResolvedValue({

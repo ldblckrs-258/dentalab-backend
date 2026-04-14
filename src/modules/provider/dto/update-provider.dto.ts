@@ -7,5 +7,5 @@ export class UpdateProviderDto {
 
   @IsOptional()
   @IsString()
-  license_number?: string;
+  licenseNumber?: string;
 }

@@ -72,10 +72,10 @@ describe('RbacService', () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
         name: 'admin',
-        role_permissions: [
+        rolePermissions: [
           { permission: { id: 'p1', resource: 'users', action: 'read' } },
         ],
-        _count: { user_roles: 2 },
+        _count: { userRoles: 2 },
       });
 
       const result = await service.findRoleById('r1');
@@ -98,7 +98,7 @@ describe('RbacService', () => {
       prisma.baseClient.role.create.mockResolvedValue({
         id: 'r1',
         name: 'staff',
-        is_system: false,
+        isSystem: false,
       });
 
       await service.createRole({
@@ -106,7 +106,7 @@ describe('RbacService', () => {
         description: 'Staff role',
       });
       expect(prisma.baseClient.role.create).toHaveBeenCalledWith({
-        data: { name: 'staff', description: 'Staff role', is_system: false },
+        data: { name: 'staff', description: 'Staff role', isSystem: false },
       });
     });
 
@@ -114,7 +114,7 @@ describe('RbacService', () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
         name: 'admin',
-        is_system: true,
+        isSystem: true,
       });
 
       await expect(
@@ -126,7 +126,7 @@ describe('RbacService', () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
         name: 'admin',
-        is_system: true,
+        isSystem: true,
       });
       prisma.baseClient.role.update.mockResolvedValue({});
 
@@ -140,8 +140,8 @@ describe('RbacService', () => {
     it('should throw ForbiddenException when deleting system role', async () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
-        is_system: true,
-        _count: { user_roles: 0 },
+        isSystem: true,
+        _count: { userRoles: 0 },
       });
 
       await expect(service.deleteRole('r1')).rejects.toThrow(
@@ -152,8 +152,8 @@ describe('RbacService', () => {
     it('should throw BadRequestException when deleting role with users', async () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
-        is_system: false,
-        _count: { user_roles: 3 },
+        isSystem: false,
+        _count: { userRoles: 3 },
       });
 
       await expect(service.deleteRole('r1')).rejects.toThrow(
@@ -164,8 +164,8 @@ describe('RbacService', () => {
     it('should delete role successfully', async () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
-        is_system: false,
-        _count: { user_roles: 0 },
+        isSystem: false,
+        _count: { userRoles: 0 },
       });
       prisma.baseClient.role.delete.mockResolvedValue({});
 
@@ -217,7 +217,7 @@ describe('RbacService', () => {
     it('should revoke override and invalidate cache', async () => {
       prisma.baseClient.userPermissionOverride.findUnique.mockResolvedValue({
         id: 'o1',
-        user_id: 'user-1',
+        userId: 'user-1',
       });
       prisma.baseClient.userPermissionOverride.update.mockResolvedValue({});
 
@@ -228,8 +228,8 @@ describe('RbacService', () => {
       ).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            is_active: false,
-            revoked_by: 'admin-1',
+            isActive: false,
+            revokedBy: 'admin-1',
           }),
         }),
       );

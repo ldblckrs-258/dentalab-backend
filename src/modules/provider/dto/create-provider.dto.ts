@@ -10,5 +10,5 @@ export class CreateProviderDto {
 
   @IsOptional()
   @IsString()
-  license_number?: string;
+  licenseNumber?: string;
 }
