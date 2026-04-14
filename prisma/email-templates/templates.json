@@ -15,8 +15,8 @@
     "type": "system_alert",
     "file": "welcome.mjml",
     "variables": {
-      "required": ["userName", "email", "temporaryPassword", "loginLink"],
-      "optional": []
+      "required": ["userName", "email", "loginLink"],
+      "optional": ["temporaryPassword"]
     }
   }
 ]

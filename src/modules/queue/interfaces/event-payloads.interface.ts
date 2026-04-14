@@ -50,7 +50,7 @@ export interface EmailSendWelcomePayload {
   userId: string;
   email: string;
   fullName: string;
-  temporaryPassword: string;
+  temporaryPassword?: string;
 }
 
 export interface InventoryLowStockPayload {

@@ -3,14 +3,25 @@
     <mj-attributes>
       <mj-all font-family="Arial, sans-serif" />
       <mj-text font-size="14px" color="#333333" line-height="1.6" />
-      <mj-button background-color="#2563eb" color="#ffffff" border-radius="6px" font-size="16px" inner-padding="12px 24px" />
+      <mj-button
+        background-color="#2563eb"
+        color="#ffffff"
+        border-radius="6px"
+        font-size="16px"
+        inner-padding="12px 24px"
+      />
     </mj-attributes>
   </mj-head>
   <mj-body background-color="#f4f4f5">
     <!-- Header -->
     <mj-section background-color="#ffffff" padding="20px 0">
       <mj-column>
-        <mj-text align="center" font-size="24px" font-weight="bold" color="#2563eb">
+        <mj-text
+          align="center"
+          font-size="24px"
+          font-weight="bold"
+          color="#2563eb"
+        >
           DentaLab
         </mj-text>
       </mj-column>
@@ -23,8 +34,9 @@
     <mj-section padding="20px 0">
       <mj-column>
         <mj-text align="center" font-size="12px" color="#9ca3af">
-          DentaLab Dental Clinic Management<br/>
-          This is an automated message. Please do not reply directly to this email.
+          DentaLab - Dental Practice Management System<br />
+          This is an automated message. Please do not reply directly to this
+          email.
         </mj-text>
       </mj-column>
     </mj-section>

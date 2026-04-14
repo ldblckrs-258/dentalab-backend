@@ -218,18 +218,16 @@ export class UserService {
       });
     });
 
-    if (dto.sendTempPassword) {
-      const welcomePayload: EmailSendWelcomePayload = {
-        userId: user!.id,
-        email: dto.email,
-        fullName: dto.fullName,
-        temporaryPassword: dto.password,
-      };
-      this.queueProducer.publish(
-        ROUTING_KEY.EMAIL_SEND_WELCOME as string,
-        welcomePayload as EventPayload,
-      );
-    }
+    const welcomePayload: EmailSendWelcomePayload = {
+      userId: user!.id,
+      email: dto.email,
+      fullName: dto.fullName,
+      ...(dto.sendTempPassword && { temporaryPassword: dto.password }),
+    };
+    this.queueProducer.publish(
+      ROUTING_KEY.EMAIL_SEND_WELCOME as string,
+      welcomePayload as EventPayload,
+    );
 
     return this.resolveAvatarInUser(flattenUserRoles(user));
   }

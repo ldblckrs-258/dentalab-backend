@@ -2,19 +2,30 @@
 <mj-section background-color="#ffffff" padding="30px 20px">
   <mj-column>
     <mj-text font-size="20px" font-weight="bold">Welcome to DentaLab!</mj-text>
-    <mj-text>Hello {{userName}},</mj-text>
+    <mj-text>Hello {{ userName }},</mj-text>
     <mj-text>
+      {{#if temporaryPassword}}
       An account has been created for you. Here are your login credentials:
+      <div
+        style="
+          margin-top: 12px;
+          padding: 12px 20px;
+          background-color: #f4f4f5;
+          border-radius: 6px;
+        "
+      >
+        <strong>Email:</strong> {{ email }}<br />
+        <strong>Temporary Password:</strong> {{ temporaryPassword }}
+      </div>
+      <p style="margin-top: 12px">
+        Please change your password after your first login.
+      </p>
+      {{else}}
+      Your account has been created. You can sign in using your email (<strong
+        >{{ email }}</strong
+      >) and the password provided to you by your administrator.
+      {{/if}}
     </mj-text>
-    <mj-text padding="10px 20px" background-color="#f4f4f5" border-radius="6px">
-      <strong>Email:</strong> {{email}}<br/>
-      <strong>Temporary Password:</strong> {{temporaryPassword}}
-    </mj-text>
-    <mj-text>
-      Please change your password after your first login.
-    </mj-text>
-    <mj-button href="{{loginLink}}">
-      Login Now
-    </mj-button>
+    <mj-button href="{{loginLink}}"> Login Now </mj-button>
   </mj-column>
 </mj-section>
