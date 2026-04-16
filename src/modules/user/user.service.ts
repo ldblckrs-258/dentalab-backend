@@ -75,6 +75,32 @@ export class UserService {
     private readonly storageService: StorageService,
   ) {}
 
+  private async resolveAvatarUpdate(
+    currentAvatarUrl: string | null,
+    file: Express.Multer.File | undefined,
+    removeAvatar: boolean | undefined,
+    entityId: string,
+    uploadedBy: string,
+  ): Promise<string | null | undefined> {
+    if (file) {
+      const processed = await this.storageService.processAvatar(file.buffer);
+      const { key } = await this.storageService.upload(processed, {
+        category: 'avatars',
+        entityId,
+        originalFilename: 'avatar.webp',
+        contentType: 'image/webp',
+        uploadedBy,
+      });
+      await this.deleteStoredAvatar(currentAvatarUrl);
+      return key;
+    }
+    if (removeAvatar) {
+      await this.deleteStoredAvatar(currentAvatarUrl);
+      return null;
+    }
+    return undefined;
+  }
+
   private async deleteStoredAvatar(avatarUrl: string | null): Promise<void> {
     if (avatarUrl && this.storageService.isStorageKey(avatarUrl)) {
       await this.storageService
@@ -252,22 +278,13 @@ export class UserService {
     if (!user)
       throw new NotFoundException(t('common.user_not_found', 'User not found'));
 
-    let avatarKey: string | null | undefined;
-    if (file) {
-      const processed = await this.storageService.processAvatar(file.buffer);
-      const { key } = await this.storageService.upload(processed, {
-        category: 'avatars',
-        entityId: id,
-        originalFilename: 'avatar.webp',
-        contentType: 'image/webp',
-        uploadedBy: actorId ?? id,
-      });
-      await this.deleteStoredAvatar(user.avatarUrl);
-      avatarKey = key;
-    } else if (dto.removeAvatar) {
-      await this.deleteStoredAvatar(user.avatarUrl);
-      avatarKey = null;
-    }
+    const avatarKey = await this.resolveAvatarUpdate(
+      user.avatarUrl,
+      file,
+      dto.removeAvatar,
+      id,
+      actorId ?? id,
+    );
 
     const updated = await this.prisma.baseClient.user.update({
       where: { id },
@@ -394,23 +411,13 @@ export class UserService {
     if (!user)
       throw new NotFoundException(t('common.user_not_found', 'User not found'));
 
-    // Handle avatar
-    let avatarKey: string | null | undefined;
-    if (file) {
-      const processed = await this.storageService.processAvatar(file.buffer);
-      const { key } = await this.storageService.upload(processed, {
-        category: 'avatars',
-        entityId: userId,
-        originalFilename: 'avatar.webp',
-        contentType: 'image/webp',
-        uploadedBy: userId,
-      });
-      await this.deleteStoredAvatar(user.avatarUrl);
-      avatarKey = key;
-    } else if (dto.removeAvatar) {
-      await this.deleteStoredAvatar(user.avatarUrl);
-      avatarKey = null;
-    }
+    const avatarKey = await this.resolveAvatarUpdate(
+      user.avatarUrl,
+      file,
+      dto.removeAvatar,
+      userId,
+      userId,
+    );
 
     const updated = await this.prisma.baseClient.user.update({
       where: { id: userId },
