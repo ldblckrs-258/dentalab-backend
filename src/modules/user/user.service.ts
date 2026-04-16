@@ -425,6 +425,10 @@ export class UserService {
       select: USER_WITH_ROLES_SELECT,
     });
 
-    return this.resolveAvatarInUser(flattenUserRoles(updated));
+    const { userRoles, ...rest } = updated;
+    return this.resolveAvatarInUser({
+      ...rest,
+      roles: userRoles.map((ur) => ur.role.name),
+    });
   }
 }

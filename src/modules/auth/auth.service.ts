@@ -216,6 +216,7 @@ export class AuthService {
           isActive: true,
           createdAt: true,
           updatedAt: true,
+          preferredLanguage: true,
           userRoles: {
             include: { role: { select: { name: true } } },
           },
@@ -239,6 +240,7 @@ export class AuthService {
       isActive: user.isActive,
       roles: user.userRoles.map((ur) => ur.role.name),
       permissions,
+      preferredLanguage: user.preferredLanguage,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
