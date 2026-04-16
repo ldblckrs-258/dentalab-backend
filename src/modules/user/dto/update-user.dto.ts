@@ -1,7 +1,8 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
-import { SUPPORTED_LANGUAGES } from '@common/constants';
+import { IsOptional, IsString, MinLength } from 'class-validator';
 
+// Admin-facing update: excludes preferredLanguage by design — users set their
+// own language via PATCH /users/me.
 export class UpdateUserDto {
   @IsOptional()
   @IsString()
@@ -11,11 +12,6 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   phone?: string;
-
-  @IsOptional()
-  @IsString()
-  @IsIn(SUPPORTED_LANGUAGES)
-  preferredLanguage?: string;
 
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)

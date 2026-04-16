@@ -10,6 +10,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -17,6 +18,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AssignRolesDto } from './dto/assign-roles.dto';
 import { CreateUserDto } from './dto/create-user.dto';
+import { SyncRolesDto } from './dto/sync-roles.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -125,5 +127,16 @@ export class UserController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     return this.userService.removeRoles(id, dto, currentUser.id);
+  }
+
+  @Put(':id/roles')
+  @RequirePermissions('users:update')
+  @Audited('user')
+  async syncRoles(
+    @Param('id') id: string,
+    @Body() dto: SyncRolesDto,
+    @CurrentUser() currentUser: AuthenticatedUser,
+  ) {
+    return this.userService.syncRoles(id, dto, currentUser.id);
   }
 }

@@ -32,6 +32,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import type { AssignRolesDto } from './dto/assign-roles.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
+import type { SyncRolesDto } from './dto/sync-roles.dto';
 import type { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import type { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
@@ -291,9 +292,6 @@ export class UserService {
       data: {
         ...(dto.fullName !== undefined && { fullName: dto.fullName }),
         ...(dto.phone !== undefined && { phone: dto.phone }),
-        ...(dto.preferredLanguage !== undefined && {
-          preferredLanguage: dto.preferredLanguage,
-        }),
         ...(avatarKey !== undefined && { avatarUrl: avatarKey }),
       },
       select: USER_WITH_ROLES_SELECT,
@@ -397,6 +395,68 @@ export class UserService {
     await this.permissionResolver.invalidateCache(id);
 
     return { message: t('user.roles_removed', 'Roles removed') };
+  }
+
+  async syncRoles(id: string, dto: SyncRolesDto, actorUserId: string) {
+    const user = await this.prisma.baseClient.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+    if (!user)
+      throw new NotFoundException(t('common.user_not_found', 'User not found'));
+
+    if (dto.roleIds.length > 0) {
+      const existing = await this.prisma.baseClient.role.findMany({
+        where: { id: { in: dto.roleIds } },
+        select: { id: true },
+      });
+      if (existing.length !== dto.roleIds.length) {
+        throw new BadRequestException(
+          t('user.invalid_role_ids', 'One or more role IDs are invalid'),
+        );
+      }
+    }
+
+    const currentUserRoles = await this.prisma.baseClient.userRole.findMany({
+      where: { userId: id },
+      select: { roleId: true },
+    });
+    const currentIds = new Set(currentUserRoles.map((r) => r.roleId));
+    const targetIds = new Set(dto.roleIds);
+    const toAdd = dto.roleIds.filter((rid) => !currentIds.has(rid));
+    const toRemove = [...currentIds].filter((rid) => !targetIds.has(rid));
+
+    // Gate Admin grants/revocations behind users:update:admin regardless of direction.
+    const touchedRoleIds = Array.from(new Set([...toAdd, ...toRemove]));
+    if (touchedRoleIds.length > 0) {
+      await this.assertCanManageAdminRole(
+        touchedRoleIds,
+        actorUserId,
+        'users:update:admin',
+      );
+    }
+
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      return { message: t('user.roles_synced', 'Roles updated') };
+    }
+
+    await this.prisma.transaction(async (tx) => {
+      if (toRemove.length > 0) {
+        await tx.userRole.deleteMany({
+          where: { userId: id, roleId: { in: toRemove } },
+        });
+      }
+      if (toAdd.length > 0) {
+        await tx.userRole.createMany({
+          data: toAdd.map((roleId) => ({ userId: id, roleId })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    await this.permissionResolver.invalidateCache(id);
+
+    return { message: t('user.roles_synced', 'Roles updated') };
   }
 
   async updateMyProfile(

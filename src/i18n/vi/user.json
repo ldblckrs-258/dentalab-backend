@@ -4,5 +4,6 @@
   "invalid_role_ids": "Một hoặc nhiều ID vai trò không hợp lệ",
   "roles_assigned": "Đã gán vai trò",
   "roles_removed": "Đã xóa vai trò",
+  "roles_synced": "Đã cập nhật vai trò",
   "language_updated": "Đã cập nhật ngôn ngữ ưu tiên"
 }

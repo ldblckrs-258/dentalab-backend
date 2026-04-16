@@ -4,5 +4,6 @@
   "invalid_role_ids": "One or more role IDs are invalid",
   "roles_assigned": "Roles assigned",
   "roles_removed": "Roles removed",
+  "roles_synced": "Roles updated",
   "language_updated": "Language preference updated"
 }
