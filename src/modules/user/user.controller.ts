@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AssignRolesDto } from './dto/assign-roles.dto';
+import { BulkUpdateUserStatusDto } from './dto/bulk-update-user-status.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { SyncRolesDto } from './dto/sync-roles.dto';
 import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
@@ -82,6 +83,13 @@ export class UserController {
     @CurrentUser() currentUser: AuthenticatedUser,
   ) {
     return this.userService.create(dto, currentUser.id);
+  }
+
+  @Patch('bulk-status')
+  @RequirePermissions('users:update')
+  @Audited('user')
+  async bulkUpdateStatus(@Body() dto: BulkUpdateUserStatusDto) {
+    return this.userService.bulkUpdateStatus(dto);
   }
 
   @Patch(':id')

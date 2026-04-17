@@ -31,6 +31,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import type { AssignRolesDto } from './dto/assign-roles.dto';
+import type { BulkUpdateUserStatusDto } from './dto/bulk-update-user-status.dto';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { SyncRolesDto } from './dto/sync-roles.dto';
 import type { UpdateUserStatusDto } from './dto/update-user-status.dto';
@@ -337,6 +338,44 @@ export class UserService {
     }
 
     return updated;
+  }
+
+  async bulkUpdateStatus(dto: BulkUpdateUserStatusDto) {
+    const uniqueIds = Array.from(new Set(dto.ids));
+
+    const { count } = await this.prisma.baseClient.user.updateMany({
+      where: { id: { in: uniqueIds } },
+      data: { isActive: dto.isActive },
+    });
+
+    if (!dto.isActive && count > 0) {
+      const tokens = await this.prisma.baseClient.refreshToken.findMany({
+        where: { userId: { in: uniqueIds } },
+        select: { tokenHash: true, expiresAt: true },
+      });
+
+      await Promise.all([
+        ...uniqueIds.map((id) => this.permissionResolver.invalidateCache(id)),
+        ...tokens.map((t) => {
+          const remainingTtl = Math.ceil(
+            (t.expiresAt.getTime() - Date.now()) / 1000,
+          );
+          return remainingTtl > 0
+            ? this.cacheService.set(
+                CACHE_DOMAIN_AUTH,
+                `${CACHE_KEY_BLACKLIST}:${t.tokenHash}`,
+                true,
+                remainingTtl,
+              )
+            : Promise.resolve();
+        }),
+        this.prisma.baseClient.refreshToken.deleteMany({
+          where: { userId: { in: uniqueIds } },
+        }),
+      ]);
+    }
+
+    return { count, isActive: dto.isActive };
   }
 
   async assignRoles(id: string, dto: AssignRolesDto, actorUserId: string) {
