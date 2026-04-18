@@ -100,6 +100,13 @@ export class RbacController {
     return this.rbacService.revokePermissionsFromRole(id, dto);
   }
 
+  @Post('roles/:id/permissions/reset')
+  @RequirePermissions('roles:update')
+  @Audited('role_permissions')
+  async resetRolePermissions(@Param('id') id: string) {
+    return this.rbacService.resetRolePermissions(id);
+  }
+
   // ── User Permissions ──
 
   @Get('users/:id/permissions')

@@ -110,22 +110,27 @@ describe('RbacService', () => {
       });
     });
 
-    it('should throw ForbiddenException when renaming a system role', async () => {
+    it('should allow renaming a system role (code is the stable identifier)', async () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
-        name: 'admin',
+        code: 'ADMIN',
+        name: 'Quản trị viên',
         isSystem: true,
       });
+      prisma.baseClient.role.update.mockResolvedValue({});
 
-      await expect(
-        service.updateRole('r1', { name: 'new-name' }),
-      ).rejects.toThrow(ForbiddenException);
+      await service.updateRole('r1', { name: 'Trưởng phòng' });
+      expect(prisma.baseClient.role.update).toHaveBeenCalledWith({
+        where: { id: 'r1' },
+        data: { name: 'Trưởng phòng', description: undefined },
+      });
     });
 
     it('should allow updating description of system role', async () => {
       prisma.baseClient.role.findUnique.mockResolvedValue({
         id: 'r1',
-        name: 'admin',
+        code: 'ADMIN',
+        name: 'Quản trị viên',
         isSystem: true,
       });
       prisma.baseClient.role.update.mockResolvedValue({});

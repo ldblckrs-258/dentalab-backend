@@ -1,0 +1,107 @@
+import { SYSTEM_ROLE_CODE } from '../../common/constants';
+
+/**  Single source of truth for the permission set each system role receives.
+ * Used by both the seed script (initial install) and the
+ * "reset role permissions" endpoint (runtime reset to defaults).
+ *
+ * Values are permission keys in `resource:action` or `resource:action:scope`
+ * form — resolved to permission IDs by the caller.
+ *
+ * ADMIN is intentionally absent: it resets dynamically to "every permission
+ * currently in the `permissions` table" so that newly seeded permissions
+ * always flow to Admin without having to update this list.
+ */
+
+export function perm(resource: string, action: string): string {
+  return `${resource}:${action}`;
+}
+
+export function scopedPerm(
+  resource: string,
+  action: string,
+  scope: string,
+): string {
+  return `${resource}:${action}:${scope}`;
+}
+
+function allActions(resource: string): string[] {
+  return ['create', 'read', 'update', 'delete'].map((a) => perm(resource, a));
+}
+
+export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
+  [SYSTEM_ROLE_CODE.DOCTOR]: [
+    perm('appointments', 'read'),
+    perm('appointments', 'update'),
+    perm('procedures', 'read'),
+    perm('appointment_types', 'read'),
+    perm('patients', 'read'),
+    ...allActions('clinical_notes'),
+    perm('patient_files', 'create'),
+    perm('patient_files', 'read'),
+    ...allActions('treatment_plans'),
+    perm('schedule_overrides', 'create'),
+    perm('schedule_overrides', 'read'),
+    perm('provider_schedules', 'read'),
+    perm('internal_documents', 'read'),
+    perm('forms', 'read'),
+    perm('form_submissions', 'read'),
+    perm('chat_sessions', 'create'),
+    perm('chat_sessions', 'read'),
+    perm('chat_sessions', 'delete'),
+    perm('rag_patient_notes', 'read'),
+    perm('rag_internal_docs', 'read'),
+    perm('audit_logs', 'read'),
+  ],
+
+  [SYSTEM_ROLE_CODE.RECEPTIONIST]: [
+    ...allActions('appointments'),
+    ...allActions('patients'),
+    ...allActions('patient_insurances'),
+    perm('patient_files', 'create'),
+    perm('patient_files', 'read'),
+    perm('procedures', 'read'),
+    perm('appointment_types', 'read'),
+    perm('provider_schedules', 'read'),
+    perm('forms', 'read'),
+    perm('form_submissions', 'read'),
+    perm('kiosk_sessions', 'create'),
+    perm('kiosk_sessions', 'read'),
+    perm('internal_documents', 'read'),
+    perm('chat_sessions', 'create'),
+    perm('chat_sessions', 'read'),
+    perm('chat_sessions', 'delete'),
+    perm('rag_internal_docs', 'read'),
+    perm('audit_logs', 'read'),
+  ],
+
+  [SYSTEM_ROLE_CODE.MANAGER]: [
+    scopedPerm('users', 'read', 'non_admin'),
+    perm('appointments', 'read'),
+    perm('patients', 'read'),
+    ...allActions('internal_documents'),
+    ...allActions('inventory_items'),
+    ...allActions('email_templates'),
+    ...allActions('forms'),
+    perm('form_submissions', 'read'),
+    perm('schedule_overrides', 'read'),
+    perm('schedule_overrides', 'update'),
+    perm('provider_schedules', 'read'),
+    perm('provider_schedules', 'update'),
+    perm('chat_sessions', 'create'),
+    perm('chat_sessions', 'read'),
+    perm('chat_sessions', 'delete'),
+    perm('rag_internal_docs', 'read'),
+    perm('email_logs', 'read'),
+    perm('audit_logs', 'read'),
+    scopedPerm('audit_logs', 'read', 'operations'),
+  ],
+};
+
+// Role codes that support "reset to system defaults". ADMIN is included —
+// its default is resolved dynamically to all currently-known permissions.
+export const RESETTABLE_ROLE_CODES: readonly string[] = [
+  SYSTEM_ROLE_CODE.ADMIN,
+  SYSTEM_ROLE_CODE.DOCTOR,
+  SYSTEM_ROLE_CODE.RECEPTIONIST,
+  SYSTEM_ROLE_CODE.MANAGER,
+];

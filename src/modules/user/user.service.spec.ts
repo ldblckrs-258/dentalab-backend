@@ -122,9 +122,22 @@ describe('UserService', () => {
       prisma.baseClient.user.findMany.mockResolvedValue([mockUserWithRoles]);
       prisma.baseClient.user.count.mockResolvedValue(1);
 
-      const result = await service.findAll({});
+      const result = await service.findAll({}, 'actor-1');
       expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(1);
+    });
+
+    it('should exclude Admin users when actor only has non_admin scope', async () => {
+      permissionResolver.hasPermission.mockImplementation(
+        (_id: string, p: string) => Promise.resolve(p !== 'users:read:all'),
+      );
+      prisma.baseClient.user.findMany.mockResolvedValue([]);
+      prisma.baseClient.user.count.mockResolvedValue(0);
+
+      await service.findAll({}, 'manager-1');
+
+      const whereArg = prisma.baseClient.user.findMany.mock.calls[0][0].where;
+      expect(whereArg.userRoles?.none).toEqual({ role: { code: 'ADMIN' } });
     });
   });
 
@@ -132,7 +145,7 @@ describe('UserService', () => {
     it('should throw NotFoundException for missing id', async () => {
       prisma.baseClient.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.findById('missing')).rejects.toThrow(
+      await expect(service.findById('missing', 'actor-1')).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -140,8 +153,24 @@ describe('UserService', () => {
     it('should return user with overrides', async () => {
       prisma.baseClient.user.findUnique.mockResolvedValue(mockUserWithRoles);
 
-      const result = await service.findById('user-1');
+      const result = await service.findById('user-1', 'actor-1');
       expect(result.overrides).toBeDefined();
+    });
+
+    it('should return 404 when non_admin-scoped caller fetches an Admin user', async () => {
+      permissionResolver.hasPermission.mockImplementation(
+        (_id: string, p: string) => Promise.resolve(p !== 'users:read:all'),
+      );
+      prisma.baseClient.user.findUnique.mockResolvedValue({
+        ...mockUser,
+        userRoles: [
+          { role: { id: 'r1', code: 'ADMIN', name: 'Quản trị viên' } },
+        ],
+      });
+
+      await expect(
+        service.findById('admin-target', 'manager-1'),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -307,7 +336,7 @@ describe('UserService', () => {
 
     it('should throw ForbiddenException when assigning Admin role without permission', async () => {
       prisma.baseClient.role.findMany.mockResolvedValue([
-        { id: adminRoleId, name: 'Admin' },
+        { id: adminRoleId, code: 'ADMIN' },
       ]);
       permissionResolver.hasPermission.mockResolvedValue(false);
 

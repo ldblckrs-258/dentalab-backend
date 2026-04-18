@@ -25,8 +25,15 @@ export const PASSWORD_MIN_LENGTH = 8;
 // Ownership
 export const OWNERSHIP_KEY = 'ownership';
 
-// System roles
-export const SYSTEM_ROLE_ADMIN = 'Admin';
+// System role codes (stable machine identifiers; independent of display name)
+export const SYSTEM_ROLE_CODE = {
+  ADMIN: 'ADMIN',
+  DOCTOR: 'DOCTOR',
+  RECEPTIONIST: 'RECEPTIONIST',
+  MANAGER: 'MANAGER',
+} as const;
+export type SystemRoleCode =
+  (typeof SYSTEM_ROLE_CODE)[keyof typeof SYSTEM_ROLE_CODE];
 
 // Kiosk session statuses
 export const KIOSK_STATUS_ACTIVE = 'active';

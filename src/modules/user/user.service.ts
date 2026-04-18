@@ -2,7 +2,7 @@ import {
   BCRYPT_ROUNDS,
   CACHE_DOMAIN_AUTH,
   CACHE_KEY_BLACKLIST,
-  SYSTEM_ROLE_ADMIN,
+  SYSTEM_ROLE_CODE,
 } from '@common/constants';
 import {
   activeOverrideWhere,
@@ -53,9 +53,11 @@ const USER_SELECT = {
 const USER_WITH_ROLES_SELECT = {
   ...USER_SELECT,
   userRoles: {
-    select: { role: { select: { id: true, name: true } } },
+    select: { role: { select: { id: true, code: true, name: true } } },
   },
 } as const;
+
+const USERS_READ_ALL = 'users:read:all';
 
 function flattenUserRoles<T extends { userRoles: { role: unknown }[] }>(
   user: T | null,
@@ -123,12 +125,28 @@ export class UserService {
     };
   }
 
-  async findAll(query: UserQueryDto) {
+  // Callers with `users:read:all` see every user; callers with only
+  // `users:read:non_admin` must never see users holding the Admin role
+  // (hidden across list, search, and by-ID fetch — returns 404 to avoid
+  // confirming an Admin's existence).
+  private async resolveUserReadScope(
+    actorUserId: string,
+  ): Promise<'all' | 'non_admin'> {
+    const hasAll = await this.permissionResolver.hasPermission(
+      actorUserId,
+      USERS_READ_ALL,
+    );
+    return hasAll ? 'all' : 'non_admin';
+  }
+
+  async findAll(query: UserQueryDto, actorUserId: string) {
     const prismaArgs = buildPrismaQuery(query, [
       'fullName',
       'email',
       'createdAt',
     ]);
+
+    const scope = await this.resolveUserReadScope(actorUserId);
 
     const where: Record<string, unknown> = {};
     if (query.search) {
@@ -142,6 +160,12 @@ export class UserService {
     }
     if (query.isActive !== undefined) {
       where.isActive = query.isActive === 'true';
+    }
+    if (scope === 'non_admin') {
+      where.userRoles = {
+        ...(typeof where.userRoles === 'object' ? where.userRoles : {}),
+        none: { role: { code: SYSTEM_ROLE_CODE.ADMIN } },
+      };
     }
 
     const [data, total] = await Promise.all([
@@ -160,8 +184,8 @@ export class UserService {
     );
   }
 
-  async findById(id: string) {
-    const [user, overrides] = await Promise.all([
+  async findById(id: string, actorUserId: string) {
+    const [user, overrides, scope] = await Promise.all([
       this.prisma.baseClient.user.findUnique({
         where: { id },
         select: USER_WITH_ROLES_SELECT,
@@ -171,10 +195,19 @@ export class UserService {
         select: OVERRIDE_SELECT,
         orderBy: { createdAt: 'desc' },
       }),
+      this.resolveUserReadScope(actorUserId),
     ]);
 
     if (!user)
       throw new NotFoundException(t('common.user_not_found', 'User not found'));
+
+    if (
+      scope === 'non_admin' &&
+      user.userRoles.some((ur) => ur.role.code === SYSTEM_ROLE_CODE.ADMIN)
+    ) {
+      // Hide Admin from non_admin-scoped callers as if the record did not exist.
+      throw new NotFoundException(t('common.user_not_found', 'User not found'));
+    }
 
     return { ...this.resolveAvatarInUser(flattenUserRoles(user)), overrides };
   }
@@ -185,7 +218,7 @@ export class UserService {
     requiredPermission: string,
   ): Promise<void> {
     const adminRole = await this.prisma.baseClient.role.findFirst({
-      where: { name: SYSTEM_ROLE_ADMIN, id: { in: roleIds } },
+      where: { code: SYSTEM_ROLE_CODE.ADMIN, id: { in: roleIds } },
       select: { id: true },
     });
 
@@ -381,7 +414,7 @@ export class UserService {
   async assignRoles(id: string, dto: AssignRolesDto, actorUserId: string) {
     const existingRoles = await this.prisma.baseClient.role.findMany({
       where: { id: { in: dto.roleIds } },
-      select: { id: true, name: true },
+      select: { id: true, code: true },
     });
     if (existingRoles.length !== dto.roleIds.length) {
       throw new BadRequestException(
@@ -389,7 +422,7 @@ export class UserService {
       );
     }
 
-    if (existingRoles.some((r) => r.name === SYSTEM_ROLE_ADMIN)) {
+    if (existingRoles.some((r) => r.code === SYSTEM_ROLE_CODE.ADMIN)) {
       const canManageAdmin = await this.permissionResolver.hasPermission(
         actorUserId,
         'users:update:admin',

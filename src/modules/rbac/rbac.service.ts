@@ -17,6 +17,11 @@ import type { CreateRoleDto } from './dto/create-role.dto';
 import type { UpdateRoleDto } from './dto/update-role.dto';
 import type { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import type { CreateOverrideDto } from './dto/create-override.dto';
+import {
+  DEFAULT_ROLE_PERMISSIONS,
+  RESETTABLE_ROLE_CODES,
+} from './default-role-permissions';
+import { SYSTEM_ROLE_CODE } from '@common/constants';
 
 @Injectable()
 export class RbacService {
@@ -96,17 +101,12 @@ export class RbacService {
     if (!role)
       throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
-    // System roles: only description can be changed
-    if (role.isSystem && dto.name && dto.name !== role.name) {
-      throw new ForbiddenException(
-        t('rbac.cannot_rename_system_role', 'Cannot rename a system role'),
-      );
-    }
-
+    // `code` is the stable machine identifier for system roles, so `name`
+    // (display label) is safe to rename for both system and custom roles.
     return this.prisma.baseClient.role.update({
       where: { id },
       data: {
-        name: role.isSystem ? undefined : dto.name,
+        name: dto.name,
         description: dto.description,
       },
     });
@@ -208,6 +208,73 @@ export class RbacService {
 
     return {
       message: t('rbac.permissions_revoked', 'Permissions revoked'),
+    };
+  }
+
+  // Replace a system role's permissions with its seeded defaults.
+  // ADMIN resolves dynamically to "every permission currently in the table"
+  // so newly seeded permissions flow in automatically; other roles use the
+  // static list in `default-role-permissions.ts`.
+  async resetRolePermissions(roleId: string) {
+    const role = await this.prisma.baseClient.role.findUnique({
+      where: { id: roleId },
+      select: { id: true, code: true, isSystem: true },
+    });
+    if (!role)
+      throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
+
+    if (
+      !role.code ||
+      !role.isSystem ||
+      !RESETTABLE_ROLE_CODES.includes(role.code)
+    ) {
+      throw new BadRequestException(
+        t(
+          'rbac.cannot_reset_non_system_role',
+          'Only system roles can be reset to defaults',
+        ),
+      );
+    }
+
+    // Resolve the target permission IDs.
+    let targetIds: string[];
+    if (role.code === SYSTEM_ROLE_CODE.ADMIN) {
+      const all = await this.prisma.baseClient.permission.findMany({
+        select: { id: true },
+      });
+      targetIds = all.map((p) => p.id);
+    } else {
+      const keys = DEFAULT_ROLE_PERMISSIONS[role.code] ?? [];
+      const perms = await this.prisma.baseClient.permission.findMany({
+        select: { id: true, resource: true, action: true, scope: true },
+      });
+      const lookup = new Map<string, string>();
+      for (const p of perms) {
+        const key = p.scope
+          ? `${p.resource}:${p.action}:${p.scope}`
+          : `${p.resource}:${p.action}`;
+        lookup.set(key, p.id);
+      }
+      targetIds = keys
+        .map((k) => lookup.get(k))
+        .filter((id): id is string => !!id);
+    }
+
+    await this.prisma.transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({ where: { roleId } });
+      if (targetIds.length > 0) {
+        await tx.rolePermission.createMany({
+          data: targetIds.map((permissionId) => ({ roleId, permissionId })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    await this.permissionResolver.invalidateCacheForRole(roleId);
+
+    return {
+      message: t('rbac.permissions_reset', 'Permissions reset to defaults'),
+      assignedCount: targetIds.length,
     };
   }
 

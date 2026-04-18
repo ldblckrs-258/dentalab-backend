@@ -1,4 +1,9 @@
-import { Audited, CurrentUser, RequirePermissions } from '@common/decorators';
+import {
+  Audited,
+  CurrentUser,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '@common/decorators';
 import type { AuthenticatedUser } from '@common/interfaces';
 import { AVATAR_ALLOWED_MIME_TYPES, AVATAR_MAX_SIZE } from '@modules/storage';
 import {
@@ -53,9 +58,12 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   @Get()
-  @RequirePermissions('users:read')
-  async findAll(@Query() query: UserQueryDto) {
-    return this.userService.findAll(query);
+  @RequireAnyPermission('users:read:all', 'users:read:non_admin')
+  async findAll(
+    @Query() query: UserQueryDto,
+    @CurrentUser('id') actorUserId: string,
+  ) {
+    return this.userService.findAll(query, actorUserId);
   }
 
   @Patch('me')
@@ -70,9 +78,12 @@ export class UserController {
   }
 
   @Get(':id')
-  @RequirePermissions('users:read')
-  async findById(@Param('id') id: string) {
-    return this.userService.findById(id);
+  @RequireAnyPermission('users:read:all', 'users:read:non_admin')
+  async findById(
+    @Param('id') id: string,
+    @CurrentUser('id') actorUserId: string,
+  ) {
+    return this.userService.findById(id, actorUserId);
   }
 
   @Post()

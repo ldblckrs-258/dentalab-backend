@@ -13,24 +13,30 @@ const adapter = new PrismaPg({
 const prisma = new PrismaClient({ adapter });
 
 // ── Default Roles ──
+// `code` is the stable machine identifier (upper-snake-case, immutable).
+// `name` is the display label (Vietnamese, editable for non-system roles).
 const DEFAULT_ROLES = [
   {
-    name: 'Admin',
+    code: 'ADMIN',
+    name: 'Quản trị viên',
     description: 'Quản trị viên toàn hệ thống',
     isSystem: true,
   },
   {
-    name: 'Doctor',
+    code: 'DOCTOR',
+    name: 'Bác sĩ',
     description: 'Bác sĩ / nhân viên y tế',
     isSystem: true,
   },
   {
-    name: 'Receptionist',
+    code: 'RECEPTIONIST',
+    name: 'Lễ tân',
     description: 'Nhân viên lễ tân',
     isSystem: true,
   },
   {
-    name: 'Manager',
+    code: 'MANAGER',
+    name: 'Quản lý',
     description: 'Quản lý vận hành',
     isSystem: true,
   },
@@ -53,7 +59,18 @@ const PERMISSIONS: {
   { resource: 'permissions', action: 'update' },
   { resource: 'permissions', action: 'delete' },
   { resource: 'users', action: 'create' },
-  { resource: 'users', action: 'read' },
+  {
+    resource: 'users',
+    action: 'read',
+    scope: 'all',
+    description: 'Xem tất cả người dùng, bao gồm cả Quản trị viên',
+  },
+  {
+    resource: 'users',
+    action: 'read',
+    scope: 'non_admin',
+    description: 'Xem người dùng nhưng không thấy Quản trị viên',
+  },
   { resource: 'users', action: 'update' },
   { resource: 'users', action: 'delete' },
   { resource: 'audit_logs', action: 'read' },
@@ -166,107 +183,38 @@ const PERMISSIONS: {
   },
 ];
 
-// ── Role-Permission Mappings (based on actor-module matrix) ──
-
-function perm(resource: string, action: string): string {
-  return `${resource}:${action}`;
-}
-
-function scopedPerm(resource: string, action: string, scope: string): string {
-  return `${resource}:${action}:${scope}`;
-}
-
-function allActions(resource: string): string[] {
-  return ['create', 'read', 'update', 'delete'].map((a) => perm(resource, a));
-}
+// ── Role-Permission Mappings ──
+// Shared with the `resetRolePermissions` endpoint via
+// `src/modules/rbac/default-role-permissions.ts`. Admin is computed
+// dynamically as "all currently-defined permissions".
+import {
+  DEFAULT_ROLE_PERMISSIONS,
+  perm,
+  scopedPerm,
+} from '../src/modules/rbac/default-role-permissions';
 
 const ROLE_PERMISSIONS: Record<string, string[]> = {
-  Admin: PERMISSIONS.map((p) =>
+  ADMIN: PERMISSIONS.map((p) =>
     p.scope
       ? scopedPerm(p.resource, p.action, p.scope)
       : perm(p.resource, p.action),
-  ), // ALL permissions
-
-  Doctor: [
-    perm('appointments', 'read'),
-    perm('appointments', 'update'),
-    perm('procedures', 'read'),
-    perm('appointment_types', 'read'),
-    perm('patients', 'read'),
-    ...allActions('clinical_notes'),
-    perm('patient_files', 'create'),
-    perm('patient_files', 'read'),
-    ...allActions('treatment_plans'),
-    perm('schedule_overrides', 'create'),
-    perm('schedule_overrides', 'read'),
-    perm('provider_schedules', 'read'),
-    perm('internal_documents', 'read'),
-    perm('forms', 'read'),
-    perm('form_submissions', 'read'),
-    perm('chat_sessions', 'create'),
-    perm('chat_sessions', 'read'),
-    perm('chat_sessions', 'delete'),
-    perm('rag_patient_notes', 'read'),
-    perm('rag_internal_docs', 'read'),
-    perm('audit_logs', 'read'),
-  ],
-
-  Receptionist: [
-    ...allActions('appointments'),
-    ...allActions('patients'),
-    ...allActions('patient_insurances'),
-    perm('patient_files', 'create'),
-    perm('patient_files', 'read'),
-    perm('procedures', 'read'),
-    perm('appointment_types', 'read'),
-    perm('provider_schedules', 'read'),
-    perm('forms', 'read'),
-    perm('form_submissions', 'read'),
-    perm('kiosk_sessions', 'create'),
-    perm('kiosk_sessions', 'read'),
-    perm('internal_documents', 'read'),
-    perm('chat_sessions', 'create'),
-    perm('chat_sessions', 'read'),
-    perm('chat_sessions', 'delete'),
-    perm('rag_internal_docs', 'read'),
-    perm('audit_logs', 'read'),
-  ],
-
-  Manager: [
-    perm('appointments', 'read'),
-    perm('patients', 'read'),
-    ...allActions('internal_documents'),
-    ...allActions('inventory_items'),
-    ...allActions('email_templates'),
-    ...allActions('forms'),
-    perm('form_submissions', 'read'),
-    perm('schedule_overrides', 'read'),
-    perm('schedule_overrides', 'update'),
-    perm('provider_schedules', 'read'),
-    perm('provider_schedules', 'update'),
-    perm('chat_sessions', 'create'),
-    perm('chat_sessions', 'read'),
-    perm('chat_sessions', 'delete'),
-    perm('rag_internal_docs', 'read'),
-    perm('email_logs', 'read'),
-    perm('audit_logs', 'read'),
-    scopedPerm('audit_logs', 'read', 'operations'),
-  ],
+  ),
+  ...DEFAULT_ROLE_PERMISSIONS,
 };
 
 async function main() {
   console.log('Seeding database...');
 
-  // 1. Seed roles
+  // 1. Seed roles (keyed by immutable `code`)
   console.log('  → Seeding roles...');
   const roles: Record<string, string> = {};
   for (const role of DEFAULT_ROLES) {
     const created = await prisma.role.upsert({
-      where: { name: role.name },
-      update: { description: role.description },
+      where: { code: role.code },
+      update: { name: role.name, description: role.description },
       create: role,
     });
-    roles[created.name] = created.id;
+    roles[created.code!] = created.id;
   }
   console.log(`    ✓ ${Object.keys(roles).length} roles`);
 
@@ -377,13 +325,13 @@ async function main() {
     where: {
       userId_roleId: {
         userId: adminUser.id,
-        roleId: roles['Admin'],
+        roleId: roles['ADMIN'],
       },
     },
     update: {},
     create: {
       userId: adminUser.id,
-      roleId: roles['Admin'],
+      roleId: roles['ADMIN'],
     },
   });
   console.log(`    ✓ Admin user: ${adminEmail}`);
