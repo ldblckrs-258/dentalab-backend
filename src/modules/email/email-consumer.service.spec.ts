@@ -1,5 +1,4 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { I18nService } from 'nestjs-i18n';
 import { EmailConsumerService } from './email-consumer.service';
 import { EmailService } from './email.service';
 import { QueueConsumerService } from '@modules/queue';
@@ -19,10 +18,6 @@ const mockConfig = {
   email: { FRONTEND_URL: 'http://localhost:3001' },
 };
 
-const mockI18n = {
-  translate: jest.fn((key: string) => key),
-};
-
 describe('EmailConsumerService', () => {
   let service: EmailConsumerService;
   let messageHandler: (message: any) => Promise<void>;
@@ -34,7 +29,6 @@ describe('EmailConsumerService', () => {
         { provide: EmailService, useValue: mockEmailService },
         { provide: QueueConsumerService, useValue: mockQueueConsumer },
         { provide: AppConfigService, useValue: mockConfig },
-        { provide: I18nService, useValue: mockI18n },
       ],
     }).compile();
 

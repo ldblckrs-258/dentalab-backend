@@ -14,14 +14,26 @@ const prisma = new PrismaClient({ adapter });
 
 // ── Default Roles ──
 const DEFAULT_ROLES = [
-  { name: 'Admin', description: 'Full system administrator', isSystem: true },
   {
-    name: 'Doctor',
-    description: 'Dentist / healthcare provider',
+    name: 'Admin',
+    description: 'Quản trị viên toàn hệ thống',
     isSystem: true,
   },
-  { name: 'Receptionist', description: 'Front desk staff', isSystem: true },
-  { name: 'Manager', description: 'Operations manager', isSystem: true },
+  {
+    name: 'Doctor',
+    description: 'Bác sĩ / nhân viên y tế',
+    isSystem: true,
+  },
+  {
+    name: 'Receptionist',
+    description: 'Nhân viên lễ tân',
+    isSystem: true,
+  },
+  {
+    name: 'Manager',
+    description: 'Quản lý vận hành',
+    isSystem: true,
+  },
 ];
 
 // ── All Permissions ──
@@ -49,13 +61,13 @@ const PERMISSIONS: {
     resource: 'audit_logs',
     action: 'read',
     scope: 'all',
-    description: 'View all audit logs',
+    description: 'Xem toàn bộ nhật ký kiểm tra',
   },
   {
     resource: 'audit_logs',
     action: 'read',
     scope: 'operations',
-    description: 'View resource & operations audit logs',
+    description: 'Xem nhật ký kiểm tra tài nguyên & vận hành',
   },
 
   // Providers
@@ -129,7 +141,7 @@ const PERMISSIONS: {
   {
     resource: 'email_logs',
     action: 'manage',
-    description: 'Resend failed emails, view stats',
+    description: 'Gửi lại email thất bại, xem thống kê',
   },
 
   // AI Chatbot
@@ -144,13 +156,13 @@ const PERMISSIONS: {
     resource: 'users',
     action: 'create',
     scope: 'admin',
-    description: 'Create users with Admin role',
+    description: 'Tạo người dùng với vai trò Quản trị viên',
   },
   {
     resource: 'users',
     action: 'update',
     scope: 'admin',
-    description: 'Assign/remove Admin role on users',
+    description: 'Gán/gỡ vai trò Quản trị viên cho người dùng',
   },
 ];
 
@@ -355,7 +367,7 @@ async function main() {
     create: {
       email: adminEmail,
       passwordHash: passwordHash,
-      fullName: 'System Admin',
+      fullName: 'Quản trị viên hệ thống',
       isActive: true,
     },
   });

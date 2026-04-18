@@ -32,7 +32,9 @@ export class RbacService {
     const [rawData, total] = await Promise.all([
       this.prisma.baseClient.role.findMany({
         ...prismaArgs,
-        include: { _count: { select: { userRoles: true } } },
+        include: {
+          _count: { select: { userRoles: true, rolePermissions: true } },
+        },
       }),
       this.prisma.baseClient.role.count(),
     ]);
@@ -40,6 +42,7 @@ export class RbacService {
     const data = rawData.map(({ _count, ...rest }) => ({
       ...rest,
       userCount: _count.userRoles,
+      permissionCount: _count.rolePermissions,
     }));
 
     return buildPaginatedResponse(data, total, query);
@@ -61,7 +64,7 @@ export class RbacService {
             },
           },
         },
-        _count: { select: { userRoles: true } },
+        _count: { select: { userRoles: true, rolePermissions: true } },
       },
     });
     if (!role)
@@ -72,6 +75,7 @@ export class RbacService {
       ...rest,
       permissions: rolePermissions.map((rp) => rp.permission),
       userCount: _count.userRoles,
+      permissionCount: _count.rolePermissions,
     };
   }
 

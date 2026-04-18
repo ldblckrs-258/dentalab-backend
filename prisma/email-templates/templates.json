@@ -1,47 +1,21 @@
 [
   {
     "name": "password-reset",
-    "subject": "{{subject}}",
+    "subject": "Đặt lại mật khẩu DentaLab của bạn",
     "type": "password_reset",
     "file": "password-reset.mjml",
     "variables": {
-      "required": [
-        "subject",
-        "heading",
-        "greeting",
-        "intro",
-        "buttonText",
-        "expiryNote",
-        "resetLink",
-        "logoUrl",
-        "year",
-        "footerNote"
-      ],
+      "required": ["userName", "resetLink", "expiresIn", "logoUrl", "year"],
       "optional": []
     }
   },
   {
     "name": "welcome",
-    "subject": "{{subject}}",
+    "subject": "Chào mừng đến với DentaLab, {{userName}}!",
     "type": "system_alert",
     "file": "welcome.mjml",
     "variables": {
-      "required": [
-        "subject",
-        "email",
-        "loginLink",
-        "welcomeHeading",
-        "greeting",
-        "credentialsIntro",
-        "noPasswordIntro",
-        "emailLabel",
-        "tempPasswordLabel",
-        "passwordChangeNote",
-        "loginButton",
-        "logoUrl",
-        "year",
-        "footerNote"
-      ],
+      "required": ["userName", "email", "loginLink", "logoUrl", "year"],
       "optional": ["temporaryPassword"]
     }
   }

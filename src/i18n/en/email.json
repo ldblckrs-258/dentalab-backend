@@ -3,25 +3,5 @@
   "can_only_resend_failed": "Can only resend failed or bounced emails",
   "template_not_found": "Email template not found",
   "cannot_delete_system_template": "System templates cannot be deleted",
-  "template_deleted": "Email template deleted",
-  "footerNote": "This is an automated message. Please do not reply directly to this email.",
-  "welcome": {
-    "subject": "Welcome to DentaLab, {userName}!",
-    "heading": "Welcome to DentaLab!",
-    "greeting": "Hello {userName},",
-    "credentialsIntro": "An account has been created for you. Here are your login credentials:",
-    "noPasswordIntro": "Your account has been created. You can sign in with your email and the password provided to you by your administrator.",
-    "emailLabel": "Email:",
-    "tempPasswordLabel": "Temporary Password:",
-    "passwordChangeNote": "For your security, please change this password right after your first login.",
-    "loginButton": "Login Now"
-  },
-  "passwordReset": {
-    "subject": "Reset your DentaLab password",
-    "heading": "Reset Your Password",
-    "greeting": "Hello {userName},",
-    "intro": "We received a request to reset your password. Click the button below to set a new password. If you didn't make this request, you can safely ignore this email.",
-    "buttonText": "Reset Password",
-    "expiryNote": "This link will expire in {expiresIn}."
-  }
+  "template_deleted": "Email template deleted"
 }

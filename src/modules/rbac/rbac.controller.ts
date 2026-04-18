@@ -90,6 +90,16 @@ export class RbacController {
     return this.rbacService.revokePermissionsFromRole(id, dto);
   }
 
+  @Post('roles/:id/permissions/remove')
+  @RequirePermissions('roles:update')
+  @Audited('role_permissions')
+  async revokePermissionsPost(
+    @Param('id') id: string,
+    @Body() dto: AssignPermissionsDto,
+  ) {
+    return this.rbacService.revokePermissionsFromRole(id, dto);
+  }
+
   // ── User Permissions ──
 
   @Get('users/:id/permissions')
