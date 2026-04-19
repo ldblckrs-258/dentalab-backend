@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -9,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { RequirePermissions, Audited } from '@common/decorators';
 import { ProviderService } from './provider.service';
+import { BulkUpdateProviderStatusDto } from './dto/bulk-update-provider-status.dto';
 import { CreateProviderDto } from './dto/create-provider.dto';
 import { UpdateProviderDto } from './dto/update-provider.dto';
 import { UpdateProviderStatusDto } from './dto/update-provider-status.dto';
@@ -44,6 +46,13 @@ export class ProviderController {
     return this.providerService.update(id, dto);
   }
 
+  @Post('bulk-status')
+  @RequirePermissions('providers:update')
+  @Audited('provider')
+  async bulkUpdateStatus(@Body() dto: BulkUpdateProviderStatusDto) {
+    return this.providerService.bulkUpdateStatus(dto);
+  }
+
   @Patch(':id/status')
   @RequirePermissions('providers:update')
   @Audited('provider')
@@ -52,5 +61,12 @@ export class ProviderController {
     @Body() dto: UpdateProviderStatusDto,
   ) {
     return this.providerService.updateStatus(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('providers:delete')
+  @Audited('provider')
+  async delete(@Param('id') id: string) {
+    return this.providerService.delete(id);
   }
 }

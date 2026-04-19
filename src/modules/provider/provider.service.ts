@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { BulkUpdateProviderStatusDto } from './dto/bulk-update-provider-status.dto';
 import { PrismaService } from '@modules/database';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { t } from '@common/utils';
@@ -11,7 +12,7 @@ import type { UpdateProviderDto } from './dto/update-provider.dto';
 import type { UpdateProviderStatusDto } from './dto/update-provider-status.dto';
 import type { ProviderQueryDto } from './dto/provider-query.dto';
 
-const SYSTEM_ROLE_DOCTOR = 'Doctor';
+const DOCTOR_ROLE_CODE = 'DOCTOR';
 
 const PROVIDER_SELECT = {
   id: true,
@@ -61,6 +62,9 @@ export class ProviderService {
     if (query.isActive !== undefined) {
       where.isActive = query.isActive === 'true';
     }
+    if (query.userId) {
+      where.userId = query.userId;
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.baseClient.provider.findMany({
@@ -96,7 +100,7 @@ export class ProviderService {
       this.prisma.baseClient.userRole.findFirst({
         where: {
           userId: dto.userId,
-          role: { name: SYSTEM_ROLE_DOCTOR },
+          role: { code: DOCTOR_ROLE_CODE },
         },
         select: { userId: true },
       }),
@@ -147,6 +151,41 @@ export class ProviderService {
       data: { isActive: dto.isActive },
       select: PROVIDER_SELECT,
     });
+  }
+
+  async bulkUpdateStatus(dto: BulkUpdateProviderStatusDto) {
+    return this.prisma.baseClient.provider.updateMany({
+      where: { id: { in: Array.from(new Set(dto.ids)) } },
+      data: { isActive: dto.isActive },
+    });
+  }
+
+  async delete(id: string) {
+    await this.findProviderOrFail(id);
+    const [hasAppointments, hasTreatmentPlans, hasClinicalNotes] =
+      await Promise.all([
+        this.prisma.baseClient.appointment.findFirst({
+          where: { providerId: id },
+          select: { id: true },
+        }),
+        this.prisma.baseClient.treatmentPlan.findFirst({
+          where: { providerId: id },
+          select: { id: true },
+        }),
+        this.prisma.baseClient.clinicalNote.findFirst({
+          where: { providerId: id },
+          select: { id: true },
+        }),
+      ]);
+    if (hasAppointments || hasTreatmentPlans || hasClinicalNotes) {
+      throw new BadRequestException(
+        t(
+          'provider.has_linked_records',
+          'Cannot unlink provider with existing appointments, treatment plans, or clinical notes',
+        ),
+      );
+    }
+    return this.prisma.baseClient.provider.delete({ where: { id } });
   }
 
   private async findProviderOrFail(id: string) {

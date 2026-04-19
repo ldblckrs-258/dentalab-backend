@@ -57,6 +57,11 @@ const USER_WITH_ROLES_SELECT = {
   },
 } as const;
 
+const USER_WITH_ROLES_AND_PROVIDER_SELECT = {
+  ...USER_WITH_ROLES_SELECT,
+  provider: { select: { id: true, isActive: true } },
+} as const;
+
 const USERS_READ_ALL = 'users:read:all';
 
 function flattenUserRoles<T extends { userRoles: { role: unknown }[] }>(
@@ -172,7 +177,7 @@ export class UserService {
       this.prisma.baseClient.user.findMany({
         ...prismaArgs,
         where,
-        select: USER_WITH_ROLES_SELECT,
+        select: USER_WITH_ROLES_AND_PROVIDER_SELECT,
       }),
       this.prisma.baseClient.user.count({ where }),
     ]);
@@ -188,7 +193,7 @@ export class UserService {
     const [user, overrides, scope] = await Promise.all([
       this.prisma.baseClient.user.findUnique({
         where: { id },
-        select: USER_WITH_ROLES_SELECT,
+        select: USER_WITH_ROLES_AND_PROVIDER_SELECT,
       }),
       this.prisma.baseClient.userPermissionOverride.findMany({
         where: activeOverrideWhere(id),

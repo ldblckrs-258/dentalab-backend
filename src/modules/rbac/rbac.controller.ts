@@ -8,7 +8,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { RequirePermissions, Audited, CurrentUser } from '@common/decorators';
+import {
+  RequirePermissions,
+  RequireAnyPermission,
+  Audited,
+  CurrentUser,
+} from '@common/decorators';
 import type { AuthenticatedUser } from '@common/interfaces';
 import { PaginationQueryDto } from '@modules/pagination';
 import { RbacService } from './rbac.service';
@@ -118,7 +123,7 @@ export class RbacController {
   // ── User Permission Overrides ──
 
   @Get('users/:id/overrides')
-  @RequirePermissions('users:read')
+  @RequireAnyPermission('users:read:all', 'users:read:non_admin')
   async findUserOverrides(@Param('id') id: string) {
     return this.rbacService.findUserOverrides(id);
   }
