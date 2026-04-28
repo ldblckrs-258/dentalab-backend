@@ -1,7 +1,15 @@
 {
   "log_not_found": "Email log not found",
   "can_only_resend_failed": "Can only resend failed or bounced emails",
-  "template_not_found": "Email template not found",
-  "cannot_delete_system_template": "System templates cannot be deleted",
-  "template_deleted": "Email template deleted"
+  "templates": {
+    "password-reset": {
+      "subject": "Reset your DentaLab password"
+    },
+    "welcome": {
+      "subject": "Welcome to DentaLab, {{userName}}!"
+    },
+    "appointment-reminder": {
+      "subject": "Reminder: Your DentaLab appointment"
+    }
+  }
 }

@@ -61,10 +61,9 @@ describe('EmailService', () => {
 
   describe('sendTemplatedEmail', () => {
     it('should create log, send, and update log on success', async () => {
-      mockTemplateService.render.mockResolvedValue({
+      mockTemplateService.render.mockReturnValue({
         html: '<p>Hello</p>',
         subject: 'Test Subject',
-        templateId: 'tmpl-1',
       });
       mockPrisma.baseClient.emailLog.create.mockResolvedValue({
         id: 'log-1',
@@ -84,7 +83,7 @@ describe('EmailService', () => {
       expect(mockPrisma.baseClient.emailLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            templateId: 'tmpl-1',
+            templateName: 'welcome',
             status: 'pending',
           }),
         }),
@@ -102,10 +101,9 @@ describe('EmailService', () => {
     });
 
     it('should update log with error and re-throw on failure', async () => {
-      mockTemplateService.render.mockResolvedValue({
+      mockTemplateService.render.mockReturnValue({
         html: '<p>Hello</p>',
         subject: 'Test',
-        templateId: 'tmpl-1',
       });
       mockPrisma.baseClient.emailLog.create.mockResolvedValue({
         id: 'log-1',
@@ -141,12 +139,11 @@ describe('EmailService', () => {
         variables: { userName: 'John' },
         entityType: 'user',
         entityId: 'user-1',
-        template: { name: 'welcome' },
+        templateName: 'welcome',
       });
-      mockTemplateService.render.mockResolvedValue({
+      mockTemplateService.render.mockReturnValue({
         html: '<p>Hello</p>',
         subject: 'Test',
-        templateId: 'tmpl-1',
       });
       mockPrisma.baseClient.emailLog.create.mockResolvedValue({
         id: 'log-2',
@@ -158,16 +155,18 @@ describe('EmailService', () => {
       });
 
       await service.resendEmail('log-1');
-      expect(mockTemplateService.render).toHaveBeenCalledWith('welcome', {
-        userName: 'John',
-      });
+      expect(mockTemplateService.render).toHaveBeenCalledWith(
+        'welcome',
+        { userName: 'John' },
+        'vi',
+      );
     });
 
     it('should throw for non-failed emails', async () => {
       mockPrisma.baseClient.emailLog.findUnique.mockResolvedValue({
         id: 'log-1',
         status: 'delivered',
-        template: { name: 'welcome' },
+        templateName: 'welcome',
       });
 
       await expect(service.resendEmail('log-1')).rejects.toThrow(

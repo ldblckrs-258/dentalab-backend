@@ -1,29 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { TemplateService } from './template.service';
-import { PrismaService } from '@modules/database';
+import { I18nService } from 'nestjs-i18n';
+import * as fs from 'fs';
 
-const mockTemplate = {
-  id: 'template-uuid',
-  name: 'password-reset',
-  subject: 'Reset your DentaLab password',
-  bodyMjml:
-    '<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{userName}}</mj-text></mj-column></mj-section></mj-body></mjml>',
-  bodyHtml: '<html><body><p>Hello {{userName}}</p></body></html>',
-  type: 'auth',
-  variables: { required: ['userName', 'resetLink', 'expiresIn'], optional: [] },
-  isSystem: true,
-  isActive: true,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
+jest.mock('fs');
+jest.mock('mjml', () => {
+  const fn = jest.fn(() => ({
+    html: '<html><body>{{userName}}</body></html>',
+    errors: [],
+  }));
+  return { __esModule: true, default: fn };
+});
 
-const mockPrisma = {
-  baseClient: {
-    emailTemplate: {
-      findUnique: jest.fn(),
-    },
-  },
+const mockI18n = {
+  translate: jest.fn(),
 };
 
 describe('TemplateService', () => {
@@ -33,7 +24,7 @@ describe('TemplateService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TemplateService,
-        { provide: PrismaService, useValue: mockPrisma },
+        { provide: I18nService, useValue: mockI18n },
       ],
     }).compile();
 
@@ -42,96 +33,94 @@ describe('TemplateService', () => {
   });
 
   describe('render', () => {
-    it('should render template with variables', async () => {
-      mockPrisma.baseClient.emailTemplate.findUnique.mockResolvedValue(
-        mockTemplate,
+    beforeEach(() => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '<mjml>{{{content}}}</mjml>',
+      );
+      mockI18n.translate.mockReturnValue('Reset your DentaLab password');
+    });
+
+    it('should return html and subject with variables interpolated', () => {
+      const result = service.render(
+        'password-reset',
+        { userName: 'John' },
+        'en',
       );
 
-      const result = await service.render('password-reset', {
-        userName: 'John',
-        resetLink: 'https://example.com/reset',
-        expiresIn: '1 hour',
-      });
-
-      expect(result.html).toContain('Hello John');
+      expect(result.html).toContain('John');
       expect(result.subject).toBe('Reset your DentaLab password');
-      expect(result.templateId).toBe('template-uuid');
     });
 
-    it('should render subject with Handlebars variables', async () => {
-      mockPrisma.baseClient.emailTemplate.findUnique.mockResolvedValue({
-        ...mockTemplate,
-        name: 'welcome',
-        subject: 'Welcome, {{userName}}!',
-      });
+    it('should use default lang vi when lang not specified', () => {
+      service.render('password-reset', { userName: 'John' });
 
-      const result = await service.render('welcome', { userName: 'Jane' });
-      expect(result.subject).toBe('Welcome, Jane!');
+      expect(mockI18n.translate).toHaveBeenCalledWith(
+        'email.templates.password-reset.subject',
+        expect.objectContaining({ lang: 'vi' }),
+      );
     });
 
-    it('should throw NotFoundException for missing template', async () => {
-      mockPrisma.baseClient.emailTemplate.findUnique.mockResolvedValue(null);
+    it('should cache compiled template on second render', () => {
+      service.render('password-reset', { userName: 'A' }, 'en');
+      service.render('password-reset', { userName: 'B' }, 'en');
 
-      await expect(service.render('nonexistent', {})).rejects.toThrow(
+      expect(fs.readFileSync).toHaveBeenCalledTimes(2);
+    });
+
+    it('should fall back to vi when lang file missing', () => {
+      (fs.existsSync as jest.Mock).mockImplementation(
+        (p: string) => !p.includes('.fr.mjml'),
+      );
+
+      service.render('password-reset', { userName: 'Jean' }, 'fr');
+
+      expect(mockI18n.translate).toHaveBeenCalledWith(
+        'email.templates.password-reset.subject',
+        expect.objectContaining({ lang: 'vi' }),
+      );
+    });
+
+    it('should throw NotFoundException when both lang and fallback file missing', () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+
+      expect(() => service.render('nonexistent', {}, 'en')).toThrow(
         NotFoundException,
       );
     });
 
-    it('should throw BadRequestException for disabled template', async () => {
-      mockPrisma.baseClient.emailTemplate.findUnique.mockResolvedValue({
-        ...mockTemplate,
-        isActive: false,
-      });
-
-      await expect(service.render('password-reset', {})).rejects.toThrow(
-        BadRequestException,
+    it('should reject unsafe template names', () => {
+      expect(() => service.render('../../etc/passwd', {}, 'vi')).toThrow(
+        NotFoundException,
       );
     });
-  });
 
-  describe('compileMjmlToHtml', () => {
-    it('should compile MJML to valid HTML', () => {
-      const mjmlSource =
-        '<mjml><mj-body><mj-section><mj-column><mj-text>Test</mj-text></mj-column></mj-section></mj-body></mjml>';
-      const html = service.compileMjmlToHtml(mjmlSource);
+    it('should normalize unsupported lang to default lang', () => {
+      service.render('password-reset', { userName: 'X' }, 'fr');
 
-      expect(html).toContain('<!doctype html>');
-      expect(html).toContain('Test');
-    });
-
-    it('should preserve Handlebars placeholders', () => {
-      const mjmlSource =
-        '<mjml><mj-body><mj-section><mj-column><mj-text>Hello {{name}}</mj-text></mj-column></mj-section></mj-body></mjml>';
-      const html = service.compileMjmlToHtml(mjmlSource);
-
-      expect(html).toContain('{{name}}');
+      expect(mockI18n.translate).toHaveBeenCalledWith(
+        'email.templates.password-reset.subject',
+        expect.objectContaining({ lang: 'vi' }),
+      );
     });
   });
 
   describe('invalidateCache', () => {
-    it('should force re-read from DB on next render', async () => {
-      mockPrisma.baseClient.emailTemplate.findUnique.mockResolvedValue(
-        mockTemplate,
+    it('should clear cache for all langs of given template name', () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '<mjml>{{{content}}}</mjml>',
       );
+      mockI18n.translate.mockReturnValue('subject');
 
-      // First render — caches
-      await service.render('password-reset', { userName: 'A' });
-      expect(
-        mockPrisma.baseClient.emailTemplate.findUnique,
-      ).toHaveBeenCalledTimes(1);
+      service.render('welcome', { userName: 'A' }, 'vi');
+      service.render('welcome', { userName: 'B' }, 'en');
 
-      // Second render — uses cache (still calls DB for template lookup)
-      await service.render('password-reset', { userName: 'B' });
-      expect(
-        mockPrisma.baseClient.emailTemplate.findUnique,
-      ).toHaveBeenCalledTimes(2);
+      service.invalidateCache('welcome');
 
-      // Invalidate and render again
-      service.invalidateCache('password-reset');
-      await service.render('password-reset', { userName: 'C' });
-      expect(
-        mockPrisma.baseClient.emailTemplate.findUnique,
-      ).toHaveBeenCalledTimes(3);
+      service.render('welcome', { userName: 'C' }, 'vi');
+
+      expect(fs.readFileSync).toHaveBeenCalledTimes(6);
     });
   });
 });

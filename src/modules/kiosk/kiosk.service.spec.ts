@@ -121,7 +121,7 @@ describe('KioskService', () => {
       prisma.baseClient.kioskSession.findFirst.mockResolvedValue({
         id: 'session-1',
         expiresAt: new Date(Date.now() + 1800000),
-        patient: { id: 'p1', first_name: 'John', last_name: 'Doe' },
+        patient: { id: 'p1', firstName: 'John', lastName: 'Doe' },
         sessionForms: [
           {
             form: { id: 'f1', title: 'Intake Form', schema: {} },
@@ -134,7 +134,7 @@ describe('KioskService', () => {
       const result = await service.authenticate({ token: 'valid-token' });
 
       expect(result.sessionId).toBe('session-1');
-      expect(result.patient.first_name).toBe('John');
+      expect(result.patient.firstName).toBe('John');
       expect(result.forms).toHaveLength(1);
       expect(result.forms[0].title).toBe('Intake Form');
     });

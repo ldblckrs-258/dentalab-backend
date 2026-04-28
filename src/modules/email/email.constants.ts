@@ -1,24 +1,11 @@
 export const EMAIL_PROVIDER = 'EMAIL_PROVIDER';
 
-// System template names — must match seed data
+// System template names — must match MJML files in `./templates/<name>.<lang>.mjml`
 export const SYSTEM_TEMPLATES = {
   PASSWORD_RESET: 'password-reset',
   WELCOME: 'welcome',
   REMINDER: 'appointment-reminder',
 } as const;
-
-// Email template type enum — must match ERD
-export const EMAIL_TEMPLATE_TYPES = [
-  'password_reset',
-  'appointment_confirmation',
-  'appointment_reminder',
-  'appointment_cancellation',
-  'kiosk_invitation',
-  'clinic_notice',
-  'system_alert',
-] as const;
-
-export type EmailTemplateType = (typeof EMAIL_TEMPLATE_TYPES)[number];
 
 export const EMAIL_STATUS = {
   PENDING: 'pending',

@@ -36,7 +36,6 @@ export const SOFT_DELETE_MODELS = [
   'Provider',
   'Procedure',
   'AppointmentType',
-  'EmailTemplate',
   'UserPermissionOverride',
 ];
 

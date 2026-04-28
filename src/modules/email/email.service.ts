@@ -12,6 +12,7 @@ import { AppConfigService } from '@modules/config';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { S3_CLIENT } from '@modules/storage/storage.constants';
 import { t } from '@common/utils';
+import { DEFAULT_LANGUAGE } from '@common/constants';
 import { EMAIL_PROVIDER, EMAIL_STATUS } from './email.constants';
 import { TemplateService } from './template/template.service';
 import type {
@@ -40,15 +41,18 @@ export class EmailService {
     to: string | string[];
     templateName: string;
     variables: Record<string, unknown>;
+    lang?: string;
     entityType?: string;
     entityId?: string;
     attachmentKeys?: string[];
     tags?: { name: string; value: string }[];
     idempotencyKey?: string;
   }): Promise<EmailLog> {
-    const { html, subject, templateId } = await this.templateService.render(
+    const lang = params.lang ?? DEFAULT_LANGUAGE;
+    const { html, subject } = this.templateService.render(
       params.templateName,
       params.variables,
+      lang,
     );
 
     const attachments = params.attachmentKeys?.length
@@ -59,7 +63,7 @@ export class EmailService {
 
     const log = await this.prisma.baseClient.emailLog.create({
       data: {
-        templateId: templateId,
+        templateName: params.templateName,
         fromAddress: fromAddress,
         recipientEmail: Array.isArray(params.to)
           ? params.to.join(', ')
@@ -117,35 +121,27 @@ export class EmailService {
       entityId?: string;
     }[];
     templateName: string;
+    lang?: string;
     tags?: { name: string; value: string }[];
   }): Promise<EmailLog[]> {
     const batchId = crypto.randomUUID();
     const fromAddress = this.defaultFrom;
+    const lang = params.lang ?? DEFAULT_LANGUAGE;
 
-    // Render template once to get templateId, then render per-recipient for variables
-    const first = await this.templateService.render(
-      params.templateName,
-      params.recipients[0].variables,
-    );
-    const { templateId } = first;
+    const rendered = params.recipients.map((r) => {
+      const { html, subject } = this.templateService.render(
+        params.templateName,
+        r.variables,
+        lang,
+      );
+      return { ...r, html, subject };
+    });
 
-    // Render each recipient's variables (template is cached after first render)
-    const rendered = await Promise.all(
-      params.recipients.map(async (r) => {
-        const { html, subject } = await this.templateService.render(
-          params.templateName,
-          r.variables,
-        );
-        return { ...r, html, subject };
-      }),
-    );
-
-    // Create log entries
     const logs = await Promise.all(
       rendered.map((r) =>
         this.prisma.baseClient.emailLog.create({
           data: {
-            templateId: templateId,
+            templateName: params.templateName,
             fromAddress: fromAddress,
             recipientEmail: r.to,
             subject: r.subject,
@@ -171,14 +167,13 @@ export class EmailService {
         })),
       );
 
-      // Update logs with resend IDs
       return Promise.all(
         logs.map((log, i) =>
           this.prisma.baseClient.emailLog.update({
             where: { id: log.id },
             data: {
               resendId: result.results[i]?.id,
-              status: 'sent',
+              status: EMAIL_STATUS.SENT,
               sentAt: new Date(),
             },
           }),
@@ -204,7 +199,6 @@ export class EmailService {
   async resendEmail(emailLogId: string): Promise<EmailLog> {
     const log = await this.prisma.baseClient.emailLog.findUnique({
       where: { id: emailLogId },
-      include: { template: true },
     });
     if (!log)
       throw new NotFoundException(
@@ -224,7 +218,7 @@ export class EmailService {
 
     return this.sendTemplatedEmail({
       to: log.recipientEmail,
-      templateName: log.template.name,
+      templateName: log.templateName,
       variables: (log.variables as Record<string, unknown>) ?? {},
       entityType: log.entityType ?? undefined,
       entityId: log.entityId ?? undefined,
@@ -241,7 +235,7 @@ export class EmailService {
 
     const where: Record<string, unknown> = {};
     if (query.status) where.status = query.status;
-    if (query.templateName) where.template = { name: query.templateName };
+    if (query.templateName) where.templateName = query.templateName;
     if (query.recipientEmail) {
       where.recipientEmail = {
         contains: query.recipientEmail,
@@ -266,7 +260,6 @@ export class EmailService {
       this.prisma.baseClient.emailLog.findMany({
         ...prismaArgs,
         where,
-        include: { template: { select: { name: true, type: true } } },
       }),
       this.prisma.baseClient.emailLog.count({ where }),
     ]);
@@ -301,9 +294,6 @@ export class EmailService {
   async findOne(id: string) {
     const log = await this.prisma.baseClient.emailLog.findUnique({
       where: { id },
-      include: {
-        template: { select: { name: true, type: true, subject: true } },
-      },
     });
     if (!log)
       throw new NotFoundException(

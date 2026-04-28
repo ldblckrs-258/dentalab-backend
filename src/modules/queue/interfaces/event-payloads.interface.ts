@@ -35,8 +35,8 @@ export interface ClinicalNoteUpdatedPayload {
 export interface EmailSendReminderPayload {
   appointmentId: string;
   patientEmail: string;
-  templateId: string;
   variables: Record<string, string>;
+  lang?: string;
 }
 
 export interface EmailSendResetPasswordPayload {

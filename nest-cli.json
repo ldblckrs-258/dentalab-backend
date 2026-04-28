@@ -9,6 +9,11 @@
         "include": "i18n/**/*",
         "outDir": "dist/src",
         "watchAssets": true
+      },
+      {
+        "include": "modules/email/templates/**/*",
+        "outDir": "dist/src",
+        "watchAssets": true
       }
     ]
   }

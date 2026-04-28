@@ -56,7 +56,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   [SYSTEM_ROLE_CODE.RECEPTIONIST]: [
     ...allActions('appointments'),
     ...allActions('patients'),
-    ...allActions('patient_insurances'),
     perm('patient_files', 'create'),
     perm('patient_files', 'read'),
     perm('procedures', 'read'),
@@ -80,7 +79,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('patients', 'read'),
     ...allActions('internal_documents'),
     ...allActions('inventory_items'),
-    ...allActions('email_templates'),
     ...allActions('forms'),
     perm('form_submissions', 'read'),
     perm('schedule_overrides', 'read'),

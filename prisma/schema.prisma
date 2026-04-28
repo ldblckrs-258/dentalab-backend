@@ -356,7 +356,6 @@ model Patient {
   updatedAt             DateTime  @updatedAt @map("updated_at")
   deletedAt             DateTime? @map("deleted_at")
 
-  insurances      PatientInsurance[]
   files           PatientFile[]
   appointments    Appointment[]
   clinicalNotes   ClinicalNote[]
@@ -366,23 +365,6 @@ model Patient {
 
   @@index([deletedAt])
   @@map("patients")
-}
-
-model PatientInsurance {
-  id             String    @id @default(uuid()) @db.Uuid
-  patientId      String    @db.Uuid @map("patient_id")
-  providerName   String    @map("provider_name")
-  policyNumber   String    @map("policy_number")
-  groupNumber    String?   @map("group_number")
-  effectiveDate  DateTime? @db.Date @map("effective_date")
-  expirationDate DateTime? @db.Date @map("expiration_date")
-  isPrimary      Boolean   @default(false) @map("is_primary")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-
-  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-
-  @@map("patient_insurances")
 }
 
 model PatientFile {
@@ -548,27 +530,9 @@ model InventoryTransaction {
   @@map("inventory_transactions")
 }
 
-model EmailTemplate {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @unique
-  subject   String   // Handlebars template string for subject
-  bodyMjml  String   @map("body_mjml") // MJML source with Handlebars placeholders
-  bodyHtml  String   @map("body_html") // Compiled HTML (MJML -> HTML output)
-  type      String   // 'password_reset' | 'appointment_confirmation' | 'appointment_reminder' | 'appointment_cancellation' | 'kiosk_invitation' | 'clinic_notice' | 'system_alert'
-  variables Json?    // Schema: { required: string[], optional: string[] }
-  isSystem  Boolean  @default(false) @map("is_system")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  emailLogs EmailLog[]
-
-  @@map("email_templates")
-}
-
 model EmailLog {
   id             String    @id @default(uuid()) @db.Uuid
-  templateId     String    @db.Uuid @map("template_id")
+  templateName   String    @map("template_name")
   resendId       String?   @unique @map("resend_id")
   fromAddress    String    @map("from_address")
   recipientEmail String    @map("recipient_email")
@@ -590,12 +554,9 @@ model EmailLog {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  template EmailTemplate @relation(fields: [templateId], references: [id])
-
   @@index([resendId])
   @@index([recipientEmail])
   @@index([status])
-  @@index([templateId])
   @@index([entityType, entityId])
   @@index([batchId])
   @@map("email_logs")

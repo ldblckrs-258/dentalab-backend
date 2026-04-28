@@ -28,7 +28,6 @@ const OPERATIONS_RESOURCES = [
   'document_version',
   'inventory_item',
   'inventory_transaction',
-  'email_template',
   'email_log',
   'provider_schedule',
   'schedule_override',

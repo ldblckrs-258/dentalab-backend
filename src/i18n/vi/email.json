@@ -1,7 +1,15 @@
 {
   "log_not_found": "Không tìm thấy nhật ký email",
   "can_only_resend_failed": "Chỉ có thể gửi lại email thất bại hoặc bị trả lại",
-  "template_not_found": "Không tìm thấy mẫu email",
-  "cannot_delete_system_template": "Không thể xóa mẫu hệ thống",
-  "template_deleted": "Đã xóa mẫu email"
+  "templates": {
+    "password-reset": {
+      "subject": "Đặt lại mật khẩu DentaLab của bạn"
+    },
+    "welcome": {
+      "subject": "Chào mừng đến với DentaLab, {{userName}}!"
+    },
+    "appointment-reminder": {
+      "subject": "Nhắc nhở: Lịch hẹn DentaLab của bạn"
+    }
+  }
 }

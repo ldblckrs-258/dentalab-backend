@@ -33,7 +33,6 @@ const RESOURCE_TO_MODEL: Record<string, string> = {
   form: 'form',
   internal_document: 'internalDocument',
   inventory_item: 'inventoryItem',
-  email_template: 'emailTemplate',
 };
 
 @Injectable()

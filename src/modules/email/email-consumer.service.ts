@@ -63,22 +63,24 @@ export class EmailConsumerService implements OnModuleInit {
     };
   }
 
-  private formatDuration(expiresAt: string): string {
+  private formatDuration(expiresAt: string, lang: string): string {
     const diffMs = Math.max(60_000, new Date(expiresAt).getTime() - Date.now());
-    return dayjs.duration(diffMs).locale('vi').humanize();
+    return dayjs.duration(diffMs).locale(lang).humanize();
   }
 
   private async handleResetPassword(
     payload: EmailSendResetPasswordPayload,
     messageId: string,
   ): Promise<void> {
+    const lang = payload.lang ?? 'vi';
     const userName = payload.email.split('@')[0];
     const resetLink = `${this.config.email.FRONTEND_URL}/reset-password?token=${payload.resetToken}`;
-    const expiresIn = this.formatDuration(payload.expiresAt);
+    const expiresIn = this.formatDuration(payload.expiresAt, lang);
 
     await this.emailService.sendTemplatedEmail({
       to: payload.email,
       templateName: SYSTEM_TEMPLATES.PASSWORD_RESET,
+      lang: payload.lang ?? 'vi',
       variables: {
         userName,
         resetLink,
@@ -102,6 +104,7 @@ export class EmailConsumerService implements OnModuleInit {
     await this.emailService.sendTemplatedEmail({
       to: payload.email,
       templateName: SYSTEM_TEMPLATES.WELCOME,
+      lang: payload.lang ?? 'vi',
       variables: {
         userName,
         email: payload.email,
@@ -123,6 +126,7 @@ export class EmailConsumerService implements OnModuleInit {
     await this.emailService.sendTemplatedEmail({
       to: payload.patientEmail,
       templateName: SYSTEM_TEMPLATES.REMINDER,
+      lang: payload.lang ?? 'vi',
       variables: payload.variables,
       entityType: 'appointment',
       entityId: payload.appointmentId,
