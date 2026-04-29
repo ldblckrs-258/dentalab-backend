@@ -11,7 +11,7 @@ import {
 import {
   RequirePermissions,
   RequireAnyPermission,
-  Audited,
+  AuditMutation,
   CurrentUser,
 } from '@common/decorators';
 import type { AuthenticatedUser } from '@common/interfaces';
@@ -46,21 +46,21 @@ export class RbacController {
 
   @Post('roles')
   @RequirePermissions('roles:create')
-  @Audited('role')
+  @AuditMutation({ code: 'RBAC_ROLE_CREATED', resource: 'role' })
   async createRole(@Body() dto: CreateRoleDto) {
     return this.rbacService.createRole(dto);
   }
 
   @Patch('roles/:id')
   @RequirePermissions('roles:update')
-  @Audited('role')
+  @AuditMutation({ code: 'RBAC_ROLE_UPDATED', resource: 'role' })
   async updateRole(@Param('id') id: string, @Body() dto: UpdateRoleDto) {
     return this.rbacService.updateRole(id, dto);
   }
 
   @Delete('roles/:id')
   @RequirePermissions('roles:delete')
-  @Audited('role')
+  @AuditMutation({ code: 'RBAC_ROLE_DELETED', resource: 'role' })
   async deleteRole(@Param('id') id: string) {
     return this.rbacService.deleteRole(id);
   }
@@ -77,7 +77,6 @@ export class RbacController {
 
   @Post('roles/:id/permissions')
   @RequirePermissions('roles:update')
-  @Audited('role')
   async assignPermissions(
     @Param('id') id: string,
     @Body() dto: AssignPermissionsDto,
@@ -87,7 +86,6 @@ export class RbacController {
 
   @Delete('roles/:id/permissions')
   @RequirePermissions('roles:update')
-  @Audited('role')
   async revokePermissions(
     @Param('id') id: string,
     @Body() dto: AssignPermissionsDto,
@@ -97,7 +95,6 @@ export class RbacController {
 
   @Post('roles/:id/permissions/remove')
   @RequirePermissions('roles:update')
-  @Audited('role_permissions')
   async revokePermissionsPost(
     @Param('id') id: string,
     @Body() dto: AssignPermissionsDto,
@@ -107,7 +104,6 @@ export class RbacController {
 
   @Post('roles/:id/permissions/reset')
   @RequirePermissions('roles:update')
-  @Audited('role_permissions')
   async resetRolePermissions(@Param('id') id: string) {
     return this.rbacService.resetRolePermissions(id);
   }
@@ -130,7 +126,6 @@ export class RbacController {
 
   @Post('users/:id/overrides')
   @RequirePermissions('users:update')
-  @Audited('user')
   async createOverride(
     @Param('id') userId: string,
     @Body() dto: CreateOverrideDto,
@@ -141,7 +136,6 @@ export class RbacController {
 
   @Patch('overrides/:id/revoke')
   @RequirePermissions('users:update')
-  @Audited('user')
   async revokeOverride(
     @Param('id') overrideId: string,
     @CurrentUser() admin: AuthenticatedUser,

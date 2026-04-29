@@ -7,7 +7,7 @@ import {
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { RequirePermissions } from '@common/decorators/permissions.decorator';
-import { Audited } from '@common/decorators/audited.decorator';
+import { AuditMutation } from '@common/decorators/audit.decorator';
 import { EmailService } from './email.service';
 import { EmailQueryDto } from './dto/email-query.dto';
 
@@ -47,7 +47,7 @@ export class EmailController {
 
   @Post(':id/resend')
   @RequirePermissions('email_logs:manage')
-  @Audited('email')
+  @AuditMutation({ code: 'EMAIL_OUTBOUND_RESENT', resource: 'email' })
   async resend(@Param('id', ParseUUIDPipe) id: string) {
     return this.emailService.resendEmail(id);
   }

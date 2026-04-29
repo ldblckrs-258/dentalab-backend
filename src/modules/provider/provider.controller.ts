@@ -8,7 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { RequirePermissions, Audited } from '@common/decorators';
+import { AuditMutation, RequirePermissions } from '@common/decorators';
 import { ProviderService } from './provider.service';
 import { BulkUpdateProviderStatusDto } from './dto/bulk-update-provider-status.dto';
 import { CreateProviderDto } from './dto/create-provider.dto';
@@ -34,28 +34,31 @@ export class ProviderController {
 
   @Post()
   @RequirePermissions('providers:create')
-  @Audited('provider')
+  @AuditMutation({ code: 'PROVIDER_CREATED', resource: 'provider' })
   async create(@Body() dto: CreateProviderDto) {
     return this.providerService.create(dto);
   }
 
   @Patch(':id')
   @RequirePermissions('providers:update')
-  @Audited('provider')
+  @AuditMutation({ code: 'PROVIDER_UPDATED', resource: 'provider' })
   async update(@Param('id') id: string, @Body() dto: UpdateProviderDto) {
     return this.providerService.update(id, dto);
   }
 
   @Post('bulk-status')
   @RequirePermissions('providers:update')
-  @Audited('provider')
+  @AuditMutation({
+    code: 'PROVIDER_BULK_STATUS_CHANGED',
+    resource: 'provider',
+  })
   async bulkUpdateStatus(@Body() dto: BulkUpdateProviderStatusDto) {
     return this.providerService.bulkUpdateStatus(dto);
   }
 
   @Patch(':id/status')
   @RequirePermissions('providers:update')
-  @Audited('provider')
+  @AuditMutation({ code: 'PROVIDER_UPDATED', resource: 'provider' })
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateProviderStatusDto,
@@ -65,7 +68,7 @@ export class ProviderController {
 
   @Delete(':id')
   @RequirePermissions('providers:delete')
-  @Audited('provider')
+  @AuditMutation({ code: 'PROVIDER_DELETED', resource: 'provider' })
   async delete(@Param('id') id: string) {
     return this.providerService.delete(id);
   }

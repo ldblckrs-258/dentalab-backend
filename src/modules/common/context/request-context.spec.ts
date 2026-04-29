@@ -6,6 +6,7 @@ describe('RequestContextService', () => {
     userId: 'user-1',
     requestId: 'req-123',
     ip: '127.0.0.1',
+    roleCodes: [],
     timestamp: new Date('2024-01-01'),
   };
 

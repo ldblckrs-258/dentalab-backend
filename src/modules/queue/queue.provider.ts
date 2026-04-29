@@ -6,10 +6,14 @@ import {
   RABBITMQ_CHANNEL,
   EXCHANGE_EVENTS,
   EXCHANGE_DLX,
+  EXCHANGE_AUDIT_EVENTS,
+  EXCHANGE_AUDIT_DLX,
   QUEUE_RAG_INDEXING,
   QUEUE_EMAIL_SEND,
   QUEUE_NOTIFICATION_INVENTORY,
   QUEUE_DLQ,
+  QUEUE_AUDIT_WRITE,
+  QUEUE_AUDIT_DLQ,
 } from './queue.constants';
 
 const logger = new Logger('QueueProvider');
@@ -58,6 +62,20 @@ async function setupTopology(channel: amqplib.Channel): Promise<void> {
     EXCHANGE_EVENTS,
     'inventory.low_stock',
   );
+
+  await channel.assertExchange(EXCHANGE_AUDIT_EVENTS, 'topic', {
+    durable: true,
+  });
+  await channel.assertExchange(EXCHANGE_AUDIT_DLX, 'fanout', { durable: true });
+  await channel.assertQueue(QUEUE_AUDIT_DLQ, { durable: true });
+  await channel.bindQueue(QUEUE_AUDIT_DLQ, EXCHANGE_AUDIT_DLX, '');
+  await channel.assertQueue(QUEUE_AUDIT_WRITE, {
+    durable: true,
+    arguments: {
+      'x-dead-letter-exchange': EXCHANGE_AUDIT_DLX,
+    },
+  });
+  await channel.bindQueue(QUEUE_AUDIT_WRITE, EXCHANGE_AUDIT_EVENTS, 'audit.#');
 
   logger.log('RabbitMQ topology configured');
 }

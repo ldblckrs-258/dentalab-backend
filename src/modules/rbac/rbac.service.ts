@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -22,13 +24,25 @@ import {
   RESETTABLE_ROLE_CODES,
 } from './default-role-permissions';
 import { SYSTEM_ROLE_CODE } from '@common/constants';
+import { AuditService } from '@modules/audit/audit.service';
 
 @Injectable()
 export class RbacService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissionResolver: PermissionResolverService,
+    @Inject(forwardRef(() => AuditService))
+    private readonly auditService: AuditService,
   ) {}
+
+  private async getRolePermissionIds(roleId: string): Promise<string[]> {
+    const rows = await this.prisma.baseClient.rolePermission.findMany({
+      where: { roleId },
+      select: { permissionId: true },
+      orderBy: { permissionId: 'asc' },
+    });
+    return rows.map((r) => r.permissionId);
+  }
 
   // ── Roles ──
 
@@ -174,6 +188,8 @@ export class RbacService {
     if (!role)
       throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
+    const beforeIds = await this.getRolePermissionIds(roleId);
+
     await this.prisma.baseClient.rolePermission.createMany({
       data: dto.permissionIds.map((permissionId) => ({
         roleId: roleId,
@@ -184,6 +200,15 @@ export class RbacService {
 
     // Invalidate cache for all users with this role
     await this.permissionResolver.invalidateCacheForRole(roleId);
+
+    const afterIds = await this.getRolePermissionIds(roleId);
+    this.auditService.emit({
+      code: 'RBAC_ROLE_PERMISSIONS_ASSIGNED',
+      resource: 'role',
+      resourceId: roleId,
+      before: { permissionIds: beforeIds },
+      after: { permissionIds: afterIds },
+    });
 
     return {
       message: t('rbac.permissions_assigned', 'Permissions assigned'),
@@ -197,6 +222,8 @@ export class RbacService {
     if (!role)
       throw new NotFoundException(t('rbac.role_not_found', 'Role not found'));
 
+    const beforeIds = await this.getRolePermissionIds(roleId);
+
     await this.prisma.baseClient.rolePermission.deleteMany({
       where: {
         roleId: roleId,
@@ -205,6 +232,15 @@ export class RbacService {
     });
 
     await this.permissionResolver.invalidateCacheForRole(roleId);
+
+    const afterIds = await this.getRolePermissionIds(roleId);
+    this.auditService.emit({
+      code: 'RBAC_ROLE_PERMISSIONS_REVOKED',
+      resource: 'role',
+      resourceId: roleId,
+      before: { permissionIds: beforeIds },
+      after: { permissionIds: afterIds },
+    });
 
     return {
       message: t('rbac.permissions_revoked', 'Permissions revoked'),
@@ -260,6 +296,8 @@ export class RbacService {
         .filter((id): id is string => !!id);
     }
 
+    const beforeIds = await this.getRolePermissionIds(roleId);
+
     await this.prisma.transaction(async (tx) => {
       await tx.rolePermission.deleteMany({ where: { roleId } });
       if (targetIds.length > 0) {
@@ -271,6 +309,16 @@ export class RbacService {
     });
 
     await this.permissionResolver.invalidateCacheForRole(roleId);
+
+    const afterIds = await this.getRolePermissionIds(roleId);
+    this.auditService.emit({
+      code: 'RBAC_ROLE_PERMISSIONS_RESET',
+      resource: 'role',
+      resourceId: roleId,
+      before: { permissionIds: beforeIds },
+      after: { permissionIds: afterIds },
+      metadata: { assignedCount: targetIds.length },
+    });
 
     return {
       message: t('rbac.permissions_reset', 'Permissions reset to defaults'),
@@ -328,6 +376,17 @@ export class RbacService {
 
     await this.permissionResolver.invalidateCache(userId);
 
+    this.auditService.emit({
+      code: 'RBAC_USER_OVERRIDE_GRANTED',
+      resource: 'user',
+      resourceId: userId,
+      after: {
+        permissionId: dto.permissionId,
+        grantType: dto.grantType,
+        overrideId: override.id,
+      },
+    });
+
     return override;
   }
 
@@ -351,6 +410,17 @@ export class RbacService {
     });
 
     await this.permissionResolver.invalidateCache(override.userId);
+
+    this.auditService.emit({
+      code: 'RBAC_USER_OVERRIDE_REVOKED',
+      resource: 'user',
+      resourceId: override.userId,
+      before: {
+        overrideId,
+        permissionId: override.permissionId,
+      },
+      after: { revoked: true },
+    });
 
     return {
       message: t('rbac.override_revoked', 'Override revoked'),

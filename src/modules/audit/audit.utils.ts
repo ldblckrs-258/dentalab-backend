@@ -1,34 +1,39 @@
-import { SENSITIVE_FIELDS } from '@common/constants';
+const ALWAYS_IGNORED = new Set([
+  'updated_at',
+  'updatedAt',
+  'created_at',
+  'createdAt',
+  'search_vector',
+  'searchVector',
+  'embedding',
+]);
 
-export function shallowDiff(
-  oldData: Record<string, unknown>,
-  newData: Record<string, unknown>,
-): Record<string, unknown> {
-  const diff: Record<string, unknown> = {};
-  for (const key of Object.keys(newData)) {
-    if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
-      diff[key] = newData[key];
+export function pairedDiff(
+  oldData: Record<string, unknown> | null | undefined,
+  newData: Record<string, unknown> | null | undefined,
+  ignoredExtra: Iterable<string> = [],
+): { before: Record<string, unknown>; after: Record<string, unknown> } {
+  const ignored = new Set([...ALWAYS_IGNORED, ...ignoredExtra]);
+  const before: Record<string, unknown> = {};
+  const after: Record<string, unknown> = {};
+
+  if (oldData == null || newData == null) return { before, after };
+  for (const k of Object.keys(oldData)) {
+    if (ignored.has(k)) continue;
+    if (!(k in newData)) continue;
+    const o = oldData[k];
+    const n = newData[k];
+    if (JSON.stringify(o) !== JSON.stringify(n)) {
+      before[k] = o;
+      after[k] = n;
     }
   }
-  return diff;
+  return { before, after };
 }
 
-export function redactSensitiveFields(
-  data: Record<string, unknown>,
-): Record<string, unknown> {
-  const redacted: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (SENSITIVE_FIELDS.includes(key)) {
-      redacted[key] = '[REDACTED]';
-    } else if (
-      typeof value === 'object' &&
-      value !== null &&
-      !Array.isArray(value)
-    ) {
-      redacted[key] = redactSensitiveFields(value as Record<string, unknown>);
-    } else {
-      redacted[key] = value;
-    }
-  }
-  return redacted;
+export function isPairedDiffEmpty(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): boolean {
+  return !Object.keys(before).length && !Object.keys(after).length;
 }

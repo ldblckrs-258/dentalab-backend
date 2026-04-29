@@ -1,16 +1,36 @@
 import { DEFAULT_LANGUAGE, ErrorCode } from '@common/constants';
 import {
+  AUDIT_ACCESS_KEY,
+  AUDIT_MUTATION_KEY,
+} from '@common/decorators/audit.decorator';
+import { AuditService } from '@modules/audit/audit.service';
+import { getAuditActorContext } from '@modules/audit/audit-context';
+import {
   ArgumentsHost,
   Catch,
   ExceptionFilter,
+  ExecutionContext,
   HttpException,
   HttpStatus,
   Logger,
   ValidationError,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
 import { I18nContext, I18nValidationException } from 'nestjs-i18n';
 import { InfrastructureException } from './infrastructure.exception';
+
+// Route segments used to identify auth endpoints in exception-based audit emission.
+// Must match the controller path segments (without the global API prefix).
+const AUTH_LOGIN_ROUTE_SEGMENT = '/auth/login';
+const AUTH_ROUTE_SEGMENT = '/auth/';
+const PHI_ROUTE_SEGMENTS = ['/patients', '/clinical-notes', '/patient-files'];
+
+// 403 noise control: dedupe per (actor|ip):path:status within a TTL window so
+// frontend speculative probes and stale-token refresh storms don't flood the
+// audit log. Cap the map to bound memory; sweep oldest entries when full.
+const DENIED_DEBOUNCE_TTL_MS = 60_000;
+const DENIED_DEBOUNCE_MAX_SIZE = 10_000;
 
 const HTTP_STATUS_ERROR_CODES: Record<number, string> = {
   400: ErrorCode.COMMON_BAD_REQUEST,
@@ -64,8 +84,13 @@ const PRISMA_ERROR_MAP: Record<
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
+  private readonly deniedDebounce = new Map<string, number>();
 
-  constructor(private readonly isProduction: boolean) {}
+  constructor(
+    private readonly isProduction: boolean,
+    private readonly auditService: AuditService,
+    private readonly reflector: Reflector,
+  ) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
@@ -77,6 +102,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       exception,
       i18n,
     );
+
+    this.maybeAuditHttpFailure(host, request, statusCode, errorCode);
 
     const errorResponse = {
       statusCode,
@@ -100,6 +127,105 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     response.status(statusCode).json(errorResponse);
+  }
+
+  private maybeAuditHttpFailure(
+    host: ArgumentsHost,
+    request: Request,
+    statusCode: number,
+    errorCode: string,
+  ): void {
+    try {
+      if (statusCode === 403) {
+        // Gate denials: only emit when the handler is itself audit-tagged.
+        // Frontends often probe endpoints to drive UI rendering; logging every
+        // denial floods the table without forensic value. The same actor
+        // hitting the same denied path is also de-duped within a short window
+        // so stale-token refresh storms don't multiply rows.
+        if (!this.isAuditedHandler(host)) return;
+        const path = request.originalUrl ?? request.url ?? '';
+        if (!this.shouldEmitDenied(request, path)) return;
+        this.auditService.emit({
+          code: 'AUTH_ACCESS_DENIED',
+          outcome: 'denied',
+          metadata: { path, method: request.method, errorCode },
+        });
+        return;
+      }
+      if (
+        statusCode === 401 &&
+        (request.originalUrl ?? request.url).includes(AUTH_LOGIN_ROUTE_SEGMENT)
+      ) {
+        this.auditService.emit({
+          code: 'AUTH_LOGIN_FAILURE',
+          outcome: 'failure',
+          metadata: { path: request.originalUrl ?? request.url },
+        });
+        return;
+      }
+      if (statusCode === 429) {
+        const path = request.originalUrl ?? request.url;
+        if (path.includes(AUTH_ROUTE_SEGMENT)) {
+          this.auditService.emit({
+            code: 'AUTH_RATE_LIMITED',
+            outcome: 'denied',
+            metadata: { path, method: request.method },
+          });
+        }
+        return;
+      }
+      if (statusCode >= 500) {
+        const path = request.originalUrl ?? request.url ?? '';
+        if (PHI_ROUTE_SEGMENTS.some((seg) => path.includes(seg))) {
+          this.auditService.emit({
+            code: 'PHI_ACCESS_ERROR',
+            outcome: 'failure',
+            metadata: { path, statusCode, errorCode },
+          });
+        }
+      }
+    } catch {
+      /* never block response */
+    }
+  }
+
+  private isAuditedHandler(host: ArgumentsHost): boolean {
+    const handler = this.tryGetHandler(host);
+    if (!handler) return false;
+    return Boolean(
+      this.reflector.get(AUDIT_MUTATION_KEY, handler) ||
+      this.reflector.get(AUDIT_ACCESS_KEY, handler),
+    );
+  }
+
+  private tryGetHandler(
+    host: ArgumentsHost,
+  ): ((...args: unknown[]) => unknown) | undefined {
+    try {
+      const fn = (host as unknown as ExecutionContext).getHandler?.();
+      return fn as unknown as ((...args: unknown[]) => unknown) | undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private shouldEmitDenied(request: Request, path: string): boolean {
+    const actor = getAuditActorContext().actorId ?? request.ip ?? 'anon';
+    const key = `${actor}:${path}:403`;
+    const now = Date.now();
+    const last = this.deniedDebounce.get(key);
+    if (last !== undefined && now - last < DENIED_DEBOUNCE_TTL_MS) return false;
+    this.pruneDeniedDebounce(now);
+    this.deniedDebounce.set(key, now);
+    return true;
+  }
+
+  private pruneDeniedDebounce(now: number): void {
+    if (this.deniedDebounce.size < DENIED_DEBOUNCE_MAX_SIZE) return;
+    const cutoff = now - DENIED_DEBOUNCE_TTL_MS;
+    for (const [k, ts] of this.deniedDebounce.entries()) {
+      if (ts < cutoff) this.deniedDebounce.delete(k);
+    }
   }
 
   private resolveException(

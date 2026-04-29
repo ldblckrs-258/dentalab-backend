@@ -1,5 +1,5 @@
 import {
-  Audited,
+  AuditMutation,
   CurrentUser,
   RequireAnyPermission,
   RequirePermissions,
@@ -67,7 +67,11 @@ export class UserController {
   }
 
   @Patch('me')
-  @Audited('user')
+  @AuditMutation({
+    code: 'USER_UPDATED',
+    resource: 'user',
+    useActorUserId: true,
+  })
   @UseInterceptors(FileInterceptor('avatar', avatarMulterOptions))
   updateMyProfile(
     @Body() dto: UpdateMyProfileDto,
@@ -88,7 +92,7 @@ export class UserController {
 
   @Post()
   @RequirePermissions('users:create')
-  @Audited('user')
+  @AuditMutation({ code: 'USER_CREATED', resource: 'user' })
   async create(
     @Body() dto: CreateUserDto,
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -98,16 +102,16 @@ export class UserController {
 
   @Patch('bulk-status')
   @RequirePermissions('users:update')
-  @Audited('user')
+  @AuditMutation({ code: 'USER_BULK_STATUS_CHANGED', resource: 'user' })
   async bulkUpdateStatus(@Body() dto: BulkUpdateUserStatusDto) {
     return this.userService.bulkUpdateStatus(dto);
   }
 
   @Patch(':id')
   @RequirePermissions('users:update')
-  @Audited('user')
+  @AuditMutation({ code: 'USER_UPDATED', resource: 'user' })
   @UseInterceptors(FileInterceptor('avatar', avatarMulterOptions))
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateUserDto,
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -118,7 +122,7 @@ export class UserController {
 
   @Patch(':id/status')
   @RequirePermissions('users:update')
-  @Audited('user')
+  @AuditMutation({ code: 'USER_STATUS_CHANGED', resource: 'user' })
   async updateStatus(
     @Param('id') id: string,
     @Body() dto: UpdateUserStatusDto,
@@ -128,7 +132,7 @@ export class UserController {
 
   @Post(':id/roles')
   @RequirePermissions('users:update')
-  @Audited('user')
+  @AuditMutation({ code: 'USER_ROLE_SYNCED', resource: 'user' })
   async assignRoles(
     @Param('id') id: string,
     @Body() dto: AssignRolesDto,
@@ -139,7 +143,7 @@ export class UserController {
 
   @Delete(':id/roles')
   @RequirePermissions('users:update')
-  @Audited('user')
+  @AuditMutation({ code: 'USER_ROLE_SYNCED', resource: 'user' })
   async removeRoles(
     @Param('id') id: string,
     @Body() dto: AssignRolesDto,
@@ -150,7 +154,7 @@ export class UserController {
 
   @Put(':id/roles')
   @RequirePermissions('users:update')
-  @Audited('user')
+  @AuditMutation({ code: 'USER_ROLE_SYNCED', resource: 'user' })
   async syncRoles(
     @Param('id') id: string,
     @Body() dto: SyncRolesDto,

@@ -24,6 +24,7 @@ describe('JwtStrategy', () => {
       email: 'test@example.com',
       fullName: 'Test',
       isActive: true,
+      userRoles: [],
     };
     prisma.client.user.findUnique.mockResolvedValue(user);
 
@@ -36,6 +37,7 @@ describe('JwtStrategy', () => {
       email: 'test@example.com',
       fullName: 'Test',
       isActive: true,
+      roleCodes: [],
     });
   });
 
@@ -53,6 +55,7 @@ describe('JwtStrategy', () => {
       email: 'test@example.com',
       fullName: 'Test',
       isActive: false,
+      userRoles: [],
     });
 
     await expect(

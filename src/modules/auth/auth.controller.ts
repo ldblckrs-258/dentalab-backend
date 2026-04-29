@@ -11,7 +11,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { Public, CurrentUser, RateLimit, Audited } from '@common/decorators';
+import {
+  Public,
+  CurrentUser,
+  RateLimit,
+  AuditMutation,
+} from '@common/decorators';
 import { t } from '@common/utils';
 import { REFRESH_TOKEN_COOKIE } from '@common/constants';
 import type { AuthenticatedUser } from '@common/interfaces';
@@ -91,7 +96,11 @@ export class AuthController {
   }
 
   @Put('change-password')
-  @Audited('user')
+  @AuditMutation({
+    code: 'AUTH_PASSWORD_CHANGED',
+    resource: 'user',
+    useActorUserId: true,
+  })
   @HttpCode(HttpStatus.OK)
   async changePassword(
     @CurrentUser() user: AuthenticatedUser,

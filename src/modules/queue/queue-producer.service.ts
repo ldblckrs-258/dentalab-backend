@@ -21,9 +21,18 @@ export class QueueProducerService {
     payload: EventPayload,
     options?: PublishOptions,
   ): void {
+    this.publishToExchange(EXCHANGE_EVENTS, routingKey, payload, options);
+  }
+
+  publishToExchange(
+    exchange: string,
+    routingKey: string,
+    payload: unknown,
+    options?: PublishOptions,
+  ): void {
     if (!this.channel) {
       this.logger.warn(
-        `Cannot publish to ${routingKey}: RabbitMQ channel unavailable`,
+        `Cannot publish to ${exchange}/${routingKey}: RabbitMQ channel unavailable`,
       );
       return;
     }
@@ -38,7 +47,7 @@ export class QueueProducerService {
 
     try {
       this.channel.publish(
-        EXCHANGE_EVENTS,
+        exchange,
         routingKey,
         Buffer.from(JSON.stringify(message)),
         {
@@ -52,11 +61,11 @@ export class QueueProducerService {
         },
       );
       this.logger.debug(
-        `Published message to ${routingKey}: ${message.messageId}`,
+        `Published message to ${exchange}/${routingKey}: ${message.messageId}`,
       );
     } catch (error) {
       this.logger.error(
-        `Failed to publish to ${routingKey}: ${(error as Error).message}`,
+        `Failed to publish to ${exchange}/${routingKey}: ${(error as Error).message}`,
       );
     }
   }

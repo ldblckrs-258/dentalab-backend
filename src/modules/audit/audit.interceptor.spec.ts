@@ -1,6 +1,7 @@
 import { of } from 'rxjs';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { AUDIT_MUTATION_KEY } from '@common/decorators/audit.decorator';
 import { AuditInterceptor } from './audit.interceptor';
 import type { AuditService } from './audit.service';
 import type { PrismaService } from '@modules/database';
@@ -8,11 +9,11 @@ import type { PrismaService } from '@modules/database';
 describe('AuditInterceptor', () => {
   let interceptor: AuditInterceptor;
   let reflector: Reflector;
-  let auditService: { log: jest.Mock };
+  let auditService: { emit: jest.Mock };
 
   beforeEach(() => {
     reflector = new Reflector();
-    auditService = { log: jest.fn().mockResolvedValue(undefined) };
+    auditService = { emit: jest.fn() };
     const prisma = {
       baseClient: {
         user: { findUnique: jest.fn() },
@@ -26,15 +27,16 @@ describe('AuditInterceptor', () => {
   });
 
   function createContext(overrides: {
-    resourceName?: string;
+    mutation?: { code: string; resource: string };
     method?: string;
     params?: Record<string, string>;
-    userId?: string;
+    user?: { id: string };
     ip?: string;
   }) {
-    jest
-      .spyOn(reflector, 'get')
-      .mockReturnValue(overrides.resourceName as never);
+    jest.spyOn(reflector, 'get').mockImplementation((key: string) => {
+      if (key === AUDIT_MUTATION_KEY) return overrides.mutation;
+      return undefined;
+    });
 
     return {
       getHandler: () => jest.fn(),
@@ -43,55 +45,49 @@ describe('AuditInterceptor', () => {
         getRequest: () => ({
           method: overrides.method ?? 'POST',
           params: overrides.params ?? {},
-          user: overrides.userId ? { id: overrides.userId } : undefined,
+          user: overrides.user,
           ip: overrides.ip ?? '127.0.0.1',
         }),
       }),
     } as unknown as ExecutionContext;
   }
 
-  it('should pass through when no @Audited decorator', async () => {
+  it('should pass through when no @AuditMutation decorator', (done) => {
     const context = createContext({});
     const next = { handle: () => of('data') };
 
-    const result = await interceptor.intercept(context, next);
-    expect(result).toBeDefined();
+    interceptor.intercept(context, next).subscribe({
+      next: () => {
+        expect(auditService.emit).not.toHaveBeenCalled();
+        done();
+      },
+    });
   });
 
-  it('should pass through for GET requests (no action mapped)', async () => {
-    const context = createContext({ resourceName: 'user', method: 'GET' });
-    const next = { handle: () => of('data') };
-
-    const result = await interceptor.intercept(context, next);
-    expect(result).toBeDefined();
-  });
-
-  it('should capture audit data for POST (create) action', (done) => {
+  it('should emit on POST create with user resource', (done) => {
     const context = createContext({
-      resourceName: 'user',
+      mutation: { code: 'USER_CREATED', resource: 'user' },
       method: 'POST',
-      userId: 'u1',
+      user: { id: 'u1' },
       ip: '1.2.3.4',
     });
     const responseData = { id: 'new-1', name: 'Alice' };
     const next = { handle: () => of(responseData) };
 
-    void interceptor.intercept(context, next).then((obs) => {
-      obs.subscribe({
-        next: () => {
-          setImmediate(() => {
-            expect(auditService.log).toHaveBeenCalledWith(
-              expect.objectContaining({
-                userId: 'u1',
-                action: 'create',
-                resource: 'user',
-                ipAddress: '1.2.3.4',
-              }),
-            );
-            done();
-          });
-        },
-      });
+    interceptor.intercept(context, next).subscribe({
+      next: () => {
+        // emit() fires setImmediate internally; wait one tick for it
+        setImmediate(() => {
+          expect(auditService.emit).toHaveBeenCalledWith(
+            expect.objectContaining({
+              code: 'USER_CREATED',
+              resource: 'user',
+              resourceId: 'new-1',
+            }),
+          );
+          done();
+        });
+      },
     });
   });
 });

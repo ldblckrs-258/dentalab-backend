@@ -26,7 +26,6 @@ model User {
   userPermissionOverrides  UserPermissionOverride[]
   refreshTokens            RefreshToken[]
   passwordResetTokens      PasswordResetToken[]
-  auditLogs                AuditLog[]
   provider                 Provider?
   createdAppointments      Appointment[]              @relation("CreatedByUser")
   cancelledAppointments    Appointment[]              @relation("CancelledByUser")
@@ -120,20 +119,40 @@ model UserPermissionOverride {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String?  @db.Uuid @map("user_id")
-  action     String
-  resource   String
-  resourceId String?  @map("resource_id")
-  oldData    Json?    @map("old_data")
-  newData    Json?    @map("new_data")
-  ipAddress  String?  @map("ip_address")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id             String   @default(uuid()) @db.Uuid
+  eventCode      String   @map("event_code")
+  eventVersion   Int      @default(1) @db.SmallInt @map("event_version")
+  category       String
+  severity       String
+  outcome        String
 
-  user User? @relation(fields: [userId], references: [id])
+  actorType      String   @map("actor_type")
+  actorId        String?  @db.Uuid @map("actor_id")
+  actorEmail     String?  @map("actor_email")
+  actorRoleCodes String[] @default([]) @map("actor_role_codes")
+  sessionId      String?  @db.Uuid @map("session_id")
+  requestId      String?  @db.Uuid @map("request_id")
 
-  @@index([resource, resourceId])
-  @@index([userId, createdAt])
+  resource        String?
+  resourceId      String?  @db.Uuid @map("resource_id")
+  parentResource  String?  @map("parent_resource")
+  parentId        String?  @db.Uuid @map("parent_id")
+
+  before    Json?
+  after     Json?
+  metadata  Json?
+
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+  source    String
+
+  reason   String?
+  hashPrev String? @map("hash_prev") @db.Char(64)
+  hashSelf String  @map("hash_self") @db.Char(64)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([id, createdAt])
   @@map("audit_logs")
 }
 

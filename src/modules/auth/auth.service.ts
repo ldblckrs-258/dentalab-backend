@@ -13,6 +13,7 @@ import type { EmailSendResetPasswordPayload } from '@modules/queue';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import { CacheService } from '@modules/redis';
 import { StorageService } from '@modules/storage';
+import { AuditService } from '@modules/audit/audit.service';
 import {
   ForbiddenException,
   HttpException,
@@ -48,6 +49,7 @@ export class AuthService {
     private readonly cacheService: CacheService,
     private readonly queueProducer: QueueProducerService,
     private readonly storageService: StorageService,
+    private readonly auditService: AuditService,
   ) {}
 
   async login(dto: LoginDto) {
@@ -116,6 +118,13 @@ export class AuthService {
     const { accessToken, refreshToken, refreshExpiresIn } =
       await this.generateTokens(user.id, user.email);
 
+    this.auditService.emit({
+      code: 'AUTH_LOGIN_SUCCESS',
+      actorId: user.id,
+      actorEmail: user.email,
+      actorType: 'user',
+    });
+
     return {
       accessToken,
       refreshToken,
@@ -137,6 +146,12 @@ export class AuthService {
       `${CACHE_KEY_BLACKLIST}:${tokenHash}`,
     );
     if (isBlacklisted) {
+      this.auditService.emit({
+        code: 'AUTH_REFRESH_TOKEN_REUSE',
+        outcome: 'failure',
+        actorType: 'user',
+        metadata: { tokenHashPrefix: tokenHash.slice(0, 8) },
+      });
       throw new UnauthorizedException(
         t('auth.token_revoked', 'Token has been revoked'),
       );
@@ -199,6 +214,12 @@ export class AuthService {
         storedToken.expiresAt,
       );
     }
+
+    this.auditService.emit({
+      code: 'AUTH_LOGOUT',
+      actorId: userId,
+      actorType: 'user',
+    });
   }
 
   async getProfile(userId: string) {

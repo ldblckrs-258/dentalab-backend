@@ -1,0 +1,115 @@
+export type AuditCategory =
+  | 'auth'
+  | 'rbac'
+  | 'phi'
+  | 'ops'
+  | 'system'
+  | 'security';
+
+export type AuditSeverity = 'info' | 'notice' | 'warning' | 'critical';
+
+export interface AuditEventDef {
+  category: AuditCategory;
+  severity: AuditSeverity;
+  reasonRequired?: boolean;
+}
+
+export const AUDIT_EVENTS = {
+  AUTH_LOGIN_SUCCESS: { category: 'auth', severity: 'info' },
+  AUTH_LOGIN_FAILURE: { category: 'auth', severity: 'warning' },
+  AUTH_LOGOUT: { category: 'auth', severity: 'info' },
+  AUTH_PASSWORD_CHANGED: { category: 'auth', severity: 'notice' },
+  AUTH_PASSWORD_RESET_REQUESTED: { category: 'auth', severity: 'info' },
+  AUTH_PASSWORD_RESET_COMPLETED: { category: 'auth', severity: 'notice' },
+  AUTH_REFRESH_TOKEN_REUSE: { category: 'auth', severity: 'critical' },
+  AUTH_ACCESS_DENIED: { category: 'auth', severity: 'warning' },
+  AUTH_RATE_LIMITED: { category: 'auth', severity: 'warning' },
+
+  RBAC_ROLE_CREATED: { category: 'rbac', severity: 'notice' },
+  RBAC_ROLE_UPDATED: { category: 'rbac', severity: 'notice' },
+  RBAC_ROLE_DELETED: { category: 'rbac', severity: 'warning' },
+  RBAC_ROLE_PERMISSIONS_ASSIGNED: { category: 'rbac', severity: 'notice' },
+  RBAC_ROLE_PERMISSIONS_REVOKED: { category: 'rbac', severity: 'notice' },
+  RBAC_ROLE_PERMISSIONS_RESET: { category: 'rbac', severity: 'warning' },
+  RBAC_USER_OVERRIDE_GRANTED: { category: 'rbac', severity: 'warning' },
+  RBAC_USER_OVERRIDE_REVOKED: { category: 'rbac', severity: 'notice' },
+
+  USER_CREATED: { category: 'ops', severity: 'notice' },
+  USER_UPDATED: { category: 'ops', severity: 'notice' },
+  USER_STATUS_CHANGED: { category: 'ops', severity: 'notice' },
+  USER_BULK_STATUS_CHANGED: { category: 'ops', severity: 'notice' },
+  USER_ROLE_SYNCED: { category: 'rbac', severity: 'notice' },
+  USER_DELETED: { category: 'ops', severity: 'critical' },
+
+  PROVIDER_CREATED: { category: 'ops', severity: 'notice' },
+  PROVIDER_UPDATED: { category: 'ops', severity: 'notice' },
+  PROVIDER_BULK_STATUS_CHANGED: { category: 'ops', severity: 'notice' },
+  PROVIDER_DELETED: { category: 'ops', severity: 'warning' },
+  EMAIL_OUTBOUND_RESENT: { category: 'ops', severity: 'notice' },
+  EMAIL_WEBHOOK_RECEIVED: { category: 'ops', severity: 'info' },
+
+  KIOSK_SESSION_CREATED: { category: 'ops', severity: 'info' },
+  KIOSK_SESSION_CLOSED: { category: 'ops', severity: 'info' },
+
+  PATIENT_VIEWED: { category: 'phi', severity: 'info' },
+  PATIENT_CREATED: { category: 'phi', severity: 'notice' },
+  PATIENT_UPDATED: { category: 'phi', severity: 'notice' },
+  PATIENT_DELETED: { category: 'phi', severity: 'critical' },
+  CLINICAL_NOTE_VIEWED: {
+    category: 'phi',
+    severity: 'info',
+    reasonRequired: true,
+  },
+  CLINICAL_NOTE_LIST_VIEWED: {
+    category: 'phi',
+    severity: 'info',
+    reasonRequired: true,
+  },
+  CLINICAL_NOTE_CREATED: { category: 'phi', severity: 'notice' },
+  CLINICAL_NOTE_UPDATED: { category: 'phi', severity: 'notice' },
+  CLINICAL_NOTE_DELETED: { category: 'phi', severity: 'warning' },
+  PATIENT_FILE_DOWNLOADED: {
+    category: 'phi',
+    severity: 'notice',
+    reasonRequired: true,
+  },
+  PATIENT_FILE_CREATED: { category: 'phi', severity: 'notice' },
+  PATIENT_FILE_DELETED: { category: 'phi', severity: 'warning' },
+
+  APPOINTMENT_CREATED: { category: 'ops', severity: 'info' },
+  APPOINTMENT_UPDATED: { category: 'ops', severity: 'info' },
+  APPOINTMENT_CANCELLED: { category: 'ops', severity: 'notice' },
+  TREATMENT_PLAN_CREATED: { category: 'ops', severity: 'info' },
+  TREATMENT_PLAN_UPDATED: { category: 'ops', severity: 'info' },
+  TREATMENT_PLAN_DELETED: { category: 'ops', severity: 'warning' },
+
+  FORM_CREATED: { category: 'ops', severity: 'info' },
+  FORM_UPDATED: { category: 'ops', severity: 'info' },
+  INTERNAL_DOCUMENT_CREATED: { category: 'ops', severity: 'notice' },
+  INTERNAL_DOCUMENT_UPDATED: { category: 'ops', severity: 'notice' },
+  INVENTORY_ITEM_CREATED: { category: 'ops', severity: 'info' },
+  INVENTORY_ITEM_UPDATED: { category: 'ops', severity: 'info' },
+  INVENTORY_TRANSACTION_RECORDED: { category: 'ops', severity: 'info' },
+
+  RAG_DOCUMENT_INGESTED: { category: 'system', severity: 'info' },
+  CHAT_SESSION_STARTED: { category: 'ops', severity: 'info' },
+
+  PHI_ACCESS_ERROR: { category: 'phi', severity: 'warning' },
+  SECURITY_ANOMALY_DETECTED: {
+    category: 'security',
+    severity: 'critical',
+    reasonRequired: true,
+  },
+  DATA_EXPORTED: {
+    category: 'security',
+    severity: 'warning',
+    reasonRequired: true,
+  },
+  AUDIT_CHAIN_VERIFICATION_FAILED: {
+    category: 'security',
+    severity: 'critical',
+    reasonRequired: true,
+  },
+} as const satisfies Record<string, AuditEventDef>;
+
+export type AuditEventCode = keyof typeof AUDIT_EVENTS;

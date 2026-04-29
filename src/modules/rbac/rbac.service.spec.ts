@@ -7,6 +7,7 @@ import {
 import { RbacService } from './rbac.service';
 import { PrismaService } from '@modules/database';
 import { PermissionResolverService } from './services/permission-resolver.service';
+import { AuditService } from '@modules/audit/audit.service';
 import { mockI18nContext } from '@common/test/i18n-mock';
 
 describe('RbacService', () => {
@@ -40,6 +41,7 @@ describe('RbacService', () => {
         rolePermission: {
           createMany: jest.fn(),
           deleteMany: jest.fn(),
+          findMany: jest.fn().mockResolvedValue([]),
         },
         userPermissionOverride: {
           findMany: jest.fn().mockResolvedValue([]),
@@ -61,6 +63,7 @@ describe('RbacService', () => {
         RbacService,
         { provide: PrismaService, useValue: prisma },
         { provide: PermissionResolverService, useValue: permissionResolver },
+        { provide: AuditService, useValue: { emit: jest.fn() } },
       ],
     }).compile();
 

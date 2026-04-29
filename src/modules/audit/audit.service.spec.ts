@@ -1,14 +1,21 @@
 import { Test } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { AuditService } from './audit.service';
 import { PrismaService } from '@modules/database';
-import { PermissionResolverService } from '@modules/rbac';
+import { QueueProducerService } from '@modules/queue/queue-producer.service';
+import { AppConfigService } from '@modules/config';
 
 describe('AuditService', () => {
   let service: AuditService;
-
   let prisma: any;
   let permissionResolver: any;
+  let queueProducer: { publishToExchange: jest.Mock };
+  let config: { queue: { AUDIT_REDACTION_HMAC_KEY: string } };
 
   const ADMIN_USER_ID = 'admin-1';
   const MANAGER_USER_ID = 'manager-1';
@@ -18,9 +25,8 @@ describe('AuditService', () => {
     prisma = {
       baseClient: {
         auditLog: {
-          create: jest.fn().mockResolvedValue({}),
           findMany: jest.fn().mockResolvedValue([]),
-          findUnique: jest.fn(),
+          findFirst: jest.fn(),
           count: jest.fn().mockResolvedValue(0),
         },
       },
@@ -32,143 +38,75 @@ describe('AuditService', () => {
         .mockResolvedValue(['audit_logs:read', 'audit_logs:read:all']),
     };
 
+    queueProducer = { publishToExchange: jest.fn() };
+
+    config = {
+      queue: { AUDIT_REDACTION_HMAC_KEY: 'test-hmac-key' },
+    };
+
+    const moduleRef = {
+      get: jest.fn().mockReturnValue(permissionResolver),
+    };
+
     const module = await Test.createTestingModule({
       providers: [
         AuditService,
         { provide: PrismaService, useValue: prisma },
-        { provide: PermissionResolverService, useValue: permissionResolver },
+        { provide: QueueProducerService, useValue: queueProducer },
+        { provide: AppConfigService, useValue: config },
+        { provide: ModuleRef, useValue: moduleRef },
       ],
     }).compile();
 
     service = module.get(AuditService);
+    service.onModuleInit();
   });
 
-  describe('log', () => {
-    it('should create audit log entry', async () => {
-      await service.log({
-        userId: 'u1',
-        action: 'create',
-        resource: 'user',
-        resourceId: 'r1',
-        ipAddress: '127.0.0.1',
-      });
-
-      expect(prisma.baseClient.auditLog.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          userId: 'u1',
-          action: 'create',
-          resource: 'user',
+  describe('emit', () => {
+    it('should reject when reasonRequired and reason missing', () => {
+      expect(() =>
+        service.emit({
+          code: 'CLINICAL_NOTE_VIEWED',
+          resource: 'clinical_note',
+          resourceId: 'x',
         }),
-      });
+      ).toThrow(BadRequestException);
     });
 
-    it('should not throw on database error', async () => {
-      prisma.baseClient.auditLog.create.mockRejectedValue(
-        new Error('db error'),
-      );
-      await expect(
-        service.log({ action: 'create', resource: 'user' }),
-      ).resolves.toBeUndefined();
+    it('should publish when valid', async () => {
+      service.emit({ code: 'AUTH_LOGIN_SUCCESS' });
+      await new Promise<void>((r) => setImmediate(r));
+      expect(queueProducer.publishToExchange).toHaveBeenCalled();
     });
   });
 
   describe('findAll', () => {
-    it('should return paginated result with user join', async () => {
+    it('should return paginated result', async () => {
       prisma.baseClient.auditLog.findMany.mockResolvedValue([]);
       prisma.baseClient.auditLog.count.mockResolvedValue(0);
 
       const result = await service.findAll({}, ADMIN_USER_ID);
-      expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          include: expect.objectContaining({
-            user: expect.any(Object),
-          }),
-        }),
-      );
+      expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalled();
       expect(result.meta.page).toBe(1);
     });
 
-    it('should apply filters', async () => {
+    it('should apply actorId filter', async () => {
       prisma.baseClient.auditLog.findMany.mockResolvedValue([]);
       prisma.baseClient.auditLog.count.mockResolvedValue(0);
 
       await service.findAll(
-        {
-          userId: 'u1',
-          action: 'create',
-          resource: 'user',
-          page: 2,
-          limit: 10,
-        },
+        { actorId: 'u1', eventCode: 'USER_CREATED' },
         ADMIN_USER_ID,
       );
 
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            userId: 'u1',
-            action: 'create',
-            resource: 'user',
+            actorId: 'u1',
+            eventCode: 'USER_CREATED',
           }),
         }),
       );
-    });
-
-    it('should apply date range filters', async () => {
-      prisma.baseClient.auditLog.findMany.mockResolvedValue([]);
-      prisma.baseClient.auditLog.count.mockResolvedValue(0);
-
-      await service.findAll(
-        {
-          from: '2024-01-01T00:00:00.000Z',
-          to: '2024-12-31T00:00:00.000Z',
-        },
-        ADMIN_USER_ID,
-      );
-
-      expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            createdAt: {
-              gte: expect.any(Date),
-              lte: expect.any(Date),
-            },
-          }),
-        }),
-      );
-    });
-
-    it('should apply ipAddress filter', async () => {
-      prisma.baseClient.auditLog.findMany.mockResolvedValue([]);
-      prisma.baseClient.auditLog.count.mockResolvedValue(0);
-
-      await service.findAll({ ipAddress: '192.168.1.1' }, ADMIN_USER_ID);
-
-      expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            ipAddress: '192.168.1.1',
-          }),
-        }),
-      );
-    });
-
-    it('should compute pagination meta correctly', async () => {
-      prisma.baseClient.auditLog.findMany.mockResolvedValue([{}, {}]);
-      prisma.baseClient.auditLog.count.mockResolvedValue(25);
-
-      const result = await service.findAll(
-        { page: 2, limit: 10 },
-        ADMIN_USER_ID,
-      );
-      expect(result.meta).toEqual({
-        total: 25,
-        page: 2,
-        limit: 10,
-        totalPages: 3,
-        hasNextPage: true,
-        hasPreviousPage: true,
-      });
     });
 
     it('should filter to own logs for users without scoped permissions', async () => {
@@ -183,13 +121,13 @@ describe('AuditService', () => {
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            userId: DOCTOR_USER_ID,
+            actorId: DOCTOR_USER_ID,
           }),
         }),
       );
     });
 
-    it('should filter to operations resources for manager', async () => {
+    it('should exclude phi for users without phi or all permission', async () => {
       permissionResolver.resolvePermissions.mockResolvedValue([
         'audit_logs:read',
         'audit_logs:read:operations',
@@ -202,7 +140,7 @@ describe('AuditService', () => {
       expect(prisma.baseClient.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            resource: { in: expect.any(Array) },
+            category: { not: 'phi' },
           }),
         }),
       );
@@ -210,26 +148,27 @@ describe('AuditService', () => {
   });
 
   describe('findById', () => {
-    it('should return audit log with user info for admin', async () => {
+    it('should return audit log for admin', async () => {
       const mockLog = {
         id: 'log-1',
-        action: 'create',
+        eventCode: 'USER_CREATED',
         resource: 'user',
-        userId: 'other-user',
-        user: { email: 'admin@test.com', fullName: 'Admin' },
+        actorId: 'other-user',
+        category: 'ops',
       };
-      prisma.baseClient.auditLog.findUnique.mockResolvedValue(mockLog);
+      prisma.baseClient.auditLog.findFirst.mockResolvedValue(mockLog);
 
       const result = await service.findById('log-1', ADMIN_USER_ID);
       expect(result).toEqual(mockLog);
-      expect(prisma.baseClient.auditLog.findUnique).toHaveBeenCalledWith({
-        where: { id: 'log-1' },
-        include: expect.objectContaining({ user: expect.any(Object) }),
-      });
+      expect(prisma.baseClient.auditLog.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'log-1' },
+        }),
+      );
     });
 
     it('should throw NotFoundException when not found', async () => {
-      prisma.baseClient.auditLog.findUnique.mockResolvedValue(null);
+      prisma.baseClient.auditLog.findFirst.mockResolvedValue(null);
 
       await expect(
         service.findById('missing-id', ADMIN_USER_ID),
@@ -242,31 +181,32 @@ describe('AuditService', () => {
       ]);
       const mockLog = {
         id: 'log-1',
-        action: 'create',
+        eventCode: 'USER_CREATED',
         resource: 'user',
-        userId: 'other-user',
+        actorId: 'other-user',
+        category: 'ops',
       };
-      prisma.baseClient.auditLog.findUnique.mockResolvedValue(mockLog);
+      prisma.baseClient.auditLog.findFirst.mockResolvedValue(mockLog);
 
       await expect(service.findById('log-1', DOCTOR_USER_ID)).rejects.toThrow(
         ForbiddenException,
       );
     });
 
-    it('should allow doctor to access own log', async () => {
+    it('should throw when non-phi user accesses phi log', async () => {
       permissionResolver.resolvePermissions.mockResolvedValue([
         'audit_logs:read',
+        'audit_logs:read:operations',
       ]);
-      const mockLog = {
+      prisma.baseClient.auditLog.findFirst.mockResolvedValue({
         id: 'log-1',
-        action: 'create',
-        resource: 'user',
-        userId: DOCTOR_USER_ID,
-      };
-      prisma.baseClient.auditLog.findUnique.mockResolvedValue(mockLog);
+        category: 'phi',
+        actorId: 'x',
+      });
 
-      const result = await service.findById('log-1', DOCTOR_USER_ID);
-      expect(result).toEqual(mockLog);
+      await expect(service.findById('log-1', MANAGER_USER_ID)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 });

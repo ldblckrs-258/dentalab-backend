@@ -10,11 +10,23 @@ import { PaginationQueryDto } from '@modules/pagination';
 export class AuditQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
-  userId?: string;
+  actorId?: string;
 
   @IsOptional()
-  @IsIn(['create', 'update', 'delete'])
-  action?: string;
+  @IsString()
+  eventCode?: string;
+
+  @IsOptional()
+  @IsIn(['auth', 'rbac', 'phi', 'ops', 'system', 'security'])
+  category?: string;
+
+  @IsOptional()
+  @IsIn(['info', 'notice', 'warning', 'critical'])
+  severity?: string;
+
+  @IsOptional()
+  @IsIn(['success', 'failure', 'denied'])
+  outcome?: string;
 
   @IsOptional()
   @IsString()
@@ -23,6 +35,10 @@ export class AuditQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   resourceId?: string;
+
+  @IsOptional()
+  @IsString()
+  actorRoleCode?: string;
 
   @IsOptional()
   @IsDateString()

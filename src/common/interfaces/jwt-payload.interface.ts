@@ -10,4 +10,5 @@ export interface AuthenticatedUser {
   email: string;
   fullName: string;
   isActive: boolean;
+  roleCodes?: string[];
 }

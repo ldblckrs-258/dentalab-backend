@@ -1,82 +1,58 @@
-import { shallowDiff, redactSensitiveFields } from './audit.utils';
+import { isPairedDiffEmpty, pairedDiff } from './audit.utils';
+import { redactByResource } from './redaction-rules';
 
 describe('audit.utils', () => {
-  describe('shallowDiff', () => {
-    it('should return changed fields', () => {
+  describe('pairedDiff', () => {
+    it('should return changed keys on both sides', () => {
       const oldData = { name: 'Alice', email: 'a@test.com' };
       const newData = { name: 'Bob', email: 'a@test.com' };
-      expect(shallowDiff(oldData, newData)).toEqual({ name: 'Bob' });
+      expect(pairedDiff(oldData, newData)).toEqual({
+        before: { name: 'Alice' },
+        after: { name: 'Bob' },
+      });
     });
 
-    it('should return empty object when no changes', () => {
+    it('should return empty before and after when identical', () => {
       const data = { name: 'Alice', email: 'a@test.com' };
-      expect(shallowDiff(data, { ...data })).toEqual({});
+      const d = pairedDiff(data, { ...data });
+      expect(isPairedDiffEmpty(d.before, d.after)).toBe(true);
     });
 
-    it('should detect new fields in newData', () => {
+    it('should skip keys present on only one side (schema-mismatch noise)', () => {
       const oldData = { name: 'Alice' };
       const newData = { name: 'Alice', role: 'admin' };
-      expect(shallowDiff(oldData, newData)).toEqual({ role: 'admin' });
+      const d = pairedDiff(oldData, newData);
+      expect(isPairedDiffEmpty(d.before, d.after)).toBe(true);
     });
 
-    it('should handle nested object changes via JSON comparison', () => {
-      const oldData = { meta: { a: 1 } };
-      const newData = { meta: { a: 2 } };
-      expect(shallowDiff(oldData, newData)).toEqual({ meta: { a: 2 } });
+    it('should diff a field that exists on both sides with a null/value transition', () => {
+      const oldData = { name: 'Alice', role: null };
+      const newData = { name: 'Alice', role: 'admin' };
+      expect(pairedDiff(oldData, newData)).toEqual({
+        before: { role: null },
+        after: { role: 'admin' },
+      });
     });
 
-    it('should return empty for identical nested objects', () => {
-      const oldData = { meta: { a: 1 } };
-      const newData = { meta: { a: 1 } };
-      expect(shallowDiff(oldData, newData)).toEqual({});
+    it('should ignore updatedAt', () => {
+      const oldData = { name: 'A', updatedAt: '1' };
+      const newData = { name: 'A', updatedAt: '2' };
+      const d = pairedDiff(oldData, newData);
+      expect(isPairedDiffEmpty(d.before, d.after)).toBe(true);
     });
   });
 
-  describe('redactSensitiveFields', () => {
-    it('should redact known sensitive fields', () => {
+  describe('redactByResource', () => {
+    it('should redact user password fields', () => {
       const data = {
         email: 'a@test.com',
-        password_hash: 'abc123',
-        token_hash: 'xyz',
+        password_hash: 'hash',
+        phone: '+84901234567',
       };
-      const result = redactSensitiveFields(data);
-      expect(result.email).toBe('a@test.com');
-      expect(result.password_hash).toBe('[REDACTED]');
-      expect(result.token_hash).toBe('[REDACTED]');
-    });
-
-    it('should recursively redact nested objects', () => {
-      const data = {
-        user: { name: 'Alice', password: 'secret' },
-      };
-      const result = redactSensitiveFields(data);
-      expect(result.user).toEqual({ name: 'Alice', password: '[REDACTED]' });
-    });
-
-    it('should preserve arrays and non-sensitive values', () => {
-      const data = { tags: ['a', 'b'], name: 'test' };
-      const result = redactSensitiveFields(data);
-      expect(result).toEqual({ tags: ['a', 'b'], name: 'test' });
-    });
-
-    it('should redact all known sensitive field names', () => {
-      const fields = [
-        'password_hash',
-        'token_hash',
-        'ssn',
-        'credit_card',
-        'password',
-        'secret',
-        'refresh_token',
-        'access_token',
-      ];
-      const data: Record<string, string> = {};
-      fields.forEach((f) => (data[f] = 'value'));
-
-      const result = redactSensitiveFields(data);
-      fields.forEach((f) => {
-        expect(result[f]).toBe('[REDACTED]');
-      });
+      const result = redactByResource('user', data, 'test-hmac-key');
+      expect(result?.email).toBeDefined();
+      expect(result?.password_hash).toBeUndefined();
+      expect(result?.phone).toBe('****4567');
     });
   });
 });

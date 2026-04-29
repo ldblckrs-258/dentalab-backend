@@ -83,6 +83,12 @@ const PERMISSIONS: {
     scope: 'operations',
     description: 'Xem nhật ký kiểm tra tài nguyên & vận hành',
   },
+  {
+    resource: 'audit_logs',
+    action: 'read',
+    scope: 'phi',
+    description: 'Xem sự kiện PHI trong nhật ký kiểm tra',
+  },
 
   // Providers
   { resource: 'providers', action: 'create' },

@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { APP_GUARD } from '@nestjs/core';
 import { AppConfigService } from '@modules/config';
+import { AuditModule } from '@modules/audit';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -18,16 +18,16 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
         signOptions: { expiresIn: config.jwt.JWT_ACCESS_EXPIRY as any },
       }),
     }),
+    forwardRef(() => AuditModule),
   ],
   controllers: [AuthController],
   providers: [
     AuthService,
     JwtStrategy,
-    {
-      provide: APP_GUARD,
-      useClass: JwtAuthGuard,
-    },
+    // JwtAuthGuard is wired explicitly via main.ts useGlobalGuards() to lock
+    // its execution order between RateLimitGuard and PermissionGuard.
+    JwtAuthGuard,
   ],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, JwtModule, JwtAuthGuard],
 })
 export class AuthModule {}

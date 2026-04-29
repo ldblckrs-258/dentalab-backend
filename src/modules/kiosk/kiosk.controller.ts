@@ -16,7 +16,7 @@ import {
   Public,
   CurrentUser,
   RequirePermissions,
-  Audited,
+  AuditMutation,
 } from '@common/decorators';
 import { KioskService } from './kiosk.service';
 import { CreateKioskSessionDto } from './dto/create-kiosk-session.dto';
@@ -31,7 +31,7 @@ export class KioskController {
 
   @Post('sessions')
   @RequirePermissions('kiosk_sessions:create')
-  @Audited('kiosk_session')
+  @AuditMutation({ code: 'KIOSK_SESSION_CREATED', resource: 'kiosk_session' })
   async createSession(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateKioskSessionDto,
@@ -63,7 +63,7 @@ export class KioskController {
 
   @Patch('sessions/:id/close')
   @RequirePermissions('kiosk_sessions:create')
-  @Audited('kiosk_session')
+  @AuditMutation({ code: 'KIOSK_SESSION_CLOSED', resource: 'kiosk_session' })
   @HttpCode(HttpStatus.OK)
   async closeSession(
     @Param('id') id: string,

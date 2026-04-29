@@ -1,5 +1,5 @@
 export * from './skip-response-wrap.decorator';
-export * from './audited.decorator';
+export * from './audit.decorator';
 export * from './rate-limit.decorator';
 export * from './public.decorator';
 export * from './permissions.decorator';

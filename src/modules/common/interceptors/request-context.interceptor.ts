@@ -14,8 +14,13 @@ export class RequestContextInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
 
+    const sid = request.headers['x-session-id'] as string | undefined;
     const ctx: RequestContext = {
       userId: request.user?.id,
+      actorEmail: request.user?.email,
+      roleCodes: request.user?.roleCodes ?? [],
+      sessionId: sid && /^[0-9a-f-]{36}$/i.test(sid) ? sid : undefined,
+      userAgent: request.headers['user-agent'] as string | undefined,
       requestId: (request.headers['x-request-id'] as string) ?? uuidv4(),
       ip: request.ip ?? request.connection?.remoteAddress ?? 'unknown',
       timestamp: new Date(),

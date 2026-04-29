@@ -1,26 +1,29 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { PrismaService } from '@modules/database';
 import { PermissionResolverService } from '@modules/rbac';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { t } from '@common/utils';
+import { AppConfigService } from '@modules/config';
+import { QueueProducerService } from '@modules/queue/queue-producer.service';
+import {
+  EXCHANGE_AUDIT_EVENTS,
+  ROUTING_AUDIT_EVENT,
+} from '@modules/queue/queue.constants';
+import { v4 as uuidv4 } from 'uuid';
+import { AUDIT_EVENTS, type AuditEventCode } from './audit-events';
+import { getAuditActorContext } from './audit-context';
+import { redactByResource } from './redaction-rules';
+import type { AuditEventInput, AuditEventQueuePayload } from './audit.types';
 import type { AuditQueryDto } from './dto/audit-query.dto';
 
-export interface AuditEntry {
-  userId?: string;
-  action: string;
-  resource: string;
-  resourceId?: string;
-  oldData?: Record<string, unknown>;
-  newData?: Record<string, unknown>;
-  ipAddress?: string;
-}
-
-/** Resources belonging to the "Tài nguyên & Vận hành" module (Module 4) */
 const OPERATIONS_RESOURCES = [
   'form',
   'kiosk_session',
@@ -33,50 +36,131 @@ const OPERATIONS_RESOURCES = [
   'schedule_override',
 ];
 
-const USER_SELECT = { select: { email: true, fullName: true } } as const;
-
 @Injectable()
-export class AuditService {
+export class AuditService implements OnModuleInit {
   private readonly logger = new Logger(AuditService.name);
+  private permissionResolver!: PermissionResolverService;
 
   constructor(
+    private readonly queueProducer: QueueProducerService,
     private readonly prisma: PrismaService,
-    private readonly permissionResolver: PermissionResolverService,
+    private readonly config: AppConfigService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
-  async log(entry: AuditEntry): Promise<void> {
-    try {
-      await this.prisma.baseClient.auditLog.create({
-        data: {
-          userId: entry.userId,
-          action: entry.action,
-          resource: entry.resource,
-          resourceId: entry.resourceId,
-          oldData: entry.oldData as any,
-          newData: entry.newData as any,
-          ipAddress: entry.ipAddress,
-        },
-      });
-    } catch (error) {
-      this.logger.error(
-        `Failed to write audit log: ${(error as Error).message}`,
+  onModuleInit(): void {
+    // Resolved after all modules initialize to break the Audit ↔ Rbac circular dep.
+    this.permissionResolver = this.moduleRef.get(PermissionResolverService, {
+      strict: false,
+    });
+  }
+
+  emit<C extends AuditEventCode>(input: AuditEventInput<C>): void {
+    const def = AUDIT_EVENTS[input.code];
+    if (
+      'reasonRequired' in def &&
+      def.reasonRequired &&
+      !input.reason?.trim()
+    ) {
+      throw new BadRequestException(
+        t('validation.required', 'Reason is required for this audit event'),
       );
     }
+
+    // amqplib channel.publish is non-blocking; callers in the request hot path
+    // are already deferred via the interceptor's mergeMap chain.
+    try {
+      this.publish(input);
+    } catch (e) {
+      this.logger.error(`Audit emit failed: ${(e as Error).message}`);
+    }
+  }
+
+  emitFailure(
+    code: AuditEventCode,
+    error: Error,
+    ctx?: Omit<Partial<AuditEventInput>, 'code' | 'outcome'>,
+  ): void {
+    this.emit({
+      ...ctx,
+      code,
+      outcome: 'failure',
+      metadata: {
+        ...(ctx?.metadata ?? {}),
+        message: error.message,
+        name: error.name,
+      },
+    });
+  }
+
+  private publish<C extends AuditEventCode>(input: AuditEventInput<C>): void {
+    const def = AUDIT_EVENTS[input.code];
+    const actx = getAuditActorContext();
+    const hmacKey = this.config.queue.AUDIT_REDACTION_HMAC_KEY;
+
+    const before = input.resource
+      ? redactByResource(input.resource, input.before, hmacKey)
+      : input.before;
+    const after = input.resource
+      ? redactByResource(input.resource, input.after, hmacKey)
+      : input.after;
+
+    const id = uuidv4();
+    const createdAt = new Date().toISOString();
+    const payload: AuditEventQueuePayload = {
+      id,
+      eventCode: input.code,
+      eventVersion: 1,
+      category: def.category,
+      severity: def.severity,
+      outcome: input.outcome ?? 'success',
+      actorType: input.actorType ?? 'user',
+      actorId: input.actorId ?? actx.actorId,
+      actorEmail: input.actorEmail ?? actx.actorEmail,
+      actorRoleCodes: actx.actorRoleCodes,
+      sessionId: actx.sessionId,
+      requestId: actx.requestId,
+      resource: input.resource,
+      resourceId: input.resourceId,
+      parentResource: input.parentResource,
+      parentId: input.parentId,
+      before,
+      after,
+      metadata: input.metadata,
+      ipAddress: actx.ipAddress,
+      userAgent: actx.userAgent,
+      source: input.source ?? 'api',
+      reason: input.reason,
+      createdAt,
+    };
+
+    this.queueProducer.publishToExchange(
+      EXCHANGE_AUDIT_EVENTS,
+      ROUTING_AUDIT_EVENT,
+      payload,
+    );
   }
 
   async findAll(query: AuditQueryDto, currentUserId: string) {
     const prismaArgs = buildPrismaQuery(
       query,
-      ['createdAt', 'action', 'resource'],
+      ['createdAt', 'eventCode', 'resource'],
       { createdAt: 'desc' },
-    );
+    ) as unknown as Record<string, unknown>;
+    delete prismaArgs.cursor;
 
     const where: Record<string, unknown> = {};
-    if (query.userId) where.userId = query.userId;
-    if (query.action) where.action = query.action;
+    if (query.actorId) where.actorId = query.actorId;
+    if (query.eventCode) where.eventCode = query.eventCode;
+    if (query.category) where.category = query.category;
+    if (query.severity) where.severity = query.severity;
+    if (query.outcome) where.outcome = query.outcome;
     if (query.resource) where.resource = query.resource;
     if (query.resourceId) where.resourceId = query.resourceId;
     if (query.ipAddress) where.ipAddress = query.ipAddress;
+    if (query.actorRoleCode) {
+      where.actorRoleCodes = { has: query.actorRoleCode };
+    }
     if (query.from || query.to) {
       where.createdAt = {
         ...(query.from ? { gte: new Date(query.from) } : {}),
@@ -84,8 +168,16 @@ export class AuditService {
       };
     }
 
-    // Scope-based filtering
-    const scope = await this.resolveAuditScope(currentUserId);
+    const permissions =
+      await this.permissionResolver.resolvePermissions(currentUserId);
+    const scope = this.resolveAuditScope(permissions);
+    const canReadPhi =
+      permissions.includes('audit_logs:read:phi') ||
+      permissions.includes('audit_logs:read:all');
+
+    if (!canReadPhi) {
+      where.category = { not: 'phi' };
+    }
 
     if (scope === 'operations') {
       if (query.resource && !OPERATIONS_RESOURCES.includes(query.resource)) {
@@ -97,19 +189,18 @@ export class AuditService {
         where.resource = { in: OPERATIONS_RESOURCES };
       }
     } else if (scope === 'own') {
-      if (query.userId && query.userId !== currentUserId) {
+      if (query.actorId && query.actorId !== currentUserId) {
         throw new ForbiddenException(
           t('rbac.insufficient_permissions', 'Insufficient permissions'),
         );
       }
-      where.userId = currentUserId;
+      where.actorId = currentUserId;
     }
 
     const [data, total] = await Promise.all([
       this.prisma.baseClient.auditLog.findMany({
         ...prismaArgs,
         where,
-        include: { user: USER_SELECT },
       }),
       this.prisma.baseClient.auditLog.count({ where }),
     ]);
@@ -118,25 +209,36 @@ export class AuditService {
   }
 
   async findById(id: string, currentUserId: string) {
-    const log = await this.prisma.baseClient.auditLog.findUnique({
+    const log = await this.prisma.baseClient.auditLog.findFirst({
       where: { id },
-      include: { user: USER_SELECT },
+      orderBy: { createdAt: 'desc' },
     });
     if (!log)
       throw new NotFoundException(t('common.not_found', 'Audit log not found'));
 
-    // Scope-based access check
-    const scope = await this.resolveAuditScope(currentUserId);
+    const permissions =
+      await this.permissionResolver.resolvePermissions(currentUserId);
+    const scope = this.resolveAuditScope(permissions);
+    const canReadPhi =
+      permissions.includes('audit_logs:read:phi') ||
+      permissions.includes('audit_logs:read:all');
+
+    if (!canReadPhi && log.category === 'phi') {
+      throw new ForbiddenException(
+        t('rbac.insufficient_permissions', 'Insufficient permissions'),
+      );
+    }
 
     if (
       scope === 'operations' &&
+      log.resource &&
       !OPERATIONS_RESOURCES.includes(log.resource)
     ) {
       throw new ForbiddenException(
         t('rbac.insufficient_permissions', 'Insufficient permissions'),
       );
     }
-    if (scope === 'own' && log.userId !== currentUserId) {
+    if (scope === 'own' && log.actorId !== currentUserId) {
       throw new ForbiddenException(
         t('rbac.insufficient_permissions', 'Insufficient permissions'),
       );
@@ -145,11 +247,9 @@ export class AuditService {
     return log;
   }
 
-  private async resolveAuditScope(
-    userId: string,
-  ): Promise<'all' | 'operations' | 'own'> {
-    const permissions =
-      await this.permissionResolver.resolvePermissions(userId);
+  private resolveAuditScope(
+    permissions: string[],
+  ): 'all' | 'operations' | 'own' {
     if (permissions.includes('audit_logs:read:all')) return 'all';
     if (permissions.includes('audit_logs:read:operations')) return 'operations';
     return 'own';

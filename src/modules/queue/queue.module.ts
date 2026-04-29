@@ -26,6 +26,7 @@ import { RABBITMQ_CONNECTION, RABBITMQ_CHANNEL } from './queue.constants';
     QueueProducerService,
     QueueConsumerService,
     rabbitmqConnectionProvider,
+    rabbitmqChannelProvider,
   ],
 })
 export class QueueModule implements OnModuleDestroy {
