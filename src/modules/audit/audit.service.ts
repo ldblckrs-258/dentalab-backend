@@ -12,16 +12,13 @@ import { PermissionResolverService } from '@modules/rbac';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { t } from '@common/utils';
 import { AppConfigService } from '@modules/config';
-import { QueueProducerService } from '@modules/queue/queue-producer.service';
-import {
-  EXCHANGE_AUDIT_EVENTS,
-  ROUTING_AUDIT_EVENT,
-} from '@modules/queue/queue.constants';
+import { Prisma } from '@prisma/client';
 import { v4 as uuidv4 } from 'uuid';
 import { AUDIT_EVENTS, type AuditEventCode } from './audit-events';
 import { getAuditActorContext } from './audit-context';
 import { redactByResource } from './redaction-rules';
-import type { AuditEventInput, AuditEventQueuePayload } from './audit.types';
+import { AuditLogRepository } from './repositories/audit-log.repository';
+import type { AuditEventInput } from './audit.types';
 import type { AuditQueryDto } from './dto/audit-query.dto';
 
 const OPERATIONS_RESOURCES = [
@@ -42,7 +39,7 @@ export class AuditService implements OnModuleInit {
   private permissionResolver!: PermissionResolverService;
 
   constructor(
-    private readonly queueProducer: QueueProducerService,
+    private readonly auditLogRepository: AuditLogRepository,
     private readonly prisma: PrismaService,
     private readonly config: AppConfigService,
     private readonly moduleRef: ModuleRef,
@@ -67,13 +64,12 @@ export class AuditService implements OnModuleInit {
       );
     }
 
-    // amqplib channel.publish is non-blocking; callers in the request hot path
-    // are already deferred via the interceptor's mergeMap chain.
-    try {
-      this.publish(input);
-    } catch (e) {
-      this.logger.error(`Audit emit failed: ${(e as Error).message}`);
-    }
+    // Fire-and-forget: write to the connection pool without blocking the
+    // caller. Audit-write failures must never propagate out — they only log.
+    const row = this.buildRow(input);
+    void this.auditLogRepository.create(row).catch((e) => {
+      this.logger.error(`Audit save failed: ${(e as Error).message}`);
+    });
   }
 
   emitFailure(
@@ -93,7 +89,7 @@ export class AuditService implements OnModuleInit {
     });
   }
 
-  private publish<C extends AuditEventCode>(input: AuditEventInput<C>): void {
+  private buildRow<C extends AuditEventCode>(input: AuditEventInput<C>) {
     const def = AUDIT_EVENTS[input.code];
     const actx = getAuditActorContext();
     const hmacKey = this.config.queue.AUDIT_REDACTION_HMAC_KEY;
@@ -105,40 +101,32 @@ export class AuditService implements OnModuleInit {
       ? redactByResource(input.resource, input.after, hmacKey)
       : input.after;
 
-    const id = uuidv4();
-    const createdAt = new Date().toISOString();
-    const payload: AuditEventQueuePayload = {
-      id,
+    return {
+      id: uuidv4(),
       eventCode: input.code,
       eventVersion: 1,
       category: def.category,
       severity: def.severity,
       outcome: input.outcome ?? 'success',
       actorType: input.actorType ?? 'user',
-      actorId: input.actorId ?? actx.actorId,
-      actorEmail: input.actorEmail ?? actx.actorEmail,
+      actorId: input.actorId ?? actx.actorId ?? null,
+      actorEmail: input.actorEmail ?? actx.actorEmail ?? null,
       actorRoleCodes: actx.actorRoleCodes,
-      sessionId: actx.sessionId,
-      requestId: actx.requestId,
-      resource: input.resource,
-      resourceId: input.resourceId,
-      parentResource: input.parentResource,
-      parentId: input.parentId,
-      before,
-      after,
-      metadata: input.metadata,
-      ipAddress: actx.ipAddress,
-      userAgent: actx.userAgent,
+      sessionId: actx.sessionId ?? null,
+      requestId: actx.requestId ?? null,
+      resource: input.resource ?? null,
+      resourceId: input.resourceId ?? null,
+      parentResource: input.parentResource ?? null,
+      parentId: input.parentId ?? null,
+      before: (before ?? Prisma.DbNull) as Prisma.InputJsonValue,
+      after: (after ?? Prisma.DbNull) as Prisma.InputJsonValue,
+      metadata: (input.metadata ?? Prisma.DbNull) as Prisma.InputJsonValue,
+      ipAddress: actx.ipAddress ?? null,
+      userAgent: actx.userAgent ?? null,
       source: input.source ?? 'api',
-      reason: input.reason,
-      createdAt,
+      reason: input.reason ?? null,
+      createdAt: new Date(),
     };
-
-    this.queueProducer.publishToExchange(
-      EXCHANGE_AUDIT_EVENTS,
-      ROUTING_AUDIT_EVENT,
-      payload,
-    );
   }
 
   async findAll(query: AuditQueryDto, currentUserId: string) {

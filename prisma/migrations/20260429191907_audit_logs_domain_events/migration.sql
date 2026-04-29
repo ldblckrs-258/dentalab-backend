@@ -1,11 +1,9 @@
--- Audit logs v2: domain events, RANGE partitioning by created_at.
-
 ALTER TABLE "audit_logs" DROP CONSTRAINT IF EXISTS "audit_logs_user_id_fkey";
 
 DROP TABLE IF EXISTS "audit_logs" CASCADE;
 
 CREATE TABLE audit_logs (
-  id UUID NOT NULL,
+  id UUID PRIMARY KEY,
   event_code TEXT NOT NULL,
   event_version SMALLINT NOT NULL DEFAULT 1,
   category TEXT NOT NULL,
@@ -28,18 +26,8 @@ CREATE TABLE audit_logs (
   user_agent TEXT,
   source TEXT NOT NULL,
   reason TEXT,
-  hash_prev CHAR(64),
-  hash_self CHAR(64) NOT NULL,
-  created_at TIMESTAMPTZ(6) NOT NULL DEFAULT now(),
-  PRIMARY KEY (id, created_at)
-) PARTITION BY RANGE (created_at);
-
-CREATE TABLE audit_logs_2026_04 PARTITION OF audit_logs
-  FOR VALUES FROM ('2026-04-01') TO ('2026-05-01');
-CREATE TABLE audit_logs_2026_05 PARTITION OF audit_logs
-  FOR VALUES FROM ('2026-05-01') TO ('2026-06-01');
-CREATE TABLE audit_logs_2026_06 PARTITION OF audit_logs
-  FOR VALUES FROM ('2026-06-01') TO ('2026-07-01');
+  created_at TIMESTAMPTZ(6) NOT NULL DEFAULT now()
+);
 
 CREATE INDEX idx_audit_logs_created_at_brin ON audit_logs USING brin (created_at);
 CREATE INDEX idx_audit_logs_actor_time
@@ -50,11 +38,7 @@ CREATE INDEX idx_audit_logs_event_code_time ON audit_logs (event_code, created_a
 CREATE INDEX idx_audit_logs_phi_time ON audit_logs (created_at DESC) WHERE category = 'phi';
 CREATE INDEX idx_audit_logs_metadata_gin ON audit_logs USING gin (metadata jsonb_path_ops);
 
--- Append-only enforcement: the application role may only SELECT and INSERT.
--- INSERT is granted to a dedicated writer role used exclusively by the audit worker.
--- Run this after confirming the role names for your deployment environment.
--- Example (substitute actual role names):
+-- Optional append-only hardening: revoke mutation rights from the app role so
+-- audit history cannot be silently rewritten by a compromised app account.
+-- Run after confirming the actual role name in your deployment.
 --   REVOKE UPDATE, DELETE ON audit_logs FROM dentalab_app;
---   CREATE ROLE dentalab_audit_writer NOLOGIN;
---   GRANT INSERT ON audit_logs TO dentalab_audit_writer;
---   GRANT SELECT ON audit_logs TO dentalab_app;

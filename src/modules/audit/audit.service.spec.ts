@@ -6,15 +6,15 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { AuditService } from './audit.service';
+import { AuditLogRepository } from './repositories/audit-log.repository';
 import { PrismaService } from '@modules/database';
-import { QueueProducerService } from '@modules/queue/queue-producer.service';
 import { AppConfigService } from '@modules/config';
 
 describe('AuditService', () => {
   let service: AuditService;
   let prisma: any;
   let permissionResolver: any;
-  let queueProducer: { publishToExchange: jest.Mock };
+  let auditLogRepository: { create: jest.Mock };
   let config: { queue: { AUDIT_REDACTION_HMAC_KEY: string } };
 
   const ADMIN_USER_ID = 'admin-1';
@@ -38,7 +38,7 @@ describe('AuditService', () => {
         .mockResolvedValue(['audit_logs:read', 'audit_logs:read:all']),
     };
 
-    queueProducer = { publishToExchange: jest.fn() };
+    auditLogRepository = { create: jest.fn().mockResolvedValue(undefined) };
 
     config = {
       queue: { AUDIT_REDACTION_HMAC_KEY: 'test-hmac-key' },
@@ -52,7 +52,7 @@ describe('AuditService', () => {
       providers: [
         AuditService,
         { provide: PrismaService, useValue: prisma },
-        { provide: QueueProducerService, useValue: queueProducer },
+        { provide: AuditLogRepository, useValue: auditLogRepository },
         { provide: AppConfigService, useValue: config },
         { provide: ModuleRef, useValue: moduleRef },
       ],
@@ -73,10 +73,10 @@ describe('AuditService', () => {
       ).toThrow(BadRequestException);
     });
 
-    it('should publish when valid', async () => {
+    it('should write to repository when valid', async () => {
       service.emit({ code: 'AUTH_LOGIN_SUCCESS' });
       await new Promise<void>((r) => setImmediate(r));
-      expect(queueProducer.publishToExchange).toHaveBeenCalled();
+      expect(auditLogRepository.create).toHaveBeenCalled();
     });
   });
 

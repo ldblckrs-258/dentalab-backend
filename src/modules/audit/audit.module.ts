@@ -5,9 +5,6 @@ import { AuditService } from './audit.service';
 import { AuditInterceptor } from './audit.interceptor';
 import { AuditController } from './audit.controller';
 import { AuditLogRepository } from './repositories/audit-log.repository';
-import { AuditWorkerService } from './audit.worker';
-import { AuditVerifierService } from './audit.verifier';
-import { RotatePartitionsJob } from './jobs/rotate-partitions.job';
 
 @Module({
   imports: [forwardRef(() => RbacModule)],
@@ -15,9 +12,6 @@ import { RotatePartitionsJob } from './jobs/rotate-partitions.job';
   providers: [
     AuditLogRepository,
     AuditService,
-    AuditWorkerService,
-    AuditVerifierService,
-    RotatePartitionsJob,
     AuditInterceptor,
     {
       provide: APP_INTERCEPTOR,

@@ -1,6 +1,5 @@
 import * as path from 'path';
 import { Module } from '@nestjs/common';
-import { ScheduleModule } from '@nestjs/schedule';
 import { I18nModule, AcceptLanguageResolver } from 'nestjs-i18n';
 import { AppConfigModule } from '@modules/config';
 import { DatabaseModule } from '@modules/database';
@@ -24,7 +23,6 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
     AppConfigModule,
     DatabaseModule,
     RedisModule,

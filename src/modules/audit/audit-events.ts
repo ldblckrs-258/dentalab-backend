@@ -105,11 +105,6 @@ export const AUDIT_EVENTS = {
     severity: 'warning',
     reasonRequired: true,
   },
-  AUDIT_CHAIN_VERIFICATION_FAILED: {
-    category: 'security',
-    severity: 'critical',
-    reasonRequired: true,
-  },
 } as const satisfies Record<string, AuditEventDef>;
 
 export type AuditEventCode = keyof typeof AUDIT_EVENTS;

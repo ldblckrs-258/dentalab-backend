@@ -19,30 +19,3 @@ export interface AuditEventInput<C extends AuditEventCode = AuditEventCode> {
   actorEmail?: string;
   source?: string;
 }
-
-export interface AuditEventQueuePayload {
-  id: string;
-  eventCode: string;
-  eventVersion: number;
-  category: string;
-  severity: string;
-  outcome: string;
-  actorType: string;
-  actorId?: string;
-  actorEmail?: string;
-  actorRoleCodes: string[];
-  sessionId?: string;
-  requestId?: string;
-  resource?: string;
-  resourceId?: string;
-  parentResource?: string;
-  parentId?: string;
-  before?: unknown;
-  after?: unknown;
-  metadata?: unknown;
-  ipAddress?: string;
-  userAgent?: string;
-  source: string;
-  reason?: string;
-  createdAt: string;
-}

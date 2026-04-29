@@ -119,7 +119,7 @@ model UserPermissionOverride {
 }
 
 model AuditLog {
-  id             String   @default(uuid()) @db.Uuid
+  id             String   @id @default(uuid()) @db.Uuid
   eventCode      String   @map("event_code")
   eventVersion   Int      @default(1) @db.SmallInt @map("event_version")
   category       String
@@ -146,13 +146,13 @@ model AuditLog {
   userAgent String? @map("user_agent")
   source    String
 
-  reason   String?
-  hashPrev String? @map("hash_prev") @db.Char(64)
-  hashSelf String  @map("hash_self") @db.Char(64)
+  reason String?
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@id([id, createdAt])
+  @@index([createdAt], map: "idx_audit_logs_created_at_brin", type: Brin)
+  @@index([eventCode, createdAt(sort: Desc)], map: "idx_audit_logs_event_code_time")
+  @@index([metadata(ops: JsonbPathOps)], map: "idx_audit_logs_metadata_gin", type: Gin)
   @@map("audit_logs")
 }
 
