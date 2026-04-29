@@ -27,6 +27,18 @@ export class EmailController {
     return this.emailService.getStats();
   }
 
+  @Get('meta/templates')
+  @RequirePermissions('email_logs:read')
+  async getMetaTemplates() {
+    return this.emailService.getMetaTemplates();
+  }
+
+  @Get('meta/entity-types')
+  @RequirePermissions('email_logs:read')
+  async getMetaEntityTypes() {
+    return this.emailService.getMetaEntityTypes();
+  }
+
   @Get(':id')
   @RequirePermissions('email_logs:read')
   async findOne(@Param('id', ParseUUIDPipe) id: string) {

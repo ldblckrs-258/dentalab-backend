@@ -291,6 +291,25 @@ export class EmailService {
     return result;
   }
 
+  async getMetaTemplates(): Promise<string[]> {
+    const rows = await this.prisma.baseClient.emailLog.findMany({
+      distinct: ['templateName'],
+      select: { templateName: true },
+      orderBy: { templateName: 'asc' },
+    });
+    return rows.map((r) => r.templateName);
+  }
+
+  async getMetaEntityTypes(): Promise<string[]> {
+    const rows = await this.prisma.baseClient.emailLog.findMany({
+      distinct: ['entityType'],
+      select: { entityType: true },
+      where: { entityType: { not: null } },
+      orderBy: { entityType: 'asc' },
+    });
+    return rows.map((r) => r.entityType as string);
+  }
+
   async findOne(id: string) {
     const log = await this.prisma.baseClient.emailLog.findUnique({
       where: { id },
