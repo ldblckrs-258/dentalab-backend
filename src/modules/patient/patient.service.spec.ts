@@ -79,31 +79,43 @@ describe('PatientService', () => {
       expect(prisma.baseClient.patient.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ isActive: true, deletedAt: null }),
-        })
+        }),
       );
     });
   });
 
   describe('findById', () => {
     it('should return patient if found', async () => {
-      prisma.baseClient.patient.findFirst.mockResolvedValue({ id: 'patient-1', firstName: 'John' });
+      prisma.baseClient.patient.findFirst.mockResolvedValue({
+        id: 'patient-1',
+        firstName: 'John',
+      });
       const result = await service.findById('patient-1');
       expect(result.id).toBe('patient-1');
     });
 
     it('should throw NotFoundException if not found', async () => {
       prisma.baseClient.patient.findFirst.mockResolvedValue(null);
-      await expect(service.findById('unknown')).rejects.toThrow(NotFoundException);
+      await expect(service.findById('unknown')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
   describe('create', () => {
     it('should create a new patient', async () => {
-      const dto = { firstName: 'Jane', lastName: 'Doe', dateOfBirth: '1990-01-01' };
-      prisma.baseClient.patient.create.mockResolvedValue({ id: 'new-id', ...dto });
-      
+      const dto = {
+        firstName: 'Jane',
+        lastName: 'Doe',
+        dateOfBirth: '1990-01-01',
+      };
+      prisma.baseClient.patient.create.mockResolvedValue({
+        id: 'new-id',
+        ...dto,
+      });
+
       const result = await service.create(dto);
-      
+
       expect(result.id).toBe('new-id');
       expect(prisma.baseClient.patient.create).toHaveBeenCalled();
     });
@@ -111,18 +123,27 @@ describe('PatientService', () => {
 
   describe('update', () => {
     it('should update patient fields if patient exists', async () => {
-      prisma.baseClient.patient.findFirst.mockResolvedValue({ id: 'patient-1' });
-      prisma.baseClient.patient.update.mockResolvedValue({ id: 'patient-1', firstName: 'Updated' });
+      prisma.baseClient.patient.findFirst.mockResolvedValue({
+        id: 'patient-1',
+      });
+      prisma.baseClient.patient.update.mockResolvedValue({
+        id: 'patient-1',
+        firstName: 'Updated',
+      });
 
-      const result = await service.update('patient-1', { firstName: 'Updated' });
-      
+      const result = await service.update('patient-1', {
+        firstName: 'Updated',
+      });
+
       expect(result.firstName).toBe('Updated');
       expect(prisma.baseClient.patient.update).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if patient does not exist', async () => {
       prisma.baseClient.patient.findFirst.mockResolvedValue(null);
-      await expect(service.update('unknown', {})).rejects.toThrow(NotFoundException);
+      await expect(service.update('unknown', {})).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -133,7 +154,7 @@ describe('PatientService', () => {
       expect(prisma.transaction).toHaveBeenCalled();
       expect(queueProducer.publish).toHaveBeenCalledWith(
         ROUTING_KEY.DOCUMENT_DELETED,
-        { documentId: 'patient-1', sourceType: 'patient' }
+        { documentId: 'patient-1', sourceType: 'patient' },
       );
     });
 
@@ -148,7 +169,9 @@ describe('PatientService', () => {
         await cb(tx);
       });
 
-      await expect(service.delete('unknown', 'reason')).rejects.toThrow(NotFoundException);
+      await expect(service.delete('unknown', 'reason')).rejects.toThrow(
+        NotFoundException,
+      );
       expect(queueProducer.publish).not.toHaveBeenCalled();
     });
   });

@@ -203,7 +203,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const sid = request.headers['x-session-id'] as string | undefined;
     return {
       ipAddress: request.ip ?? request.socket?.remoteAddress,
-      userAgent: request.headers['user-agent'] as string | undefined,
+      userAgent: request.headers['user-agent'],
       requestId: request.headers['x-request-id'] as string | undefined,
       sessionId: sid && /^[0-9a-f-]{36}$/i.test(sid) ? sid : undefined,
     };

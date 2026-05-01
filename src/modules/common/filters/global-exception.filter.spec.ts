@@ -22,6 +22,7 @@ describe('GlobalExceptionFilter', () => {
     originalUrl?: string;
     method: string;
     ip?: string;
+    headers: Record<string, string | undefined>;
   };
   let mockHost: ArgumentsHost;
   let reflector: Reflector;
@@ -34,7 +35,12 @@ describe('GlobalExceptionFilter', () => {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
     };
-    mockRequest = { url: '/api/v1/test', method: 'GET', ip: '127.0.0.1' };
+    mockRequest = {
+      url: '/api/v1/test',
+      method: 'GET',
+      ip: '127.0.0.1',
+      headers: {},
+    };
     auditedHandler = function audited() {};
     reflector = new Reflector();
     mockHost = {
