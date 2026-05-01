@@ -1,0 +1,4 @@
+{
+  "file_type_not_allowed": "Định dạng tệp không được hỗ trợ. Vui lòng tải lên ảnh (JPG, PNG, WEBP, GIF), PDF, tài liệu Word, hoặc tệp văn bản (TXT, MD, CSV, JSON).",
+  "file_size_exceeded": "Tệp quá lớn. Kích thước tối đa cho phép là {{maxMb}} MB."
+}

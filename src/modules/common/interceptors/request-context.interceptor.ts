@@ -22,7 +22,7 @@ export class RequestContextInterceptor implements NestInterceptor {
       sessionId: sid && /^[0-9a-f-]{36}$/i.test(sid) ? sid : undefined,
       userAgent: request.headers['user-agent'] as string | undefined,
       requestId: (request.headers['x-request-id'] as string) ?? uuidv4(),
-      ip: request.ip ?? request.connection?.remoteAddress ?? 'unknown',
+      ip: request.ip ?? request.socket?.remoteAddress ?? 'unknown',
       timestamp: new Date(),
     };
 

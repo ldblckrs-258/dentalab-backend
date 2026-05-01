@@ -387,15 +387,18 @@ model Patient {
 }
 
 model PatientFile {
-  id         String    @id @default(uuid()) @db.Uuid
-  patientId  String    @db.Uuid @map("patient_id")
-  uploadedBy String    @db.Uuid @map("uploaded_by")
-  fileName   String    @map("file_name")
-  fileType   String    @map("file_type")
-  fileUrl    String    @map("file_url")
-  fileSize   BigInt    @map("file_size")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  deletedAt  DateTime? @map("deleted_at")
+  id          String    @id @default(uuid()) @db.Uuid
+  patientId   String    @db.Uuid @map("patient_id")
+  uploadedBy  String    @db.Uuid @map("uploaded_by")
+  fileName    String    @map("file_name")
+  fileType    String    @map("file_type")
+  fileUrl     String    @map("file_url")
+  fileSize    BigInt    @map("file_size")
+  category    String    @default("other")
+  title       String?
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  deletedAt   DateTime? @map("deleted_at")
 
   patient  Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
   uploader User    @relation(fields: [uploadedBy], references: [id])

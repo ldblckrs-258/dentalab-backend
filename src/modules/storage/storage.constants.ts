@@ -1,13 +1,28 @@
 export const S3_CLIENT = 'S3_CLIENT';
 
 export const ALLOWED_MIME_TYPES = [
+  // Images
   'image/jpeg',
   'image/png',
   'image/webp',
+  'image/gif',
+  'image/bmp',
+  'image/svg+xml',
+  // Documents
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'application/dicom',
+  // Text / data
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  'text/tab-separated-values',
+  'text/xml',
+  'application/xml',
+  'application/json',
+  'application/x-yaml',
+  'text/yaml',
 ];
 
 export const DEFAULT_PRESIGNED_EXPIRY = 3600; // 1 hour

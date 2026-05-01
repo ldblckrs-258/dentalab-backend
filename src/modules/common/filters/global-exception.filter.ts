@@ -136,6 +136,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     errorCode: string,
   ): void {
     try {
+      const reqCtx = this.extractRequestCtx(request);
       if (statusCode === 403) {
         // Gate denials: only emit when the handler is itself audit-tagged.
         // Frontends often probe endpoints to drive UI rendering; logging every
@@ -149,6 +150,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           code: 'AUTH_ACCESS_DENIED',
           outcome: 'denied',
           metadata: { path, method: request.method, errorCode },
+          ...reqCtx,
         });
         return;
       }
@@ -160,6 +162,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
           code: 'AUTH_LOGIN_FAILURE',
           outcome: 'failure',
           metadata: { path: request.originalUrl ?? request.url },
+          ...reqCtx,
         });
         return;
       }
@@ -170,6 +173,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             code: 'AUTH_RATE_LIMITED',
             outcome: 'denied',
             metadata: { path, method: request.method },
+            ...reqCtx,
           });
         }
         return;
@@ -181,12 +185,28 @@ export class GlobalExceptionFilter implements ExceptionFilter {
             code: 'PHI_ACCESS_ERROR',
             outcome: 'failure',
             metadata: { path, statusCode, errorCode },
+            ...reqCtx,
           });
         }
       }
     } catch {
       /* never block response */
     }
+  }
+
+  private extractRequestCtx(request: Request): {
+    ipAddress: string | undefined;
+    userAgent: string | undefined;
+    requestId: string | undefined;
+    sessionId: string | undefined;
+  } {
+    const sid = request.headers['x-session-id'] as string | undefined;
+    return {
+      ipAddress: request.ip ?? request.socket?.remoteAddress,
+      userAgent: request.headers['user-agent'] as string | undefined,
+      requestId: request.headers['x-request-id'] as string | undefined,
+      sessionId: sid && /^[0-9a-f-]{36}$/i.test(sid) ? sid : undefined,
+    };
   }
 
   private isAuditedHandler(host: ArgumentsHost): boolean {

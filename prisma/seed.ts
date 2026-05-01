@@ -131,6 +131,7 @@ const PERMISSIONS: {
   { resource: 'clinical_notes', action: 'update' },
   { resource: 'patient_files', action: 'create' },
   { resource: 'patient_files', action: 'read' },
+  { resource: 'patient_files', action: 'update' },
   { resource: 'patient_files', action: 'delete' },
   // Resources & Operations
   { resource: 'forms', action: 'create' },

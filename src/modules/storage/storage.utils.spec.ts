@@ -51,7 +51,9 @@ describe('storage.utils', () => {
     });
 
     it('should reject disallowed MIME types', () => {
-      expect(() => validateMimeType('text/plain')).toThrow(BadRequestException);
+      expect(() => validateMimeType('application/x-msdownload')).toThrow(
+        BadRequestException,
+      );
       expect(() => validateMimeType('application/exe')).toThrow(
         BadRequestException,
       );

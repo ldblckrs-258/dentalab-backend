@@ -18,4 +18,9 @@ export interface AuditEventInput<C extends AuditEventCode = AuditEventCode> {
   actorId?: string;
   actorEmail?: string;
   source?: string;
+  /** Override request-scoped fields when emitting outside AsyncLocalStorage context (e.g. from exception filters). */
+  ipAddress?: string;
+  userAgent?: string;
+  requestId?: string;
+  sessionId?: string;
 }

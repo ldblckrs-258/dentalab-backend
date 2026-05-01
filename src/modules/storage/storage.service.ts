@@ -71,7 +71,7 @@ export class StorageService {
         ContentType: options.contentType,
         Metadata: {
           'uploaded-by': options.uploadedBy,
-          'original-filename': options.originalFilename,
+          'original-filename': encodeURIComponent(options.originalFilename),
           'upload-timestamp': new Date().toISOString(),
           'entity-type': options.category,
         },

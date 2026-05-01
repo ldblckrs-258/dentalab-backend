@@ -54,7 +54,11 @@ export const AUDIT_EVENTS = {
   PATIENT_VIEWED: { category: 'phi', severity: 'info' },
   PATIENT_CREATED: { category: 'phi', severity: 'notice' },
   PATIENT_UPDATED: { category: 'phi', severity: 'notice' },
-  PATIENT_DELETED: { category: 'phi', severity: 'critical' },
+  PATIENT_DELETED: {
+    category: 'phi',
+    severity: 'critical',
+    reasonRequired: true,
+  },
   CLINICAL_NOTE_VIEWED: {
     category: 'phi',
     severity: 'info',
@@ -74,6 +78,7 @@ export const AUDIT_EVENTS = {
     reasonRequired: true,
   },
   PATIENT_FILE_CREATED: { category: 'phi', severity: 'notice' },
+  PATIENT_FILE_UPDATED: { category: 'phi', severity: 'info' },
   PATIENT_FILE_DELETED: { category: 'phi', severity: 'warning' },
 
   APPOINTMENT_CREATED: { category: 'ops', severity: 'info' },

@@ -13,6 +13,7 @@ import { AuditModule } from '@modules/audit';
 import { HealthModule } from '@modules/health';
 import { UserModule } from '@modules/user';
 import { ProviderModule } from '@modules/provider';
+import { PatientModule } from '@modules/patient';
 import { EmailModule } from '@modules/email';
 import { KioskModule } from '@modules/kiosk';
 import { DEFAULT_LANGUAGE } from '@common/constants';
@@ -49,6 +50,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     AuditModule,
     UserModule,
     ProviderModule,
+    PatientModule,
     KioskModule,
     HealthModule,
   ],

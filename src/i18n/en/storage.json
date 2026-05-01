@@ -1,0 +1,4 @@
+{
+  "file_type_not_allowed": "This file type is not supported. Please upload images (JPG, PNG, WEBP, GIF), PDF, Word documents, or text files (TXT, MD, CSV, JSON).",
+  "file_size_exceeded": "File is too large. Maximum allowed size is {{maxMb}} MB."
+}
