@@ -1,0 +1,7 @@
+{
+  "created": "Patient created successfully",
+  "updated": "Patient updated successfully",
+  "deleted": "Patient deleted successfully",
+  "not_found": "Patient not found",
+  "deletedPlaceholder": "Deleted Patient"
+}

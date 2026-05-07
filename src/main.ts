@@ -6,6 +6,7 @@ import { PermissionGuard } from '@modules/rbac/guards/permission.guard';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
+import express from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -22,6 +23,9 @@ async function bootstrap() {
   });
 
   app.use(cookieParser());
+
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   app.enableCors({
     origin: CORS_ORIGINS === '*' ? true : CORS_ORIGINS.split(','),

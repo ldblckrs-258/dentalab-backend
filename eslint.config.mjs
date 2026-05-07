@@ -6,12 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: [
-      'eslint.config.mjs',
-      'dist/**',
-      'node_modules/**',
-      'coverage/**',
-    ],
+    ignores: ['eslint.config.mjs', 'dist/**', 'node_modules/**', 'coverage/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
@@ -39,8 +34,9 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/require-await': 'warn',
+      '@typescript-eslint/no-unused-vars': 'warn',
       '@typescript-eslint/no-misused-promises': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
 );

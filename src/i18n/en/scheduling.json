@@ -1,0 +1,18 @@
+{
+  "appointment": {
+    "created": "Appointment scheduled successfully",
+    "updated": "Appointment updated successfully",
+    "cancelled": "Appointment cancelled successfully",
+    "not_found": "Appointment not found",
+    "conflict": "Appointment time conflict detected"
+  },
+  "invalidTimeRange": "End time must be after start time",
+  "scheduleOverlap": "Schedule time block overlaps with an existing block",
+  "providerNotActive": "Provider is not active",
+  "scheduleNotFound": "Schedule not found",
+  "notOwnProvider": "Provider does not belong to you",
+  "overrideConflicts": "Schedule override has conflicting appointments",
+  "cancelNotPending": "Only pending overrides can be cancelled",
+  "notOwnOverride": "You can only cancel your own overrides",
+  "overrideNotFound": "Schedule override not found"
+}

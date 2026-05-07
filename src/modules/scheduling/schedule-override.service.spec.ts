@@ -1,0 +1,403 @@
+import { Test } from '@nestjs/testing';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { ScheduleOverrideService } from './schedule-override.service';
+import { PrismaService } from '@modules/database';
+import { AuditService } from '@modules/audit';
+import { mockI18nContext } from '@common/test/i18n-mock';
+
+const mockUser = {
+  id: 'user-1',
+  email: 'doctor@test.com',
+  fullName: 'Test Doctor',
+  isActive: true,
+};
+const mockOverride = {
+  id: 'override-1',
+  providerId: 'provider-1',
+  requestedBy: 'user-1',
+  specificDate: new Date('2026-05-15T00:00:00.000Z'),
+  overrideType: 'custom_hours',
+  startTime: '10:00',
+  endTime: '12:00',
+  reason: 'Personal appointment',
+  status: 'pending',
+  requestedAt: new Date(),
+  reviewedBy: null,
+  reviewedAt: null,
+  reviewNote: null,
+};
+
+describe('ScheduleOverrideService', () => {
+  let service: ScheduleOverrideService;
+  let prisma: any;
+  let auditService: any;
+
+  beforeEach(async () => {
+    mockI18nContext();
+
+    prisma = {
+      baseClient: {
+        providerScheduleOverride: {
+          findMany: jest.fn().mockResolvedValue([]),
+          count: jest.fn().mockResolvedValue(0),
+          findUnique: jest.fn(),
+          findFirst: jest.fn(),
+          create: jest.fn(),
+          update: jest.fn(),
+        },
+        provider: {
+          findFirst: jest.fn(),
+          findUnique: jest.fn(),
+        },
+        appointment: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      },
+      transaction: jest.fn((cb: any) => cb(prisma.baseClient)),
+    };
+
+    auditService = { emit: jest.fn() };
+
+    const module = await Test.createTestingModule({
+      providers: [
+        ScheduleOverrideService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: AuditService, useValue: auditService },
+      ],
+    }).compile();
+
+    service = module.get(ScheduleOverrideService);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('assertOwnProvider', () => {
+    it('should pass when provider belongs to current user', async () => {
+      prisma.baseClient.provider.findFirst.mockResolvedValue({
+        id: 'provider-1',
+      });
+
+      await expect(
+        service.assertOwnProvider(mockUser, 'provider-1'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('should throw ForbiddenException when provider does not belong to user', async () => {
+      prisma.baseClient.provider.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.assertOwnProvider(mockUser, 'provider-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should throw ForbiddenException when provider id mismatch', async () => {
+      prisma.baseClient.provider.findFirst.mockResolvedValue({
+        id: 'provider-2',
+      });
+
+      await expect(
+        service.assertOwnProvider(mockUser, 'provider-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('create', () => {
+    it('should create a pending override for custom_hours', async () => {
+      prisma.baseClient.providerScheduleOverride.create.mockResolvedValue(
+        mockOverride,
+      );
+
+      const result = await service.create(
+        {
+          providerId: 'provider-1',
+          specificDate: new Date('2026-05-15'),
+          overrideType: 'custom_hours',
+          startTime: '10:00',
+          endTime: '12:00',
+          reason: 'Personal appointment',
+        },
+        mockUser,
+      );
+
+      expect(result.status).toBe('pending');
+      expect(result.requestedBy).toBe('user-1');
+      expect(
+        prisma.baseClient.providerScheduleOverride.create,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'pending',
+            requestedBy: 'user-1',
+          }),
+        }),
+      );
+    });
+
+    it('should create a pending override for day_off with null times', async () => {
+      prisma.baseClient.providerScheduleOverride.create.mockResolvedValue({
+        ...mockOverride,
+        overrideType: 'day_off',
+        startTime: null,
+        endTime: null,
+      });
+
+      const result = await service.create(
+        {
+          providerId: 'provider-1',
+          specificDate: new Date('2026-05-15'),
+          overrideType: 'day_off',
+          reason: 'Vacation',
+        },
+        mockUser,
+      );
+
+      expect(result.overrideType).toBe('day_off');
+    });
+  });
+
+  describe('findById', () => {
+    it('should return override by id', async () => {
+      prisma.baseClient.providerScheduleOverride.findUnique.mockResolvedValue(
+        mockOverride,
+      );
+
+      const result = await service.findById('override-1');
+      expect(result).toEqual(mockOverride);
+    });
+
+    it('should throw NotFoundException when not found', async () => {
+      prisma.baseClient.providerScheduleOverride.findUnique.mockResolvedValue(
+        null,
+      );
+
+      await expect(service.findById('unknown')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return paginated results', async () => {
+      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
+        mockOverride,
+      ]);
+      prisma.baseClient.providerScheduleOverride.count.mockResolvedValue(1);
+
+      const result = await service.findAll({ page: 1, limit: 10 });
+      expect(result.data).toHaveLength(1);
+      expect(result.meta.total).toBe(1);
+    });
+
+    it('should filter by providerId', async () => {
+      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([]);
+      prisma.baseClient.providerScheduleOverride.count.mockResolvedValue(0);
+
+      await service.findAll({ page: 1, limit: 10, providerId: 'provider-1' });
+
+      expect(
+        prisma.baseClient.providerScheduleOverride.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ providerId: 'provider-1' }),
+        }),
+      );
+    });
+  });
+
+  describe('findPending', () => {
+    it('should return only pending overrides', async () => {
+      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
+        mockOverride,
+      ]);
+      prisma.baseClient.providerScheduleOverride.count.mockResolvedValue(1);
+
+      await service.findPending({ page: 1, limit: 10 });
+
+      expect(
+        prisma.baseClient.providerScheduleOverride.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: 'pending' }),
+        }),
+      );
+    });
+  });
+
+  describe('findMine', () => {
+    it('should return overrides for the current user provider', async () => {
+      prisma.baseClient.provider.findFirst.mockResolvedValue({
+        id: 'provider-1',
+      });
+      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
+        mockOverride,
+      ]);
+      prisma.baseClient.providerScheduleOverride.count.mockResolvedValue(1);
+
+      const result = await service.findMine(mockUser, {
+        page: 1,
+        limit: 10,
+      });
+
+      expect(result.data).toHaveLength(1);
+      expect(
+        prisma.baseClient.providerScheduleOverride.findMany,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ providerId: 'provider-1' }),
+        }),
+      );
+    });
+  });
+
+  describe('review', () => {
+    beforeEach(() => {
+      prisma.baseClient.providerScheduleOverride.findUnique.mockResolvedValue(
+        mockOverride,
+      );
+    });
+
+    it('should approve an override', async () => {
+      const result = await service.review(
+        'override-1',
+        { decision: 'approve' },
+        mockUser,
+      );
+
+      expect(result.status).toBe('approved');
+    });
+
+    it('should reject an override', async () => {
+      const result = await service.review(
+        'override-1',
+        { decision: 'reject', reviewNote: 'Not needed' },
+        mockUser,
+      );
+
+      expect(result.status).toBe('rejected');
+    });
+
+    it('should emit SCHEDULE_OVERRIDE_APPROVED on approve', async () => {
+      await service.review('override-1', { decision: 'approve' }, mockUser);
+
+      expect(auditService.emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'SCHEDULE_OVERRIDE_APPROVED',
+          resource: 'schedule_override',
+          resourceId: 'override-1',
+        }),
+      );
+    });
+
+    it('should emit SCHEDULE_OVERRIDE_REJECTED on reject', async () => {
+      await service.review(
+        'override-1',
+        { decision: 'reject', reviewNote: 'No approval needed' },
+        mockUser,
+      );
+
+      expect(auditService.emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          code: 'SCHEDULE_OVERRIDE_REJECTED',
+          resource: 'schedule_override',
+          resourceId: 'override-1',
+        }),
+      );
+    });
+
+    it('should throw ConflictException when conflicting appointments exist without force', async () => {
+      prisma.baseClient.appointment.findMany.mockResolvedValue([
+        {
+          id: 'apt-1',
+          startTime: new Date('2026-05-15T10:30:00'),
+          endTime: new Date('2026-05-15T11:30:00'),
+          status: 'scheduled',
+        },
+      ]);
+
+      await expect(
+        service.review('override-1', { decision: 'approve' }, mockUser),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should approve despite conflicts when force=true', async () => {
+      prisma.baseClient.appointment.findMany.mockResolvedValue([
+        {
+          id: 'apt-1',
+          startTime: new Date('2026-05-15T10:30:00'),
+          endTime: new Date('2026-05-15T11:30:00'),
+          status: 'scheduled',
+        },
+      ]);
+
+      const result = await service.review(
+        'override-1',
+        { decision: 'approve', force: true },
+        mockUser,
+      );
+
+      expect(result.status).toBe('approved');
+      expect(result.conflictList).toHaveLength(1);
+    });
+
+    it('should reject without reviewNote (no validation at service level)', async () => {
+      const result = await service.review(
+        'override-1',
+        { decision: 'reject' },
+        mockUser,
+      );
+
+      expect(result.status).toBe('rejected');
+    });
+  });
+
+  describe('cancel', () => {
+    it('should cancel a pending override by owner', async () => {
+      prisma.baseClient.providerScheduleOverride.findUnique.mockResolvedValue(
+        mockOverride,
+      );
+      prisma.baseClient.provider.findFirst.mockResolvedValue({
+        id: 'provider-1',
+      });
+      prisma.baseClient.providerScheduleOverride.update.mockResolvedValue({
+        ...mockOverride,
+        status: 'cancelled',
+      });
+
+      const result = await service.cancel('override-1', mockUser);
+
+      expect(result.status).toBe('cancelled');
+    });
+
+    it('should throw BadRequestException when status is not pending', async () => {
+      prisma.baseClient.providerScheduleOverride.findUnique.mockResolvedValue({
+        ...mockOverride,
+        status: 'approved',
+      });
+
+      await expect(service.cancel('override-1', mockUser)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw ForbiddenException when user is not the requester and not the provider', async () => {
+      prisma.baseClient.providerScheduleOverride.findUnique.mockResolvedValue({
+        ...mockOverride,
+        requestedBy: 'user-2',
+      });
+      prisma.baseClient.provider.findFirst.mockResolvedValue({
+        id: 'provider-3',
+      });
+
+      await expect(service.cancel('override-1', mockUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+});

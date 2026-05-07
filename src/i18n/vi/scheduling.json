@@ -1,0 +1,18 @@
+{
+  "appointment": {
+    "created": "Lịch hẹn được tạo thành công",
+    "updated": "Lịch hẹn được cập nhật thành công",
+    "cancelled": "Lịch hẹn được hủy thành công",
+    "not_found": "Không tìm thấy lịch hẹn",
+    "conflict": "Phát hiện xung đột thời gian lịch hẹn"
+  },
+  "invalidTimeRange": "Thời gian kết thúc phải sau thời gian bắt đầu",
+  "scheduleOverlap": "Khung thời gian lịch trực trùng với khung thời gian đã tồn tại",
+  "providerNotActive": "Bác sĩ không còn hoạt động",
+  "scheduleNotFound": "Không tìm thấy lịch trực",
+  "notOwnProvider": "Bác sĩ không thuộc về bạn",
+  "overrideConflicts": "Yêu cầu thay đổi lịch trực có xung đột với lịch hẹn",
+  "cancelNotPending": "Chỉ có thể hủy các yêu cầu đang chờ duyệt",
+  "notOwnOverride": "Bạn chỉ có thể hủy yêu cầu của chính mình",
+  "overrideNotFound": "Không tìm thấy yêu cầu thay đổi lịch trực"
+}

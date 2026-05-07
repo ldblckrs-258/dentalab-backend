@@ -1,0 +1,7 @@
+{
+  "created": "Bệnh nhân được tạo thành công",
+  "updated": "Bệnh nhân được cập nhật thành công",
+  "deleted": "Bệnh nhân được xóa thành công",
+  "not_found": "Không tìm thấy bệnh nhân",
+  "deletedPlaceholder": "Bệnh nhân đã xóa"
+}

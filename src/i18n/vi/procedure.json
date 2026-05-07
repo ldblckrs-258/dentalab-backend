@@ -1,0 +1,28 @@
+{
+  "created": "Quy trình được tạo thành công",
+  "updated": "Quy trình được cập nhật thành công",
+  "deleted": "Quy trình được xóa thành công",
+  "not_found": "Không tìm thấy quy trình",
+  "category": {
+    "created": "Danh mục được tạo thành công",
+    "updated": "Danh mục được cập nhật thành công",
+    "deleted": "Danh mục được xóa thành công",
+    "not_found": "Không tìm thấy danh mục",
+    "has_procedures": "Không thể xóa danh mục có chứa quy trình"
+  },
+  "import": {
+    "preview_success": "Đã phân tích CSV thành công",
+    "execute_success": "Nhập dữ liệu hoàn tất",
+    "parse_error": "Không thể phân tích tệp CSV. Đảm bảo tệp là UTF-8 hợp lệ.",
+    "too_many_rows": "Tệp CSV vượt quá giới hạn 1000 dòng. Hãy chia tệp và thử lại.",
+
+    "row_missing_ada_code": "Dòng {{row}}: adaCode là bắt buộc",
+    "row_missing_name": "Dòng {{row}}: name là bắt buộc",
+    "row_invalid_ada_code_length": "Dòng {{row}}: adaCode phải từ 1–20 ký tự",
+    "row_invalid_duration": "Dòng {{row}}: durationMinutes phải là số nguyên dương",
+    "row_invalid_fee": "Dòng {{row}}: defaultFee phải là số không âm",
+    "row_invalid_is_active": "Dòng {{row}}: isActive phải là 'true' hoặc 'false'",
+    "row_intra_duplicate": "Dòng {{row}}: adaCode '{{adaCode}}' xuất hiện nhiều hơn một lần trong tệp",
+    "race_conflict": "adaCode '{{adaCode}}' đã được thêm bởi người dùng khác trong quá trình nhập. Tải lại tệp để thử lại."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "created": "Kế hoạch điều trị được tạo thành công",
+  "updated": "Kế hoạch điều trị được cập nhật thành công",
+  "deleted": "Kế hoạch điều trị được xóa thành công",
+  "not_found": "Không tìm thấy kế hoạch điều trị",
+  "insufficient_permissions": "Không đủ quyền để xem tất cả kế hoạch điều trị",
+  "invalid_date_range": "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc",
+  "not_a_provider": "Chỉ có bác sĩ mới có thể tạo hoặc chỉnh sửa kế hoạch điều trị",
+  "edit_locked": "Kế hoạch điều trị đã bị khóa. Chỉ có thể thay đổi ghi chú và ngày kết thúc sau khi chấp nhận.",
+  "invalid_transition": "Chuyển trạng thái kế hoạch điều trị không hợp lệ",
+  "notes_required_for_acceptance": "Cần có ghi chú để chấp nhận kế hoạch điều trị",
+  "appointment_required_for_start": "Cần ít nhất một lịch hẹn chưa hủy để bắt đầu kế hoạch điều trị",
+  "appointments_not_completed": "Tất cả lịch hẹn phải hoàn thành hoặc hủy trước khi hoàn tất kế hoạch",
+  "not_own_plan": "Bạn chỉ có thể chỉnh sửa kế hoạch điều trị của chính mình",
+  "status": {
+    "draft": "Bản nháp",
+    "active": "Đang hoạt động",
+    "completed": "Đã hoàn thành",
+    "cancelled": "Đã hủy"
+  }
+}

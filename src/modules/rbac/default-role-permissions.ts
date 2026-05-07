@@ -1,15 +1,15 @@
 import { SYSTEM_ROLE_CODE } from '../../common/constants';
 
 /**  Single source of truth for the permission set each system role receives.
- * Used by both the seed script (initial install) and the
- * "reset role permissions" endpoint (runtime reset to defaults).
+ *  Used by both the seed script (initial install) and the
+ *  "reset role permissions" endpoint (runtime reset to defaults).
  *
- * Values are permission keys in `resource:action` or `resource:action:scope`
- * form — resolved to permission IDs by the caller.
+ *  Values are permission keys in `resource:action` or `resource:action:scope`
+ *  form — resolved to permission IDs by the caller.
  *
- * ADMIN is intentionally absent: it resets dynamically to "every permission
- * currently in the `permissions` table" so that newly seeded permissions
- * always flow to Admin without having to update this list.
+ *  ADMIN is intentionally absent: it resets dynamically to "every permission
+ *  currently in the `permissions` table" so that newly seeded permissions
+ *  always flow to Admin without having to update this list.
  */
 
 export function perm(resource: string, action: string): string {
@@ -38,9 +38,14 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     ...allActions('clinical_notes'),
     perm('patient_files', 'create'),
     perm('patient_files', 'read'),
-    ...allActions('treatment_plans'),
+    perm('treatment_plans', 'create'),
+    perm('treatment_plans', 'read'),
+    scopedPerm('treatment_plans', 'read', 'full'),
+    perm('treatment_plans', 'update'),
+    perm('treatment_plans', 'cancel'),
     perm('schedule_overrides', 'create'),
     perm('schedule_overrides', 'read'),
+    perm('schedule_overrides', 'cancel'),
     perm('provider_schedules', 'read'),
     perm('internal_documents', 'read'),
     perm('forms', 'read'),
@@ -63,6 +68,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('patient_files', 'delete'),
     perm('procedures', 'read'),
     perm('appointment_types', 'read'),
+    perm('treatment_plans', 'read'),
+    scopedPerm('treatment_plans', 'read', 'metadata'),
     perm('provider_schedules', 'read'),
     perm('forms', 'read'),
     perm('form_submissions', 'read'),
@@ -84,10 +91,22 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     ...allActions('inventory_items'),
     ...allActions('forms'),
     perm('form_submissions', 'read'),
+    perm('treatment_plans', 'create'),
+    perm('treatment_plans', 'read'),
+    scopedPerm('treatment_plans', 'read', 'full'),
+    perm('treatment_plans', 'update'),
+    perm('treatment_plans', 'cancel'),
+    perm('schedule_overrides', 'create'),
     perm('schedule_overrides', 'read'),
     perm('schedule_overrides', 'update'),
+    perm('schedule_overrides', 'review'),
+    perm('schedule_overrides', 'cancel'),
+    perm('provider_schedules', 'create'),
     perm('provider_schedules', 'read'),
     perm('provider_schedules', 'update'),
+    perm('provider_schedules', 'delete'),
+    perm('procedures', 'create'),
+    perm('procedures', 'update'),
     perm('chat_sessions', 'create'),
     perm('chat_sessions', 'read'),
     perm('chat_sessions', 'delete'),

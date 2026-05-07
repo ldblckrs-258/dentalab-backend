@@ -1,58 +1,53 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
 }
 
-// ──────────────────────────────────────────
-// Auth & RBAC
-// ──────────────────────────────────────────
-
 model User {
-  id                String   @id @default(uuid()) @db.Uuid
-  email             String   @unique
-  passwordHash      String   @map("password_hash")
-  fullName          String   @map("full_name")
-  phone             String?
-  avatarUrl         String?  @map("avatar_url")
-  preferredLanguage String   @default("vi") @db.VarChar(5) @map("preferred_language")
-  isActive          Boolean  @default(true) @map("is_active")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  userRoles                UserRole[]
-  userPermissionOverrides  UserPermissionOverride[]
-  refreshTokens            RefreshToken[]
-  passwordResetTokens      PasswordResetToken[]
-  provider                 Provider?
-  createdAppointments      Appointment[]              @relation("CreatedByUser")
-  cancelledAppointments    Appointment[]              @relation("CancelledByUser")
-  uploadedFiles            PatientFile[]
-  createdForms             Form[]
-  createdKioskSessions     KioskSession[]             @relation("KioskCreatedByUser")
-  closedKioskSessions      KioskSession[]             @relation("KioskClosedByUser")
-  authoredDocuments        InternalDocument[]
-  documentVersionChanges   DocumentVersion[]
-  inventoryTransactions    InventoryTransaction[]
-  chatSessions             ChatSession[]
-  requestedOverrides       ProviderScheduleOverride[] @relation("RequestedByUser")
-  reviewedOverrides        ProviderScheduleOverride[] @relation("ReviewedByUser")
-  grantedOverrides         UserPermissionOverride[]   @relation("GrantedByUser")
-  revokedOverrides         UserPermissionOverride[]   @relation("RevokedByUser")
+  id                      String                     @id @default(uuid()) @db.Uuid
+  email                   String                     @unique
+  passwordHash            String                     @map("password_hash")
+  fullName                String                     @map("full_name")
+  phone                   String?
+  avatarUrl               String?                    @map("avatar_url")
+  preferredLanguage       String                     @default("vi") @map("preferred_language") @db.VarChar(5)
+  isActive                Boolean                    @default(true) @map("is_active")
+  createdAt               DateTime                   @default(now()) @map("created_at")
+  updatedAt               DateTime                   @updatedAt @map("updated_at")
+  cancelledAppointments   Appointment[]              @relation("CancelledByUser")
+  createdAppointments     Appointment[]              @relation("CreatedByUser")
+  chatSessions            ChatSession[]
+  documentVersionChanges  DocumentVersion[]
+  createdForms            Form[]
+  authoredDocuments       InternalDocument[]
+  inventoryTransactions   InventoryTransaction[]
+  closedKioskSessions     KioskSession[]             @relation("KioskClosedByUser")
+  createdKioskSessions    KioskSession[]             @relation("KioskCreatedByUser")
+  passwordResetTokens     PasswordResetToken[]
+  uploadedFiles           PatientFile[]
+  requestedOverrides      ProviderScheduleOverride[] @relation("RequestedByUser")
+  reviewedOverrides       ProviderScheduleOverride[] @relation("ReviewedByUser")
+  provider                Provider?
+  refreshTokens           RefreshToken[]
+  grantedOverrides        UserPermissionOverride[]   @relation("GrantedByUser")
+  revokedOverrides        UserPermissionOverride[]   @relation("RevokedByUser")
+  userPermissionOverrides UserPermissionOverride[]
+  userRoles               UserRole[]
 
   @@map("users")
 }
 
 model Role {
-  id          String   @id @default(uuid()) @db.Uuid
-  code        String?  @unique @db.VarChar(32)
-  name        String   @unique
-  description String?
-  isSystem    Boolean  @default(false) @map("is_system")
-  createdAt   DateTime @default(now()) @map("created_at")
-
+  id              String           @id @default(uuid()) @db.Uuid
+  name            String           @unique
+  description     String?
+  isSystem        Boolean          @default(false) @map("is_system")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  code            String?          @unique @db.VarChar(32)
   rolePermissions RolePermission[]
   userRoles       UserRole[]
 
@@ -60,109 +55,102 @@ model Role {
 }
 
 model Permission {
-  id          String  @id @default(uuid()) @db.Uuid
-  resource    String
-  action      String
-  scope       String?
-  description String?
-
+  id                      String                   @id @default(uuid()) @db.Uuid
+  resource                String
+  action                  String
+  scope                   String?
+  description             String?
+  ragDocumentPermissions  RagDocumentPermission[]
   rolePermissions         RolePermission[]
   userPermissionOverrides UserPermissionOverride[]
-  ragDocumentPermissions  RagDocumentPermission[]
 
   @@unique([resource, action, scope])
   @@map("permissions")
 }
 
 model RolePermission {
-  roleId       String @db.Uuid @map("role_id")
-  permissionId String @db.Uuid @map("permission_id")
-
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
 }
 
 model UserRole {
-  userId String @db.Uuid @map("user_id")
-  roleId String @db.Uuid @map("role_id")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([userId, roleId])
   @@map("user_roles")
 }
 
 model UserPermissionOverride {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @db.Uuid @map("user_id")
-  permissionId String    @db.Uuid @map("permission_id")
-  grantType    String    @map("grant_type") // 'grant' | 'deny'
-  reason       String?
-  grantedBy    String    @db.Uuid @map("granted_by")
-  expiresAt    DateTime? @map("expires_at")
-  isActive     Boolean   @default(true) @map("is_active")
-  revokedBy    String?   @db.Uuid @map("revoked_by")
-  revokedAt    DateTime? @map("revoked_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
+  id            String     @id @default(uuid()) @db.Uuid
+  userId        String     @map("user_id") @db.Uuid
+  permissionId  String     @map("permission_id") @db.Uuid
+  grantType     String     @map("grant_type")
+  reason        String?
+  grantedBy     String     @map("granted_by") @db.Uuid
+  expiresAt     DateTime?  @map("expires_at")
+  isActive      Boolean    @default(true) @map("is_active")
+  revokedBy     String?    @map("revoked_by") @db.Uuid
+  revokedAt     DateTime?  @map("revoked_at")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  grantedByUser User       @relation("GrantedByUser", fields: [grantedBy], references: [id])
+  permission    Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  revokedByUser User?      @relation("RevokedByUser", fields: [revokedBy], references: [id])
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission     Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  grantedByUser  User       @relation("GrantedByUser", fields: [grantedBy], references: [id])
-  revokedByUser  User?      @relation("RevokedByUser", fields: [revokedBy], references: [id])
-
+  @@unique([userId, permissionId], map: "user_permission_overrides_active_unique", where: raw("(is_active = true)"))
   @@map("user_permission_overrides")
 }
 
 model AuditLog {
   id             String   @id @default(uuid()) @db.Uuid
   eventCode      String   @map("event_code")
-  eventVersion   Int      @default(1) @db.SmallInt @map("event_version")
+  eventVersion   Int      @default(1) @map("event_version") @db.SmallInt
   category       String
   severity       String
   outcome        String
-
   actorType      String   @map("actor_type")
-  actorId        String?  @db.Uuid @map("actor_id")
+  actorId        String?  @map("actor_id") @db.Uuid
   actorEmail     String?  @map("actor_email")
   actorRoleCodes String[] @default([]) @map("actor_role_codes")
-  sessionId      String?  @db.Uuid @map("session_id")
-  requestId      String?  @db.Uuid @map("request_id")
-
-  resource        String?
-  resourceId      String?  @db.Uuid @map("resource_id")
-  parentResource  String?  @map("parent_resource")
-  parentId        String?  @db.Uuid @map("parent_id")
-
-  before    Json?
-  after     Json?
-  metadata  Json?
-
-  ipAddress String? @map("ip_address")
-  userAgent String? @map("user_agent")
-  source    String
-
-  reason String?
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  sessionId      String?  @map("session_id") @db.Uuid
+  requestId      String?  @map("request_id") @db.Uuid
+  resource       String?
+  resourceId     String?  @map("resource_id") @db.Uuid
+  parentResource String?  @map("parent_resource")
+  parentId       String?  @map("parent_id") @db.Uuid
+  before         Json?
+  after          Json?
+  metadata       Json?
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  source         String
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([createdAt], map: "idx_audit_logs_created_at_brin", type: Brin)
   @@index([eventCode, createdAt(sort: Desc)], map: "idx_audit_logs_event_code_time")
   @@index([metadata(ops: JsonbPathOps)], map: "idx_audit_logs_metadata_gin", type: Gin)
+  @@index([actorId, createdAt(sort: Desc)], map: "idx_audit_logs_actor_time", where: raw("(actor_id IS NOT NULL)"))
+  @@index([createdAt(sort: Desc)], map: "idx_audit_logs_phi_time", where: raw("(category = 'phi'::text)"))
+  @@index([resource, resourceId, createdAt(sort: Desc)], map: "idx_audit_logs_resource_time", where: raw("(resource_id IS NOT NULL)"))
   @@map("audit_logs")
 }
 
 model RefreshToken {
   id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid @map("user_id")
+  userId    String   @map("user_id") @db.Uuid
   tokenHash String   @map("token_hash")
   expiresAt DateTime @map("expires_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([tokenHash])
   @@map("refresh_tokens")
@@ -170,146 +158,137 @@ model RefreshToken {
 
 model PasswordResetToken {
   id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid @map("user_id")
+  userId    String    @map("user_id") @db.Uuid
   tokenHash String    @map("token_hash")
   expiresAt DateTime  @map("expires_at")
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([tokenHash])
   @@map("password_reset_tokens")
 }
 
-// ──────────────────────────────────────────
-// Scheduling & Clinical
-// ──────────────────────────────────────────
-
 model Provider {
-  id            String   @id @default(uuid()) @db.Uuid
-  userId        String   @unique @db.Uuid @map("user_id")
-  specialty     String?
-  licenseNumber String?  @map("license_number")
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  schedules         ProviderSchedule[]
-  scheduleOverrides ProviderScheduleOverride[]
+  id                String                     @id @default(uuid()) @db.Uuid
+  userId            String                     @unique @map("user_id") @db.Uuid
+  specialty         String?
+  licenseNumber     String?                    @map("license_number")
+  isActive          Boolean                    @default(true) @map("is_active")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
   appointments      Appointment[]
   clinicalNotes     ClinicalNote[]
+  scheduleOverrides ProviderScheduleOverride[]
+  schedules         ProviderSchedule[]
+  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   treatmentPlans    TreatmentPlan[]
 
   @@map("providers")
 }
 
 model ProviderSchedule {
-  id          String  @id @default(uuid()) @db.Uuid
-  providerId  String  @db.Uuid @map("provider_id")
-  dayOfWeek   Int     @map("day_of_week") // 0=Sunday, 6=Saturday
-  startTime   String  @map("start_time") // "HH:mm" format
-  endTime     String  @map("end_time") // "HH:mm" format
-  isAvailable Boolean @default(true) @map("is_available")
-
-  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  id          String   @id @default(uuid()) @db.Uuid
+  providerId  String   @map("provider_id") @db.Uuid
+  dayOfWeek   Int      @map("day_of_week")
+  startTime   String   @map("start_time")
+  endTime     String   @map("end_time")
+  isAvailable Boolean  @default(true) @map("is_available")
+  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
 
   @@map("provider_schedules")
 }
 
 model ProviderScheduleOverride {
   id           String    @id @default(uuid()) @db.Uuid
-  providerId   String    @db.Uuid @map("provider_id")
-  requestedBy  String    @db.Uuid @map("requested_by")
-  specificDate DateTime  @db.Date @map("specific_date")
-  overrideType String    @map("override_type") // 'day_off' | 'custom_hours'
-  startTime    String?   @map("start_time") // "HH:mm" format
-  endTime      String?   @map("end_time") // "HH:mm" format
+  providerId   String    @map("provider_id") @db.Uuid
+  requestedBy  String    @map("requested_by") @db.Uuid
+  specificDate DateTime  @map("specific_date") @db.Date
+  overrideType String    @map("override_type")
+  startTime    String?   @map("start_time")
+  endTime      String?   @map("end_time")
   reason       String?
-  status       String    @default("pending") // 'pending' | 'approved' | 'rejected' | 'cancelled'
+  status       String    @default("pending")
   requestedAt  DateTime  @default(now()) @map("requested_at")
-  reviewedBy   String?   @db.Uuid @map("reviewed_by")
+  reviewedBy   String?   @map("reviewed_by") @db.Uuid
   reviewedAt   DateTime? @map("reviewed_at")
   reviewNote   String?   @map("review_note")
+  provider     Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  requester    User      @relation("RequestedByUser", fields: [requestedBy], references: [id])
+  reviewer     User?     @relation("ReviewedByUser", fields: [reviewedBy], references: [id])
 
-  provider  Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  requester User     @relation("RequestedByUser", fields: [requestedBy], references: [id])
-  reviewer  User?    @relation("ReviewedByUser", fields: [reviewedBy], references: [id])
-
+  @@unique([providerId, specificDate], map: "overrides_day_off_unique", where: raw("(status = 'approved' AND override_type = 'day_off')"))
   @@map("provider_schedule_overrides")
 }
 
 model AppointmentType {
-  id              String  @id @default(uuid()) @db.Uuid
+  id              String        @id @default(uuid()) @db.Uuid
   name            String
-  durationMinutes Int     @map("duration_minutes")
+  durationMinutes Int           @map("duration_minutes")
   color           String?
-  isActive        Boolean @default(true) @map("is_active")
-
-  appointments Appointment[]
+  isActive        Boolean       @default(true) @map("is_active")
+  appointments    Appointment[]
 
   @@map("appointment_types")
 }
 
 model Procedure {
-  id              String   @id @default(uuid()) @db.Uuid
-  adaCode         String   @unique @map("ada_code")
-  name            String
-  category        String?
-  durationMinutes Int?     @map("duration_minutes")
-  defaultFee      Decimal? @db.Decimal(10, 2) @map("default_fee")
-  isActive        Boolean  @default(true) @map("is_active")
-
+  id                    String                 @id @default(uuid()) @db.Uuid
+  adaCode               String                 @unique @map("ada_code")
+  name                  String
+  category              String?
+  durationMinutes       Int?                   @map("duration_minutes")
+  defaultFee            Decimal?               @map("default_fee") @db.Decimal(10, 2)
+  isActive              Boolean                @default(true) @map("is_active")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
   appointmentProcedures AppointmentProcedure[]
 
   @@map("procedures")
 }
 
 model TreatmentPlan {
-  id                 String    @id @default(uuid()) @db.Uuid
-  patientId          String    @db.Uuid @map("patient_id")
-  providerId         String    @db.Uuid @map("provider_id")
+  id                 String        @id @default(uuid()) @db.Uuid
+  patientId          String        @map("patient_id") @db.Uuid
+  providerId         String        @map("provider_id") @db.Uuid
   name               String
-  status             String    @default("draft") // 'draft' | 'proposed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled'
-  startDate          DateTime? @db.Date @map("start_date")
-  endDate            DateTime? @db.Date @map("end_date")
-  estimatedTotalCost Decimal?  @db.Decimal(10, 2) @map("estimated_total_cost")
+  status             String        @default("draft")
+  startDate          DateTime?     @map("start_date") @db.Date
+  endDate            DateTime?     @map("end_date") @db.Date
+  estimatedTotalCost Decimal?      @map("estimated_total_cost") @db.Decimal(10, 2)
   notes              String?
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-
-  patient      Patient       @relation(fields: [patientId], references: [id])
-  provider     Provider      @relation(fields: [providerId], references: [id])
-  appointments Appointment[]
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  appointments       Appointment[]
+  patient            Patient       @relation(fields: [patientId], references: [id])
+  provider           Provider      @relation(fields: [providerId], references: [id])
 
   @@map("treatment_plans")
 }
 
 model Appointment {
-  id                 String    @id @default(uuid()) @db.Uuid
-  patientId          String    @db.Uuid @map("patient_id")
-  providerId         String    @db.Uuid @map("provider_id")
-  typeId             String    @db.Uuid @map("type_id")
-  treatmentPlanId    String?   @db.Uuid @map("treatment_plan_id")
-  createdBy          String    @db.Uuid @map("created_by")
-  startTime          DateTime  @map("start_time")
-  endTime            DateTime  @map("end_time")
-  status             String    @default("scheduled") // 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
-  notes              String?
-  cancelledBy        String?   @db.Uuid @map("cancelled_by")
-  cancelledAt        DateTime? @map("cancelled_at")
-  cancellationReason String?   @map("cancellation_reason")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
-
-  patient               Patient              @relation(fields: [patientId], references: [id])
-  provider              Provider             @relation(fields: [providerId], references: [id])
-  appointmentType       AppointmentType      @relation(fields: [typeId], references: [id])
-  treatmentPlan         TreatmentPlan?       @relation(fields: [treatmentPlanId], references: [id])
-  createdByUser         User                 @relation("CreatedByUser", fields: [createdBy], references: [id])
-  cancelledByUser       User?                @relation("CancelledByUser", fields: [cancelledBy], references: [id])
+  id                    String                 @id @default(uuid()) @db.Uuid
+  patientId             String                 @map("patient_id") @db.Uuid
+  providerId            String                 @map("provider_id") @db.Uuid
+  typeId                String                 @map("type_id") @db.Uuid
+  treatmentPlanId       String?                @map("treatment_plan_id") @db.Uuid
+  createdBy             String                 @map("created_by") @db.Uuid
+  startTime             DateTime               @map("start_time")
+  endTime               DateTime               @map("end_time")
+  status                String                 @default("scheduled")
+  notes                 String?
+  cancelledBy           String?                @map("cancelled_by") @db.Uuid
+  cancelledAt           DateTime?              @map("cancelled_at")
+  cancellationReason    String?                @map("cancellation_reason")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
   appointmentProcedures AppointmentProcedure[]
+  cancelledByUser       User?                  @relation("CancelledByUser", fields: [cancelledBy], references: [id])
+  createdByUser         User                   @relation("CreatedByUser", fields: [createdBy], references: [id])
+  patient               Patient                @relation(fields: [patientId], references: [id])
+  provider              Provider               @relation(fields: [providerId], references: [id])
+  treatmentPlan         TreatmentPlan?         @relation(fields: [treatmentPlanId], references: [id])
+  appointmentType       AppointmentType        @relation(fields: [typeId], references: [id])
   clinicalNote          ClinicalNote?
   formSubmissions       FormSubmission[]
   kioskSessions         KioskSession[]
@@ -320,67 +299,60 @@ model Appointment {
 }
 
 model AppointmentProcedure {
-  id            String    @id @default(uuid()) @db.Uuid
-  appointmentId String    @db.Uuid @map("appointment_id")
-  procedureId   String    @db.Uuid @map("procedure_id")
-  toothNumber   String?   @map("tooth_number")
-  fee           Decimal?  @db.Decimal(10, 2)
-  status        String    @default("planned") // 'planned' | 'in_progress' | 'completed'
-  deletedAt     DateTime? @map("deleted_at")
-
-  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  procedure   Procedure   @relation(fields: [procedureId], references: [id])
+  id            String      @id @default(uuid()) @db.Uuid
+  appointmentId String      @map("appointment_id") @db.Uuid
+  procedureId   String      @map("procedure_id") @db.Uuid
+  toothNumber   String?     @map("tooth_number")
+  fee           Decimal?    @db.Decimal(10, 2)
+  status        String      @default("planned")
+  deletedAt     DateTime?   @map("deleted_at")
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  procedure     Procedure   @relation(fields: [procedureId], references: [id])
 
   @@map("appointment_procedures")
 }
 
 model ClinicalNote {
-  id            String    @id @default(uuid()) @db.Uuid
-  patientId     String    @db.Uuid @map("patient_id")
-  providerId    String    @db.Uuid @map("provider_id")
-  appointmentId String    @unique @db.Uuid @map("appointment_id")
+  id            String      @id @default(uuid()) @db.Uuid
+  patientId     String      @map("patient_id") @db.Uuid
+  providerId    String      @map("provider_id") @db.Uuid
+  appointmentId String      @unique @map("appointment_id") @db.Uuid
   subjective    String?
   objective     String?
   assessment    String?
   plan          String?
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
-
-  patient     Patient     @relation(fields: [patientId], references: [id])
-  provider    Provider    @relation(fields: [providerId], references: [id])
-  appointment Appointment @relation(fields: [appointmentId], references: [id])
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  deletedAt     DateTime?   @map("deleted_at")
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  patient       Patient     @relation(fields: [patientId], references: [id])
+  provider      Provider    @relation(fields: [providerId], references: [id])
 
   @@index([patientId, deletedAt])
   @@map("clinical_notes")
 }
 
-// ──────────────────────────────────────────
-// Patient
-// ──────────────────────────────────────────
-
 model Patient {
-  id                    String    @id @default(uuid()) @db.Uuid
-  firstName             String    @map("first_name")
-  lastName              String    @map("last_name")
-  dateOfBirth           DateTime? @db.Date @map("date_of_birth")
+  id                    String           @id @default(uuid()) @db.Uuid
+  firstName             String           @map("first_name")
+  lastName              String           @map("last_name")
+  dateOfBirth           DateTime?        @map("date_of_birth") @db.Date
   gender                String?
   phone                 String?
   email                 String?
   address               String?
-  emergencyContactName  String?   @map("emergency_contact_name")
-  emergencyContactPhone String?   @map("emergency_contact_phone")
-  isActive              Boolean   @default(true) @map("is_active")
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-  deletedAt             DateTime? @map("deleted_at")
-
-  files           PatientFile[]
-  appointments    Appointment[]
-  clinicalNotes   ClinicalNote[]
-  formSubmissions FormSubmission[]
-  treatmentPlans  TreatmentPlan[]
-  kioskSessions   KioskSession[]
+  emergencyContactName  String?          @map("emergency_contact_name")
+  emergencyContactPhone String?          @map("emergency_contact_phone")
+  isActive              Boolean          @default(true) @map("is_active")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+  deletedAt             DateTime?        @map("deleted_at")
+  appointments          Appointment[]
+  clinicalNotes         ClinicalNote[]
+  formSubmissions       FormSubmission[]
+  kioskSessions         KioskSession[]
+  files                 PatientFile[]
+  treatmentPlans        TreatmentPlan[]
 
   @@index([deletedAt])
   @@map("patients")
@@ -388,193 +360,180 @@ model Patient {
 
 model PatientFile {
   id          String    @id @default(uuid()) @db.Uuid
-  patientId   String    @db.Uuid @map("patient_id")
-  uploadedBy  String    @db.Uuid @map("uploaded_by")
+  patientId   String    @map("patient_id") @db.Uuid
+  uploadedBy  String    @map("uploaded_by") @db.Uuid
   fileName    String    @map("file_name")
   fileType    String    @map("file_type")
   fileUrl     String    @map("file_url")
   fileSize    BigInt    @map("file_size")
-  category    String    @default("other")
-  title       String?
-  description String?
   createdAt   DateTime  @default(now()) @map("created_at")
   deletedAt   DateTime? @map("deleted_at")
-
-  patient  Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
-  uploader User    @relation(fields: [uploadedBy], references: [id])
+  category    String    @default("other")
+  description String?
+  title       String?
+  patient     Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  uploader    User      @relation(fields: [uploadedBy], references: [id])
 
   @@map("patient_files")
 }
 
-// ──────────────────────────────────────────
-// Operations
-// ──────────────────────────────────────────
-
 model Form {
-  id             String    @id @default(uuid()) @db.Uuid
-  createdBy      String    @db.Uuid @map("created_by")
-  title          String
-  description    String?
-  schema         Json
-  isPublished    Boolean   @default(false) @map("is_published")
-  isKioskEnabled Boolean   @default(false) @map("is_kiosk_enabled")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
-
-  creator          User               @relation(fields: [createdBy], references: [id])
-  submissions      FormSubmission[]
+  id                String             @id @default(uuid()) @db.Uuid
+  createdBy         String             @map("created_by") @db.Uuid
+  title             String
+  description       String?
+  schema            Json
+  isPublished       Boolean            @default(false) @map("is_published")
+  isKioskEnabled    Boolean            @default(false) @map("is_kiosk_enabled")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  deletedAt         DateTime?          @map("deleted_at")
+  submissions       FormSubmission[]
+  creator           User               @relation(fields: [createdBy], references: [id])
   kioskSessionForms KioskSessionForm[]
 
   @@map("forms")
 }
 
 model FormSubmission {
-  id             String    @id @default(uuid()) @db.Uuid
-  patientId      String    @db.Uuid @map("patient_id")
-  formId         String    @db.Uuid @map("form_id")
-  appointmentId  String?   @db.Uuid @map("appointment_id")
-  kioskSessionId String?   @db.Uuid @map("kiosk_session_id")
+  id             String        @id @default(uuid()) @db.Uuid
+  patientId      String        @map("patient_id") @db.Uuid
+  formId         String        @map("form_id") @db.Uuid
+  appointmentId  String?       @map("appointment_id") @db.Uuid
+  kioskSessionId String?       @map("kiosk_session_id") @db.Uuid
   data           Json
-  submittedAt    DateTime  @default(now()) @map("submitted_at")
-  deletedAt      DateTime? @map("deleted_at")
-
-  patient      Patient       @relation(fields: [patientId], references: [id])
-  form         Form          @relation(fields: [formId], references: [id])
-  appointment  Appointment?  @relation(fields: [appointmentId], references: [id])
-  kioskSession KioskSession? @relation(fields: [kioskSessionId], references: [id])
+  submittedAt    DateTime      @default(now()) @map("submitted_at")
+  deletedAt      DateTime?     @map("deleted_at")
+  appointment    Appointment?  @relation(fields: [appointmentId], references: [id])
+  form           Form          @relation(fields: [formId], references: [id])
+  kioskSession   KioskSession? @relation(fields: [kioskSessionId], references: [id])
+  patient        Patient       @relation(fields: [patientId], references: [id])
 
   @@map("form_submissions")
 }
 
 model KioskSession {
-  id                   String    @id @default(uuid()) @db.Uuid
-  patientId            String    @db.Uuid @map("patient_id")
-  appointmentId        String?   @db.Uuid @map("appointment_id")
-  createdBy            String    @db.Uuid @map("created_by")
-  tokenHash            String    @unique @map("token_hash")
-  expiresInMinutes     Int       @default(30) @map("expires_in_minutes")
-  expiresAt            DateTime  @map("expires_at")
-  status               String    @default("active") // 'active' | 'completed' | 'expired' | 'closed'
-  deviceFingerprintHash String?  @map("device_fingerprint_hash")
-  initialIp            String?   @map("initial_ip")
-  closedBy             String?   @db.Uuid @map("closed_by")
-  closedReason         String?   @map("closed_reason")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  closedAt             DateTime? @map("closed_at")
-
-  patient         Patient            @relation(fields: [patientId], references: [id])
-  appointment     Appointment?       @relation(fields: [appointmentId], references: [id])
-  creator         User               @relation("KioskCreatedByUser", fields: [createdBy], references: [id])
-  closer          User?              @relation("KioskClosedByUser", fields: [closedBy], references: [id])
-  sessionForms    KioskSessionForm[]
-  formSubmissions FormSubmission[]
+  id                    String             @id @default(uuid()) @db.Uuid
+  patientId             String             @map("patient_id") @db.Uuid
+  appointmentId         String?            @map("appointment_id") @db.Uuid
+  createdBy             String             @map("created_by") @db.Uuid
+  tokenHash             String             @unique @map("token_hash")
+  expiresInMinutes      Int                @default(30) @map("expires_in_minutes")
+  expiresAt             DateTime           @map("expires_at")
+  status                String             @default("active")
+  deviceFingerprintHash String?            @map("device_fingerprint_hash")
+  initialIp             String?            @map("initial_ip")
+  closedBy              String?            @map("closed_by") @db.Uuid
+  closedReason          String?            @map("closed_reason")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  closedAt              DateTime?          @map("closed_at")
+  formSubmissions       FormSubmission[]
+  sessionForms          KioskSessionForm[]
+  appointment           Appointment?       @relation(fields: [appointmentId], references: [id])
+  closer                User?              @relation("KioskClosedByUser", fields: [closedBy], references: [id])
+  creator               User               @relation("KioskCreatedByUser", fields: [createdBy], references: [id])
+  patient               Patient            @relation(fields: [patientId], references: [id])
 
   @@index([tokenHash])
   @@map("kiosk_sessions")
 }
 
 model KioskSessionForm {
-  id          String    @id @default(uuid()) @db.Uuid
-  sessionId   String    @db.Uuid @map("session_id")
-  formId      String    @db.Uuid @map("form_id")
-  status      String    @default("pending") // 'pending' | 'completed'
-  completedAt DateTime? @map("completed_at")
-
-  session KioskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  form    Form         @relation(fields: [formId], references: [id])
+  id          String       @id @default(uuid()) @db.Uuid
+  sessionId   String       @map("session_id") @db.Uuid
+  formId      String       @map("form_id") @db.Uuid
+  status      String       @default("pending")
+  completedAt DateTime?    @map("completed_at")
+  form        Form         @relation(fields: [formId], references: [id])
+  session     KioskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("kiosk_session_forms")
 }
 
 model InternalDocument {
-  id             String    @id @default(uuid()) @db.Uuid
-  createdBy      String    @db.Uuid @map("created_by")
+  id             String            @id @default(uuid()) @db.Uuid
+  createdBy      String            @map("created_by") @db.Uuid
   title          String
   content        String?
   category       String?
-  currentVersion Int       @default(1) @map("current_version")
-  isPublished    Boolean   @default(false) @map("is_published")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
-
-  creator  User              @relation(fields: [createdBy], references: [id])
-  versions DocumentVersion[]
+  currentVersion Int               @default(1) @map("current_version")
+  isPublished    Boolean           @default(false) @map("is_published")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  deletedAt      DateTime?         @map("deleted_at")
+  versions       DocumentVersion[]
+  creator        User              @relation(fields: [createdBy], references: [id])
 
   @@map("internal_documents")
 }
 
 model DocumentVersion {
-  id            String   @id @default(uuid()) @db.Uuid
-  documentId    String   @db.Uuid @map("document_id")
-  changedBy     String   @db.Uuid @map("changed_by")
-  versionNumber Int      @map("version_number")
+  id            String           @id @default(uuid()) @db.Uuid
+  documentId    String           @map("document_id") @db.Uuid
+  changedBy     String           @map("changed_by") @db.Uuid
+  versionNumber Int              @map("version_number")
   content       String?
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  document InternalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  changer  User             @relation(fields: [changedBy], references: [id])
+  createdAt     DateTime         @default(now()) @map("created_at")
+  changer       User             @relation(fields: [changedBy], references: [id])
+  document      InternalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("document_versions")
 }
 
 model InventoryItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String
-  sku         String   @unique
-  category    String?
-  quantity    Int      @default(0)
-  unit        String?
-  minQuantity Int      @default(0) @map("min_quantity")
-  costPerUnit Decimal? @db.Decimal(10, 2) @map("cost_per_unit")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
+  id           String                 @id @default(uuid()) @db.Uuid
+  name         String
+  sku          String                 @unique
+  category     String?
+  quantity     Int                    @default(0)
+  unit         String?
+  minQuantity  Int                    @default(0) @map("min_quantity")
+  costPerUnit  Decimal?               @map("cost_per_unit") @db.Decimal(10, 2)
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
   transactions InventoryTransaction[]
 
   @@map("inventory_items")
 }
 
 model InventoryTransaction {
-  id             String   @id @default(uuid()) @db.Uuid
-  itemId         String   @db.Uuid @map("item_id")
-  quantityChange Int      @map("quantity_change")
-  type           String   // 'purchase' | 'return' | 'usage' | 'adjustment' | 'damage'
-  referenceId    String?  @map("reference_id")
-  performedBy    String   @db.Uuid @map("performed_by")
+  id             String        @id @default(uuid()) @db.Uuid
+  itemId         String        @map("item_id") @db.Uuid
+  quantityChange Int           @map("quantity_change")
+  type           String
+  referenceId    String?       @map("reference_id")
+  performedBy    String        @map("performed_by") @db.Uuid
   notes          String?
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  item      InventoryItem @relation(fields: [itemId], references: [id])
-  performer User          @relation(fields: [performedBy], references: [id])
+  createdAt      DateTime      @default(now()) @map("created_at")
+  item           InventoryItem @relation(fields: [itemId], references: [id])
+  performer      User          @relation(fields: [performedBy], references: [id])
 
   @@map("inventory_transactions")
 }
 
 model EmailLog {
   id             String    @id @default(uuid()) @db.Uuid
-  templateName   String    @map("template_name")
   resendId       String?   @unique @map("resend_id")
   fromAddress    String    @map("from_address")
   recipientEmail String    @map("recipient_email")
   subject        String
-  status         String    @default("pending") // 'pending' | 'sent' | 'delivered' | 'bounced' | 'complained' | 'failed'
+  status         String    @default("pending")
   variables      Json?
   errorMessage   String?   @map("error_message")
-  attachments    Json?     // [{filename, size, content_type}]
-  tags           Json?     // [{name, value}]
+  attachments    Json?
+  tags           Json?
   batchId        String?   @map("batch_id")
-  entityType     String?   @map("entity_type") // CHECK: 'appointment' | 'password_reset' | 'kiosk_session' | 'patient' | 'system'
-  entityId       String?   @db.Uuid @map("entity_id")
+  entityType     String?   @map("entity_type")
+  entityId       String?   @map("entity_id") @db.Uuid
   sentAt         DateTime? @map("sent_at")
   deliveredAt    DateTime? @map("delivered_at")
   bouncedAt      DateTime? @map("bounced_at")
   complainedAt   DateTime? @map("complained_at")
-  webhookEvents  Json?     @map("webhook_events") // Array of raw webhook event payloads
+  webhookEvents  Json?     @map("webhook_events")
   isActive       Boolean   @default(true) @map("is_active")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
+  templateName   String    @map("template_name")
 
   @@index([resendId])
   @@index([recipientEmail])
@@ -584,41 +543,36 @@ model EmailLog {
   @@map("email_logs")
 }
 
-// ──────────────────────────────────────────
-// RAG / AI
-// ──────────────────────────────────────────
-
 model RagDocument {
-  id                String   @id @default(uuid()) @db.Uuid
-  sourceType        String   @map("source_type") // 'internal_document' | 'clinical_note'
-  sourceId          String   @db.Uuid @map("source_id")
-  patientId         String?  @db.Uuid @map("patient_id")
-  filename          String?
-  contentType       String?  @map("content_type")
-  totalParentChunks Int      @default(0) @map("total_parent_chunks")
-  totalChildChunks  Int      @default(0) @map("total_child_chunks")
-  status            String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
-  errorMessage      String?  @map("error_message")
-  contentHash       String?  @map("content_hash")
-  ingestionTimeMs   Float?   @map("ingestion_time_ms")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  parentChunks        ParentChunk[]
+  id                  String                  @id @default(uuid()) @db.Uuid
+  sourceType          String                  @map("source_type")
+  sourceId            String                  @map("source_id") @db.Uuid
+  patientId           String?                 @map("patient_id") @db.Uuid
+  filename            String?
+  contentType         String?                 @map("content_type")
+  totalParentChunks   Int                     @default(0) @map("total_parent_chunks")
+  totalChildChunks    Int                     @default(0) @map("total_child_chunks")
+  status              String                  @default("pending")
+  errorMessage        String?                 @map("error_message")
+  contentHash         String?                 @map("content_hash")
+  ingestionTimeMs     Float?                  @map("ingestion_time_ms")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
   childChunks         ChildChunk[]
+  parentChunks        ParentChunk[]
   documentPermissions RagDocumentPermission[]
 
+  @@unique([sourceType, sourceId], map: "rag_documents_source_unique", where: raw("(status <> 'failed'::text)"))
   @@index([sourceType, sourceId])
   @@map("rag_documents")
 }
 
 model RagDocumentPermission {
-  id            String @id @default(uuid()) @db.Uuid
-  ragDocumentId String @db.Uuid @map("rag_document_id")
-  permissionId  String @db.Uuid @map("permission_id")
-
-  ragDocument RagDocument @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
-  permission  Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  id            String      @id @default(uuid()) @db.Uuid
+  ragDocumentId String      @map("rag_document_id") @db.Uuid
+  permissionId  String      @map("permission_id") @db.Uuid
+  permission    Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  ragDocument   RagDocument @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
 
   @@unique([ragDocumentId, permissionId])
   @@index([ragDocumentId])
@@ -626,59 +580,55 @@ model RagDocumentPermission {
 }
 
 model ParentChunk {
-  id            String   @id @default(uuid()) @db.Uuid
-  ragDocumentId String   @db.Uuid @map("rag_document_id")
+  id            String       @id @default(uuid()) @db.Uuid
+  ragDocumentId String       @map("rag_document_id") @db.Uuid
   heading       String?
-  chunkIndex    Int      @map("chunk_index")
+  chunkIndex    Int          @map("chunk_index")
   metadata      Json?
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  ragDocument RagDocument  @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
-  childChunks ChildChunk[]
+  createdAt     DateTime     @default(now()) @map("created_at")
+  childChunks   ChildChunk[]
+  ragDocument   RagDocument  @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
 
   @@map("parent_chunks")
 }
 
 model ChildChunk {
-  id            String                       @id @default(uuid()) @db.Uuid
-  parentChunkId String                       @db.Uuid @map("parent_chunk_id")
-  ragDocumentId String                       @db.Uuid @map("rag_document_id")
+  id            String                   @id @default(uuid()) @db.Uuid
+  parentChunkId String                   @map("parent_chunk_id") @db.Uuid
+  ragDocumentId String                   @map("rag_document_id") @db.Uuid
   content       String
-  embedding     Unsupported("vector(1024)")?
-  searchVector  Unsupported("tsvector")?     @map("search_vector")
-  chunkIndex    Int                          @map("chunk_index")
+  embedding     Unsupported("vector")?
+  searchVector  Unsupported("tsvector")? @map("search_vector")
+  chunkIndex    Int                      @map("chunk_index")
   metadata      Json?
-  createdAt     DateTime                     @default(now()) @map("created_at")
-
-  parentChunk ParentChunk @relation(fields: [parentChunkId], references: [id], onDelete: Cascade)
-  ragDocument RagDocument @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  parentChunk   ParentChunk              @relation(fields: [parentChunkId], references: [id], onDelete: Cascade)
+  ragDocument   RagDocument              @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
 
   @@index([ragDocumentId])
   @@map("child_chunks")
 }
 
 model ChatSession {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid @map("user_id")
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
   title     String?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages ChatMessage[]
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  messages  ChatMessage[]
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("chat_sessions")
 }
 
 model ChatMessage {
-  id        String   @id @default(uuid()) @db.Uuid
-  sessionId String   @db.Uuid @map("session_id")
-  role      String   // 'user' | 'assistant' | 'system'
+  id        String      @id @default(uuid()) @db.Uuid
+  sessionId String      @map("session_id") @db.Uuid
+  role      String
   content   String
   citations Json?
-  createdAt DateTime @default(now()) @map("created_at")
-
-  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now()) @map("created_at")
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
 }

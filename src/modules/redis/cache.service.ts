@@ -118,4 +118,33 @@ export class CacheService {
       return 0;
     }
   }
+
+  async invalidatePattern(pattern: string): Promise<number> {
+    try {
+      let cursor = 0;
+      let deletedCount = 0;
+
+      do {
+        const [nextCursor, keys] = await this.redis.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          100,
+        );
+        cursor = parseInt(nextCursor, 10);
+
+        if (keys.length > 0) {
+          deletedCount += await this.redis.del(...keys);
+        }
+      } while (cursor !== 0);
+
+      return deletedCount;
+    } catch (error) {
+      this.logger.warn(
+        `Cache invalidatePattern failed for ${pattern}: ${(error as Error).message}`,
+      );
+      return 0;
+    }
+  }
 }

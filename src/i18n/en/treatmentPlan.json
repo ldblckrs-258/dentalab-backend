@@ -1,0 +1,21 @@
+{
+  "created": "Treatment plan created successfully",
+  "updated": "Treatment plan updated successfully",
+  "deleted": "Treatment plan deleted successfully",
+  "not_found": "Treatment plan not found",
+  "insufficient_permissions": "Insufficient permissions for cross-doctor scope",
+  "invalid_date_range": "startDate must be before or equal to endDate",
+  "not_a_provider": "Only providers can create or modify treatment plans",
+  "edit_locked": "Treatment plan is locked. Only notes and endDate can be changed after acceptance.",
+  "invalid_transition": "Invalid treatment plan status transition",
+  "notes_required_for_acceptance": "Notes are required to accept a treatment plan",
+  "appointment_required_for_start": "At least one non-cancelled appointment is required to start a treatment plan",
+  "appointments_not_completed": "All appointments must be completed or cancelled before completing the plan",
+  "not_own_plan": "You can only modify your own treatment plans",
+  "status": {
+    "draft": "Draft",
+    "active": "Active",
+    "completed": "Completed",
+    "cancelled": "Cancelled"
+  }
+}

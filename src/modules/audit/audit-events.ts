@@ -3,6 +3,8 @@ export type AuditCategory =
   | 'rbac'
   | 'phi'
   | 'ops'
+  | 'clinical'
+  | 'operations'
   | 'system'
   | 'security';
 
@@ -84,9 +86,34 @@ export const AUDIT_EVENTS = {
   APPOINTMENT_CREATED: { category: 'ops', severity: 'info' },
   APPOINTMENT_UPDATED: { category: 'ops', severity: 'info' },
   APPOINTMENT_CANCELLED: { category: 'ops', severity: 'notice' },
-  TREATMENT_PLAN_CREATED: { category: 'ops', severity: 'info' },
-  TREATMENT_PLAN_UPDATED: { category: 'ops', severity: 'info' },
-  TREATMENT_PLAN_DELETED: { category: 'ops', severity: 'warning' },
+  TREATMENT_PLAN_CREATED: { category: 'phi', severity: 'notice' },
+  TREATMENT_PLAN_UPDATED: { category: 'phi', severity: 'notice' },
+  TREATMENT_PLAN_VIEWED: { category: 'phi', severity: 'info' },
+  TREATMENT_PLAN_TRANSITIONED: { category: 'phi', severity: 'notice' },
+  TREATMENT_PLAN_CANCELLED: {
+    category: 'phi',
+    severity: 'notice',
+    reasonRequired: true,
+  },
+
+  PROCEDURE_CREATED: { category: 'clinical', severity: 'notice' },
+  PROCEDURE_UPDATED: { category: 'clinical', severity: 'notice' },
+  PROCEDURE_BULK_IMPORTED: { category: 'clinical', severity: 'notice' },
+  PROCEDURE_DISABLED: { category: 'clinical', severity: 'notice' },
+  PROCEDURE_ENABLED: { category: 'clinical', severity: 'info' },
+
+  PROVIDER_SCHEDULE_CREATED: { category: 'operations', severity: 'info' },
+  PROVIDER_SCHEDULE_UPDATED: { category: 'operations', severity: 'info' },
+  PROVIDER_SCHEDULE_DELETED: { category: 'operations', severity: 'notice' },
+
+  SCHEDULE_OVERRIDE_REQUESTED: { category: 'operations', severity: 'info' },
+  SCHEDULE_OVERRIDE_APPROVED: { category: 'operations', severity: 'notice' },
+  SCHEDULE_OVERRIDE_REJECTED: {
+    category: 'operations',
+    severity: 'notice',
+    reasonRequired: true,
+  },
+  SCHEDULE_OVERRIDE_CANCELLED: { category: 'operations', severity: 'info' },
 
   FORM_CREATED: { category: 'ops', severity: 'info' },
   FORM_UPDATED: { category: 'ops', severity: 'info' },

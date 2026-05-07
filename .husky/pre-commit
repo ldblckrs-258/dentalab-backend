@@ -1,1 +1,2 @@
 pnpm run lint
+pnpm exec node scripts/check-i18n-parity.mjs
