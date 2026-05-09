@@ -33,10 +33,11 @@ model User {
   reviewedOverrides       ProviderScheduleOverride[] @relation("ReviewedByUser")
   provider                Provider?
   refreshTokens           RefreshToken[]
-  grantedOverrides        UserPermissionOverride[]   @relation("GrantedByUser")
-  revokedOverrides        UserPermissionOverride[]   @relation("RevokedByUser")
-  userPermissionOverrides UserPermissionOverride[]
-  userRoles               UserRole[]
+  grantedOverrides         UserPermissionOverride[]   @relation("GrantedByUser")
+  revokedOverrides         UserPermissionOverride[]   @relation("RevokedByUser")
+  userPermissionOverrides  UserPermissionOverride[]
+  userRoles                UserRole[]
+  createdPatientProcedures PatientProcedure[]         @relation("PatientProcedureCreator")
 
   @@map("users")
 }
@@ -177,12 +178,14 @@ model Provider {
   isActive          Boolean                    @default(true) @map("is_active")
   createdAt         DateTime                   @default(now()) @map("created_at")
   updatedAt         DateTime                   @updatedAt @map("updated_at")
-  appointments      Appointment[]
-  clinicalNotes     ClinicalNote[]
-  scheduleOverrides ProviderScheduleOverride[]
-  schedules         ProviderSchedule[]
-  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  treatmentPlans    TreatmentPlan[]
+  appointments        Appointment[]
+  clinicalNotes       ClinicalNote[]
+  scheduleOverrides   ProviderScheduleOverride[]
+  schedules           ProviderSchedule[]
+  user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  treatmentPlans      TreatmentPlan[]
+  plannedProcedures   PatientProcedure[]         @relation("PlannedProvider")
+  performedProcedures PatientProcedure[]         @relation("PerformedByProvider")
 
   @@map("providers")
 }
@@ -242,74 +245,108 @@ model Procedure {
   isActive              Boolean                @default(true) @map("is_active")
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
-  appointmentProcedures AppointmentProcedure[]
+  patientProcedures PatientProcedure[]
 
   @@map("procedures")
 }
 
 model TreatmentPlan {
-  id                 String        @id @default(uuid()) @db.Uuid
-  patientId          String        @map("patient_id") @db.Uuid
-  providerId         String        @map("provider_id") @db.Uuid
+  id                 String             @id @default(uuid()) @db.Uuid
+  patientId          String             @map("patient_id") @db.Uuid
+  providerId         String             @map("provider_id") @db.Uuid
   name               String
-  status             String        @default("draft")
-  startDate          DateTime?     @map("start_date") @db.Date
-  endDate            DateTime?     @map("end_date") @db.Date
-  estimatedTotalCost Decimal?      @map("estimated_total_cost") @db.Decimal(10, 2)
+  status             String             @default("draft")
+  startDate          DateTime?          @map("start_date") @db.Date
+  endDate            DateTime?          @map("end_date") @db.Date
   notes              String?
-  createdAt          DateTime      @default(now()) @map("created_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
-  appointments       Appointment[]
-  patient            Patient       @relation(fields: [patientId], references: [id])
-  provider           Provider      @relation(fields: [providerId], references: [id])
+  consentSignedAt    DateTime?          @map("consent_signed_at")
+  consentSignedBy    String?            @map("consent_signed_by")
+  cancelledAt        DateTime?          @map("cancelled_at")
+  cancellationReason String?            @map("cancellation_reason")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  patient            Patient            @relation(fields: [patientId], references: [id])
+  provider           Provider           @relation(fields: [providerId], references: [id])
+  patientProcedures  PatientProcedure[]
 
+  @@index([patientId, status])
   @@map("treatment_plans")
 }
 
 model Appointment {
-  id                    String                 @id @default(uuid()) @db.Uuid
-  patientId             String                 @map("patient_id") @db.Uuid
-  providerId            String                 @map("provider_id") @db.Uuid
-  typeId                String                 @map("type_id") @db.Uuid
-  treatmentPlanId       String?                @map("treatment_plan_id") @db.Uuid
-  createdBy             String                 @map("created_by") @db.Uuid
-  startTime             DateTime               @map("start_time")
-  endTime               DateTime               @map("end_time")
-  status                String                 @default("scheduled")
-  notes                 String?
-  cancelledBy           String?                @map("cancelled_by") @db.Uuid
-  cancelledAt           DateTime?              @map("cancelled_at")
-  cancellationReason    String?                @map("cancellation_reason")
-  createdAt             DateTime               @default(now()) @map("created_at")
-  updatedAt             DateTime               @updatedAt @map("updated_at")
-  appointmentProcedures AppointmentProcedure[]
-  cancelledByUser       User?                  @relation("CancelledByUser", fields: [cancelledBy], references: [id])
-  createdByUser         User                   @relation("CreatedByUser", fields: [createdBy], references: [id])
-  patient               Patient                @relation(fields: [patientId], references: [id])
-  provider              Provider               @relation(fields: [providerId], references: [id])
-  treatmentPlan         TreatmentPlan?         @relation(fields: [treatmentPlanId], references: [id])
-  appointmentType       AppointmentType        @relation(fields: [typeId], references: [id])
-  clinicalNote          ClinicalNote?
-  formSubmissions       FormSubmission[]
-  kioskSessions         KioskSession[]
+  id                 String             @id @default(uuid()) @db.Uuid
+  patientId          String             @map("patient_id") @db.Uuid
+  providerId         String             @map("provider_id") @db.Uuid
+  typeId             String             @map("type_id") @db.Uuid
+  createdBy          String             @map("created_by") @db.Uuid
+  startTime          DateTime           @map("start_time")
+  endTime            DateTime           @map("end_time")
+  status             String             @default("scheduled")
+  notes              String?
+  chiefComplaint     String?            @map("chief_complaint")
+  cancelledBy        String?            @map("cancelled_by") @db.Uuid
+  cancelledAt        DateTime?          @map("cancelled_at")
+  cancellationReason String?            @map("cancellation_reason")
+  checkedInAt        DateTime?          @map("checked_in_at")
+  startedAt          DateTime?          @map("started_at")
+  completedAt        DateTime?          @map("completed_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  cancelledByUser    User?              @relation("CancelledByUser", fields: [cancelledBy], references: [id])
+  createdByUser      User               @relation("CreatedByUser", fields: [createdBy], references: [id])
+  patient            Patient            @relation(fields: [patientId], references: [id])
+  provider           Provider           @relation(fields: [providerId], references: [id])
+  appointmentType    AppointmentType    @relation(fields: [typeId], references: [id])
+  clinicalNote       ClinicalNote?
+  formSubmissions    FormSubmission[]
+  kioskSessions      KioskSession[]
+  patientProcedures  PatientProcedure[]
 
   @@index([providerId, startTime])
   @@index([patientId])
   @@map("appointments")
 }
 
-model AppointmentProcedure {
-  id            String      @id @default(uuid()) @db.Uuid
-  appointmentId String      @map("appointment_id") @db.Uuid
-  procedureId   String      @map("procedure_id") @db.Uuid
-  toothNumber   String?     @map("tooth_number")
-  fee           Decimal?    @db.Decimal(10, 2)
-  status        String      @default("planned")
-  deletedAt     DateTime?   @map("deleted_at")
-  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  procedure     Procedure   @relation(fields: [procedureId], references: [id])
+model PatientProcedure {
+  id                    String         @id @default(uuid()) @db.Uuid
+  patientId             String         @map("patient_id") @db.Uuid
+  procedureId           String         @map("procedure_id") @db.Uuid
+  treatmentPlanId       String?        @map("treatment_plan_id") @db.Uuid
+  appointmentId         String?        @map("appointment_id") @db.Uuid
+  plannedProviderId     String?        @map("planned_provider_id") @db.Uuid
+  performedByProviderId String?        @map("performed_by_provider_id") @db.Uuid
+  toothNumber           String?        @map("tooth_number") @db.VarChar(8)
+  surface               String?        @db.VarChar(8)
+  diagnosis             String?
+  clinicalNotes         String?        @map("clinical_notes")
+  estimatedFee          Decimal?       @map("estimated_fee") @db.Decimal(10, 2)
+  actualFee             Decimal?       @map("actual_fee") @db.Decimal(10, 2)
+  feeFinalizedAt        DateTime?      @map("fee_finalized_at")
+  status                String         @default("planned")
+  plannedAt             DateTime?      @map("planned_at")
+  scheduledAt           DateTime?      @map("scheduled_at")
+  startedAt             DateTime?      @map("started_at")
+  completedAt           DateTime?      @map("completed_at")
+  cancelledAt           DateTime?      @map("cancelled_at")
+  cancellationReason    String?        @map("cancellation_reason")
+  sequenceInPlan        Int?           @map("sequence_in_plan")
+  createdBy             String         @map("created_by") @db.Uuid
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  deletedAt             DateTime?      @map("deleted_at")
+  patient               Patient        @relation(fields: [patientId], references: [id])
+  procedure             Procedure      @relation(fields: [procedureId], references: [id])
+  treatmentPlan         TreatmentPlan? @relation(fields: [treatmentPlanId], references: [id])
+  appointment           Appointment?   @relation(fields: [appointmentId], references: [id])
+  plannedProvider       Provider?      @relation("PlannedProvider", fields: [plannedProviderId], references: [id])
+  performedBy           Provider?      @relation("PerformedByProvider", fields: [performedByProviderId], references: [id])
+  creator               User           @relation("PatientProcedureCreator", fields: [createdBy], references: [id])
 
-  @@map("appointment_procedures")
+  @@index([patientId, status, deletedAt])
+  @@index([treatmentPlanId])
+  @@index([appointmentId])
+  @@index([status, scheduledAt])
+  @@map("patient_procedures")
 }
 
 model ClinicalNote {
@@ -347,12 +384,13 @@ model Patient {
   createdAt             DateTime         @default(now()) @map("created_at")
   updatedAt             DateTime         @updatedAt @map("updated_at")
   deletedAt             DateTime?        @map("deleted_at")
-  appointments          Appointment[]
-  clinicalNotes         ClinicalNote[]
-  formSubmissions       FormSubmission[]
-  kioskSessions         KioskSession[]
-  files                 PatientFile[]
-  treatmentPlans        TreatmentPlan[]
+  appointments       Appointment[]
+  clinicalNotes      ClinicalNote[]
+  formSubmissions    FormSubmission[]
+  kioskSessions      KioskSession[]
+  files              PatientFile[]
+  treatmentPlans     TreatmentPlan[]
+  patientProcedures  PatientProcedure[]
 
   @@index([deletedAt])
   @@map("patients")

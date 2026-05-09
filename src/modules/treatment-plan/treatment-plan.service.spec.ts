@@ -47,6 +47,7 @@ describe('TreatmentPlanService', () => {
           fn(prisma.baseClient),
         ),
       baseClient: {
+        $queryRaw: jest.fn().mockResolvedValue([]),
         treatmentPlan: {
           findMany: jest.fn().mockResolvedValue([]),
           count: jest.fn().mockResolvedValue(0),
@@ -63,6 +64,10 @@ describe('TreatmentPlanService', () => {
         appointment: {
           count: jest.fn().mockResolvedValue(0),
           findMany: jest.fn().mockResolvedValue([]),
+        },
+        patientProcedure: {
+          count: jest.fn().mockResolvedValue(0),
+          updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         },
       },
     };
@@ -309,13 +314,15 @@ describe('TreatmentPlanService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('should allow proposed → accepted when notes are non-empty', async () => {
+    it('should allow proposed → accepted when consent is signed', async () => {
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
           providerId: 'provider-1',
           status: 'proposed',
           notes: 'Patient consented',
+          consentSignedAt: new Date(),
+          consentSignedBy: 'user-1',
         })
         .mockResolvedValueOnce({ providerId: 'provider-1' });
       await expect(
@@ -323,7 +330,7 @@ describe('TreatmentPlanService', () => {
       ).resolves.toBeDefined();
     });
 
-    it('should allow accepted → in_progress when non-cancelled appointment exists', async () => {
+    it('should allow accepted → in_progress when scheduled procedures exist', async () => {
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
@@ -332,13 +339,13 @@ describe('TreatmentPlanService', () => {
           notes: 'ok',
         })
         .mockResolvedValueOnce({ providerId: 'provider-1' });
-      prisma.baseClient.appointment.count.mockResolvedValue(1);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(1);
       await expect(
         service.transition('plan-1', { to: 'in_progress' }),
       ).resolves.toBeDefined();
     });
 
-    it('should allow in_progress → completed when all appointments are completed/cancelled', async () => {
+    it('should allow in_progress → completed when all procedures are resolved', async () => {
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
@@ -347,7 +354,7 @@ describe('TreatmentPlanService', () => {
           notes: 'ok',
         })
         .mockResolvedValueOnce({ providerId: 'provider-1' });
-      prisma.baseClient.appointment.count.mockResolvedValue(0);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(0);
       await expect(
         service.transition('plan-1', { to: 'completed' }),
       ).resolves.toBeDefined();
@@ -370,11 +377,13 @@ describe('TreatmentPlanService', () => {
           providerId: 'provider-1',
           status: 'proposed',
           notes: 'consent recorded',
+          consentSignedAt: new Date(),
+          consentSignedBy: 'user-1',
         })
         .mockResolvedValueOnce({ providerId: 'provider-1' });
       await service.transition('plan-1', { to: 'accepted' });
 
-      prisma.baseClient.appointment.count.mockResolvedValue(1);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(1);
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
@@ -385,7 +394,7 @@ describe('TreatmentPlanService', () => {
         .mockResolvedValueOnce({ providerId: 'provider-1' });
       await service.transition('plan-1', { to: 'in_progress' });
 
-      prisma.baseClient.appointment.count.mockResolvedValue(0);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(0);
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
@@ -412,13 +421,15 @@ describe('TreatmentPlanService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should reject proposed → accepted when notes are empty', async () => {
+    it('should reject proposed → accepted when consent is missing', async () => {
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
           providerId: 'provider-1',
           status: 'proposed',
           notes: null,
+          consentSignedAt: null,
+          consentSignedBy: null,
         })
         .mockResolvedValueOnce({ providerId: 'provider-1' });
       await expect(
@@ -426,7 +437,7 @@ describe('TreatmentPlanService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should reject accepted → in_progress when no appointments exist', async () => {
+    it('should reject accepted → in_progress when no active procedures exist', async () => {
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
@@ -435,13 +446,13 @@ describe('TreatmentPlanService', () => {
           notes: 'ok',
         })
         .mockResolvedValueOnce({ providerId: 'provider-1' });
-      prisma.baseClient.appointment.count.mockResolvedValue(0);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(0);
       await expect(
         service.transition('plan-1', { to: 'in_progress' }),
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should reject in_progress → completed when pending appointments exist', async () => {
+    it('should reject in_progress → completed when procedures still open', async () => {
       prisma.baseClient.treatmentPlan.findUnique
         .mockResolvedValueOnce({
           id: 'plan-1',
@@ -450,7 +461,7 @@ describe('TreatmentPlanService', () => {
           notes: 'ok',
         })
         .mockResolvedValueOnce({ providerId: 'provider-1' });
-      prisma.baseClient.appointment.count.mockResolvedValue(3);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(3);
       await expect(
         service.transition('plan-1', { to: 'completed' }),
       ).rejects.toThrow(ConflictException);

@@ -1,10 +1,8 @@
 import {
   IsDateString,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
-  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -25,11 +23,6 @@ export class CreateTreatmentPlanDto {
   @IsDateString()
   @ValidateIf((o: CreateTreatmentPlanDto) => !!o.startDate && !!o.endDate)
   endDate?: string;
-
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  estimatedTotalCost?: number;
 
   @IsOptional()
   @IsString()

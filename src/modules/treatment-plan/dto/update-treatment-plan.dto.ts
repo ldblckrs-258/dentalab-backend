@@ -1,11 +1,4 @@
-import {
-  IsDateString,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-  MinLength,
-} from 'class-validator';
+import { IsDateString, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class UpdateTreatmentPlanDto {
   @IsOptional()
@@ -22,11 +15,11 @@ export class UpdateTreatmentPlanDto {
   endDate?: string;
 
   @IsOptional()
-  @IsNumber()
-  @Min(0)
-  estimatedTotalCost?: number;
+  @IsString()
+  notes?: string;
 
   @IsOptional()
   @IsString()
-  notes?: string;
+  @MinLength(1)
+  consentSignedBy?: string;
 }

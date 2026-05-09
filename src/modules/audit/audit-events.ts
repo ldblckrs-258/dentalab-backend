@@ -115,6 +115,21 @@ export const AUDIT_EVENTS = {
   },
   SCHEDULE_OVERRIDE_CANCELLED: { category: 'operations', severity: 'info' },
 
+  PATIENT_PROCEDURE_CREATED: { category: 'phi', severity: 'notice' },
+  PATIENT_PROCEDURE_UPDATED: { category: 'phi', severity: 'notice' },
+  PATIENT_PROCEDURE_TRANSITIONED: { category: 'phi', severity: 'notice' },
+  PATIENT_PROCEDURE_LINKED: { category: 'phi', severity: 'info' },
+  PATIENT_PROCEDURE_UNLINKED: { category: 'phi', severity: 'info' },
+  PATIENT_PROCEDURE_FEE_FINALIZED: { category: 'phi', severity: 'notice' },
+  PATIENT_PROCEDURE_FEE_OVERRIDDEN: {
+    category: 'phi',
+    severity: 'warning',
+    reasonRequired: true,
+  },
+  PATIENT_PROCEDURE_PROMOTED_TO_PLAN: { category: 'phi', severity: 'notice' },
+  PATIENT_PROCEDURE_DELETED: { category: 'phi', severity: 'warning' },
+  PATIENT_PROCEDURE_VIEWED: { category: 'phi', severity: 'info' },
+
   FORM_CREATED: { category: 'ops', severity: 'info' },
   FORM_UPDATED: { category: 'ops', severity: 'info' },
   INTERNAL_DOCUMENT_CREATED: { category: 'ops', severity: 'notice' },

@@ -1,0 +1,47 @@
+export const PATIENT_PROCEDURE_SELECT = {
+  id: true,
+  patientId: true,
+  procedureId: true,
+  treatmentPlanId: true,
+  appointmentId: true,
+  plannedProviderId: true,
+  toothNumber: true,
+  surface: true,
+  status: true,
+  estimatedFee: true,
+  scheduledAt: true,
+  plannedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  procedure: {
+    select: { id: true, adaCode: true, name: true, category: true },
+  },
+} as const;
+
+export const PATIENT_PROCEDURE_DETAIL_SELECT = {
+  ...PATIENT_PROCEDURE_SELECT,
+  performedByProviderId: true,
+  diagnosis: true,
+  clinicalNotes: true,
+  actualFee: true,
+  feeFinalizedAt: true,
+  startedAt: true,
+  completedAt: true,
+  cancelledAt: true,
+  cancellationReason: true,
+  sequenceInPlan: true,
+  createdBy: true,
+} as const;
+
+export const PATIENT_PROCEDURE_METADATA_SELECT = {
+  id: true,
+  patientId: true,
+  procedureId: true,
+  treatmentPlanId: true,
+  appointmentId: true,
+  toothNumber: true,
+  status: true,
+  scheduledAt: true,
+  createdAt: true,
+  procedure: { select: { id: true, name: true } },
+} as const;

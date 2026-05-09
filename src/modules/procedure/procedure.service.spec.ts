@@ -36,7 +36,7 @@ describe('ProcedureService', () => {
           create: jest.fn(),
           update: jest.fn(),
         },
-        appointmentProcedure: {
+        patientProcedure: {
           count: jest.fn().mockResolvedValue(0),
         },
       },
@@ -243,7 +243,7 @@ describe('ProcedureService', () => {
         adaCode: 'D0120',
         isActive: true,
       });
-      prisma.baseClient.appointmentProcedure.count.mockResolvedValue(5);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(5);
 
       await expect(
         service.update('procedure-1', { adaCode: 'D9999' }),
@@ -271,7 +271,7 @@ describe('ProcedureService', () => {
           adaCode: 'D9999',
           isActive: true,
         });
-      prisma.baseClient.appointmentProcedure.count.mockResolvedValue(0);
+      prisma.baseClient.patientProcedure.count.mockResolvedValue(0);
       prisma.baseClient.procedure.update.mockResolvedValue({
         ...mockProcedure,
         adaCode: 'D9999',

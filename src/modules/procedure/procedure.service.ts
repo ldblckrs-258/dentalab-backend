@@ -98,8 +98,8 @@ export class ProcedureService {
     const current = await this.findProcedureOrFail(id);
 
     if (dto.adaCode !== undefined && dto.adaCode !== current.adaCode) {
-      const refCount = await this.prisma.baseClient.appointmentProcedure.count({
-        where: { procedureId: id },
+      const refCount = await this.prisma.baseClient.patientProcedure.count({
+        where: { procedureId: id, deletedAt: null },
       });
       if (refCount > 0) {
         throw new ConflictException({

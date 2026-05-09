@@ -9,8 +9,8 @@
   "edit_locked": "Kế hoạch điều trị đã bị khóa. Chỉ có thể thay đổi ghi chú và ngày kết thúc sau khi chấp nhận.",
   "invalid_transition": "Chuyển trạng thái kế hoạch điều trị không hợp lệ",
   "notes_required_for_acceptance": "Cần có ghi chú để chấp nhận kế hoạch điều trị",
-  "appointment_required_for_start": "Cần ít nhất một lịch hẹn chưa hủy để bắt đầu kế hoạch điều trị",
-  "appointments_not_completed": "Tất cả lịch hẹn phải hoàn thành hoặc hủy trước khi hoàn tất kế hoạch",
+  "procedure_required_for_start": "Cần ít nhất một thủ thuật đã lên lịch hoặc đang thực hiện để bắt đầu kế hoạch điều trị",
+  "procedures_not_completed": "Tất cả thủ thuật phải hoàn thành, thất bại hoặc đã hủy trước khi hoàn tất kế hoạch",
   "not_own_plan": "Bạn chỉ có thể chỉnh sửa kế hoạch điều trị của chính mình",
   "status": {
     "draft": "Bản nháp",

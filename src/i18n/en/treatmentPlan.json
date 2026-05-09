@@ -9,8 +9,8 @@
   "edit_locked": "Treatment plan is locked. Only notes and endDate can be changed after acceptance.",
   "invalid_transition": "Invalid treatment plan status transition",
   "notes_required_for_acceptance": "Notes are required to accept a treatment plan",
-  "appointment_required_for_start": "At least one non-cancelled appointment is required to start a treatment plan",
-  "appointments_not_completed": "All appointments must be completed or cancelled before completing the plan",
+  "procedure_required_for_start": "At least one scheduled or in-progress procedure is required to start a treatment plan",
+  "procedures_not_completed": "All procedures must be completed, failed, or cancelled before completing the plan",
   "not_own_plan": "You can only modify your own treatment plans",
   "status": {
     "draft": "Draft",

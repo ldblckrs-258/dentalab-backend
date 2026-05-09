@@ -23,7 +23,6 @@ const TREATMENT_PLAN_SELECT = {
   status: true,
   startDate: true,
   endDate: true,
-  estimatedTotalCost: true,
   createdAt: true,
 } as const;
 
@@ -135,13 +134,26 @@ export class TreatmentPlanService {
       this.prisma.baseClient.treatmentPlan.count({ where }),
     ]);
 
-    const items = data.map((plan) => ({
-      ...plan,
-      patientName: plan.patient.deletedAt
-        ? t('patient.deletedPlaceholder', 'Deleted Patient')
-        : `${plan.patient.lastName} ${plan.patient.firstName}`,
-      providerName: plan.provider.user.fullName,
-    }));
+    const costSummaries = hasFullRead
+      ? await this.fetchCostSummaries(data.map((p) => p.id))
+      : null;
+
+    const items = data.map((plan) => {
+      const summary = costSummaries?.get(plan.id);
+      return {
+        ...plan,
+        patientName: plan.patient.deletedAt
+          ? t('patient.deletedPlaceholder', 'Deleted Patient')
+          : `${plan.patient.lastName} ${plan.patient.firstName}`,
+        providerName: plan.provider.user.fullName,
+        ...(summary && {
+          estimatedTotalCost: summary.estimatedTotal,
+          actualTotalCost: summary.actualTotal,
+          completedCount: summary.completedCount,
+          totalCount: summary.totalCount,
+        }),
+      };
+    });
 
     return buildPaginatedResponse(items, total, query);
   }
@@ -193,27 +205,17 @@ export class TreatmentPlanService {
     };
 
     if (hasFullRead) {
-      const appointments = await this.prisma.baseClient.appointment.findMany({
-        where: { treatmentPlanId: id },
-        select: {
-          appointmentProcedures: {
-            where: { deletedAt: null },
-            select: { fee: true },
-          },
-        },
-      });
+      // Direct query until cost aggregation is delegated to PatientProcedureService (Phase 2).
+      const costSummary = await this.prisma.baseClient.$queryRaw<
+        { estimated_total: string; actual_total: string }[]
+      >`SELECT estimated_total, actual_total FROM treatment_plan_cost_summary WHERE treatment_plan_id = ${id}::uuid`;
 
-      const actualTotalCost = appointments
-        .flatMap((a) => a.appointmentProcedures)
-        .reduce((sum, ap) => sum + Number(ap.fee ?? 0), 0);
+      const estimatedTotal = Number(costSummary[0]?.estimated_total ?? 0);
+      const actualTotal = Number(costSummary[0]?.actual_total ?? 0);
 
-      const estimatedTotalCost = Number(
-        (plan as Record<string, unknown>).estimatedTotalCost ?? 0,
-      );
-
-      result.estimatedTotalCost = estimatedTotalCost;
-      result.actualTotalCost = actualTotalCost;
-      result.variance = actualTotalCost - estimatedTotalCost;
+      result.estimatedTotalCost = estimatedTotal;
+      result.actualTotalCost = actualTotal;
+      result.variance = actualTotal - estimatedTotal;
     }
 
     return result;
@@ -266,7 +268,6 @@ export class TreatmentPlanService {
         status: 'draft',
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        estimatedTotalCost: dto.estimatedTotalCost,
         notes: dto.notes,
       },
       select: TREATMENT_PLAN_DETAIL_SELECT,
@@ -281,7 +282,7 @@ export class TreatmentPlanService {
 
     if (isLocked) {
       const changedFields = Object.keys(dto).filter(
-        (k) => k !== 'notes' && k !== 'endDate',
+        (k) => k !== 'notes' && k !== 'endDate' && k !== 'consentSignedBy',
       );
       if (changedFields.length > 0) {
         throw new ConflictException({
@@ -300,8 +301,10 @@ export class TreatmentPlanService {
         name: dto.name,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-        estimatedTotalCost: dto.estimatedTotalCost,
         notes: dto.notes,
+        consentSignedBy: dto.consentSignedBy,
+        consentSignedAt:
+          dto.consentSignedBy && !plan.consentSignedAt ? new Date() : undefined,
       },
       select: TREATMENT_PLAN_DETAIL_SELECT,
     });
@@ -322,29 +325,33 @@ export class TreatmentPlanService {
       });
     }
 
-    if (dto.to === 'accepted' && !plan.notes) {
+    if (
+      dto.to === 'accepted' &&
+      (!plan.consentSignedAt || !plan.consentSignedBy)
+    ) {
       throw new ConflictException({
         message: t(
-          'treatmentPlan.notes_required_for_acceptance',
-          'Notes are required to accept a treatment plan',
+          'patientProcedure.TREATMENT_PLAN_CONSENT_REQUIRED',
+          'Consent signature is required to accept the treatment plan',
         ),
-        errorCode: 'INVALID_TREATMENT_PLAN_TRANSITION',
+        errorCode: 'TREATMENT_PLAN_CONSENT_REQUIRED',
       });
     }
 
     return this.prisma.transaction(async (tx) => {
       if (dto.to === 'in_progress') {
-        const appointmentCount = await tx.appointment.count({
+        const activeCount = await tx.patientProcedure.count({
           where: {
             treatmentPlanId: id,
-            status: { not: 'cancelled' },
+            status: { in: ['scheduled', 'in_progress'] },
+            deletedAt: null,
           },
         });
-        if (appointmentCount < 1) {
+        if (activeCount < 1) {
           throw new ConflictException({
             message: t(
-              'treatmentPlan.appointment_required_for_start',
-              'At least one non-cancelled appointment is required to start a treatment plan',
+              'treatmentPlan.procedure_required_for_start',
+              'At least one scheduled or in-progress procedure is required to start a treatment plan',
             ),
             errorCode: 'INVALID_TREATMENT_PLAN_TRANSITION',
           });
@@ -352,17 +359,18 @@ export class TreatmentPlanService {
       }
 
       if (dto.to === 'completed') {
-        const pendingAppointments = await tx.appointment.count({
+        const incompleteProcedures = await tx.patientProcedure.count({
           where: {
             treatmentPlanId: id,
-            status: { notIn: ['completed', 'cancelled'] },
+            status: { notIn: ['completed', 'failed', 'cancelled'] },
+            deletedAt: null,
           },
         });
-        if (pendingAppointments > 0) {
+        if (incompleteProcedures > 0) {
           throw new ConflictException({
             message: t(
-              'treatmentPlan.appointments_not_completed',
-              'All appointments must be completed or cancelled before completing the plan',
+              'treatmentPlan.procedures_not_completed',
+              'All procedures must be completed, failed, or cancelled before completing the plan',
             ),
             errorCode: 'INVALID_TREATMENT_PLAN_TRANSITION',
           });
@@ -380,10 +388,30 @@ export class TreatmentPlanService {
   async cancel(id: string, reason: string) {
     await this.assertOwnPlan(id);
 
-    const updated = await this.prisma.baseClient.treatmentPlan.update({
-      where: { id },
-      data: { status: 'cancelled' },
-      select: TREATMENT_PLAN_DETAIL_SELECT,
+    const updated = await this.prisma.transaction(async (tx) => {
+      // Cascade cancel linked procedures in planned/scheduled (spec §4.2)
+      await tx.patientProcedure.updateMany({
+        where: {
+          treatmentPlanId: id,
+          status: { in: ['planned', 'scheduled'] },
+          deletedAt: null,
+        },
+        data: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: 'Treatment plan cancelled',
+        },
+      });
+
+      return tx.treatmentPlan.update({
+        where: { id },
+        data: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason,
+        },
+        select: TREATMENT_PLAN_DETAIL_SELECT,
+      });
     });
 
     this.auditService.emit({
@@ -405,13 +433,21 @@ export class TreatmentPlanService {
 
     const currentUserId =
       currentUser?.userId ?? RequestContextService.getUserId();
-    const doctorProvider = await this.prisma.baseClient.provider.findUnique({
-      where: { userId: currentUserId },
-      select: { id: true },
-    });
+
+    const [userPermissions, doctorProvider] = await Promise.all([
+      currentUserId
+        ? this.permissionResolver.resolvePermissions(currentUserId)
+        : Promise.resolve([] as string[]),
+      this.prisma.baseClient.provider.findUnique({
+        where: { userId: currentUserId },
+        select: { id: true },
+      }),
+    ]);
+
+    const hasFullRead = userPermissions.includes('treatment_plans:read:full');
 
     const where: Record<string, unknown> = { patientId };
-    if (doctorProvider) {
+    if (doctorProvider && !hasFullRead) {
       where.providerId = doctorProvider.id;
     }
 
@@ -437,21 +473,78 @@ export class TreatmentPlanService {
       this.prisma.baseClient.treatmentPlan.count({ where }),
     ]);
 
-    const items = data.map((plan) => ({
-      ...plan,
-      patientName: plan.patient.deletedAt
-        ? t('patient.deletedPlaceholder', 'Deleted Patient')
-        : `${plan.patient.lastName} ${plan.patient.firstName}`,
-      providerName: plan.provider.user.fullName,
-    }));
+    const costSummaries = hasFullRead
+      ? await this.fetchCostSummaries(data.map((p) => p.id))
+      : null;
+
+    const items = data.map((plan) => {
+      const summary = costSummaries?.get(plan.id);
+      return {
+        ...plan,
+        patientName: plan.patient.deletedAt
+          ? t('patient.deletedPlaceholder', 'Deleted Patient')
+          : `${plan.patient.lastName} ${plan.patient.firstName}`,
+        providerName: plan.provider.user.fullName,
+        ...(summary && {
+          estimatedTotalCost: summary.estimatedTotal,
+          actualTotalCost: summary.actualTotal,
+          completedCount: summary.completedCount,
+          totalCount: summary.totalCount,
+        }),
+      };
+    });
 
     return buildPaginatedResponse(items, total, {} as TreatmentPlanQueryDto);
+  }
+
+  // Batched lookup of cost summaries for a set of plan IDs from the
+  // treatment_plan_cost_summary view. Returns Map<planId, summary>.
+  private async fetchCostSummaries(planIds: string[]) {
+    const result = new Map<
+      string,
+      {
+        estimatedTotal: number;
+        actualTotal: number;
+        completedCount: number;
+        totalCount: number;
+      }
+    >();
+    if (planIds.length === 0) return result;
+
+    const rows = await this.prisma.baseClient.$queryRaw<
+      {
+        treatment_plan_id: string;
+        estimated_total: string;
+        actual_total: string;
+        completed_count: bigint;
+        total_count: bigint;
+      }[]
+    >`SELECT treatment_plan_id, estimated_total, actual_total, completed_count, total_count
+      FROM treatment_plan_cost_summary
+      WHERE treatment_plan_id = ANY(${planIds}::uuid[])`;
+
+    for (const row of rows) {
+      result.set(row.treatment_plan_id, {
+        estimatedTotal: Number(row.estimated_total ?? 0),
+        actualTotal: Number(row.actual_total ?? 0),
+        completedCount: Number(row.completed_count ?? 0),
+        totalCount: Number(row.total_count ?? 0),
+      });
+    }
+    return result;
   }
 
   private async findPlanOrFail(id: string) {
     const plan = await this.prisma.baseClient.treatmentPlan.findUnique({
       where: { id },
-      select: { id: true, providerId: true, status: true, notes: true },
+      select: {
+        id: true,
+        providerId: true,
+        status: true,
+        notes: true,
+        consentSignedAt: true,
+        consentSignedBy: true,
+      },
     });
 
     if (!plan) {

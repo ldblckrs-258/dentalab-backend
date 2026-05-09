@@ -19,6 +19,7 @@ import { KioskModule } from '@modules/kiosk';
 import { ProcedureModule } from '@modules/procedure/procedure.module';
 import { TreatmentPlanModule } from '@modules/treatment-plan/treatment-plan.module';
 import { SchedulingModule } from '@modules/scheduling/scheduling.module';
+import { PatientProcedureModule } from '@modules/patient-procedure';
 import { DEFAULT_LANGUAGE } from '@common/constants';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -58,6 +59,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     ProcedureModule,
     TreatmentPlanModule,
     SchedulingModule,
+    PatientProcedureModule,
     HealthModule,
   ],
   controllers: [AppController],

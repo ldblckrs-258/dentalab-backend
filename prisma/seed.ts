@@ -150,6 +150,31 @@ const PERMISSIONS: {
     description: 'Hủy yêu cầu thay đổi lịch trực của bản thân',
   },
 
+  // Patient Procedures
+  { resource: 'patient_procedures', action: 'create' },
+  { resource: 'patient_procedures', action: 'read' },
+  {
+    resource: 'patient_procedures',
+    action: 'read',
+    scope: 'full',
+    description: 'Xem đầy đủ thủ thuật bệnh nhân (bao gồm dữ liệu lâm sàng)',
+  },
+  { resource: 'patient_procedures', action: 'update' },
+  { resource: 'patient_procedures', action: 'cancel' },
+  { resource: 'patient_procedures', action: 'complete' },
+  { resource: 'patient_procedures', action: 'finalize_fee' },
+  {
+    resource: 'patient_procedures',
+    action: 'finalize_fee',
+    scope: 'override',
+    description: 'Sửa phí sau khi đã finalize',
+  },
+  {
+    resource: 'patient_procedures',
+    action: 'promote_to_plan',
+    description: 'Chuyển thủ thuật walk-in vào kế hoạch điều trị',
+  },
+
   // Patients
   { resource: 'patients', action: 'create' },
   { resource: 'patients', action: 'read' },
