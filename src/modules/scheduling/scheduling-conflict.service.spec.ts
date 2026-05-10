@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { SchedulingConflictService } from './scheduling-conflict.service';
 import { PrismaService } from '@modules/database';
+import type { Prisma } from '@prisma/client';
 
 const mockAppointment = {
   id: 'apt-1',
@@ -106,7 +107,7 @@ describe('SchedulingConflictService', () => {
         1,
         '08:00',
         '12:00',
-        mockTx as Parameters<typeof service.validateRecurringScheduleChange>[5],
+        mockTx as unknown as Prisma.TransactionClient,
       );
 
       expect(mockTx.$queryRaw).toHaveBeenCalled();
@@ -196,7 +197,7 @@ describe('SchedulingConflictService', () => {
         'day_off',
         null,
         null,
-        mockTx as Parameters<typeof service.validateOverrideApproval>[5],
+        mockTx as unknown as Prisma.TransactionClient,
       );
 
       expect(mockTx.appointment.findMany).toHaveBeenCalled();

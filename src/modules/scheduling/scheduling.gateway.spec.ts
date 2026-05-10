@@ -4,6 +4,7 @@ import {
   WsAuthService,
   WsMetricsService,
   WsRateLimitService,
+  createMockSocket,
 } from '@modules/realtime';
 import type { AuthenticatedSocket } from '@modules/realtime';
 import { AppConfigService } from '@modules/config';
@@ -56,27 +57,19 @@ describe('SchedulingGateway', () => {
   });
 
   describe('handleConnection', () => {
-    function createMockClient(token: string | null): jest.Mocked<any> {
-      const headers: Record<string, unknown> = {};
-      if (token) {
-        headers.authorization = `Bearer ${token}`;
-      }
-      return {
-        id: `mock-${Date.now()}-${Math.random()}`,
+    function clientWithToken(token: string | null) {
+      return createMockSocket({
         handshake: {
-          headers,
+          headers: token ? { authorization: `Bearer ${token}` } : {},
           auth: {},
           address: '127.0.0.1',
         },
-        data: {},
-        disconnect: jest.fn(),
-        join: jest.fn().mockResolvedValue(undefined),
-      };
+      });
     }
 
     it('should disconnect when handshake rate limited', async () => {
       wsRateLimit.checkHandshake.mockResolvedValue(false);
-      const mockClient = createMockClient('valid-token');
+      const mockClient = clientWithToken('valid-token');
 
       await gateway.handleConnection(
         mockClient as unknown as AuthenticatedSocket,
@@ -90,7 +83,7 @@ describe('SchedulingGateway', () => {
 
     it('should disconnect when no token provided', async () => {
       wsRateLimit.checkHandshake.mockResolvedValue(true);
-      const mockClient = createMockClient(null);
+      const mockClient = clientWithToken(null);
       await gateway.handleConnection(
         mockClient as unknown as AuthenticatedSocket,
       );
@@ -101,7 +94,7 @@ describe('SchedulingGateway', () => {
     it('should disconnect when auth fails', async () => {
       wsRateLimit.checkHandshake.mockResolvedValue(true);
       wsAuth.authenticate.mockRejectedValue(new Error('WS_NO_TOKEN'));
-      const mockClient = createMockClient('valid-token');
+      const mockClient = clientWithToken('valid-token');
       await gateway.handleConnection(
         mockClient as unknown as AuthenticatedSocket,
       );
@@ -116,7 +109,7 @@ describe('SchedulingGateway', () => {
         userId: 'user-1',
         payload: { sub: 'user-1' } as any,
       });
-      const mockClient = createMockClient('valid-token');
+      const mockClient = clientWithToken('valid-token');
       await gateway.handleConnection(
         mockClient as unknown as AuthenticatedSocket,
       );

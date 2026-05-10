@@ -3,7 +3,7 @@ import { AppConfigService, parseCorsOrigin } from '@modules/config';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { RateLimitGuard } from '@modules/common/guards/rate-limit.guard';
 import { PermissionGuard } from '@modules/rbac/guards/permission.guard';
-import { RedisIoAdapter } from '@modules/realtime';
+import { RedisIoAdapter, WsExceptionFilter } from '@modules/realtime';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
@@ -38,6 +38,8 @@ async function bootstrap() {
   const wsAdapter = new RedisIoAdapter(app);
   await wsAdapter.connectToRedis(app);
   app.useWebSocketAdapter(wsAdapter);
+
+  app.useGlobalFilters(new WsExceptionFilter());
 
   // Global validation pipe
   app.useGlobalPipes(

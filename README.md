@@ -134,6 +134,10 @@ All environment variables are validated at startup using Zod schemas.
 | `@common/*`  | `src/common/*`  |
 | `@modules/*` | `src/modules/*` |
 
+### WebSocket / Realtime Events
+
+See [docs/realtime-events.md](docs/realtime-events.md) for the event catalog (namespaces, payloads, error codes).
+
 ## Architecture
 
 ### Request Pipeline
