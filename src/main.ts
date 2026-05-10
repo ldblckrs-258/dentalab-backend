@@ -1,8 +1,9 @@
 import { AppValidationPipe } from '@common/pipes/app-validation.pipe';
-import { AppConfigService } from '@modules/config';
+import { AppConfigService, parseCorsOrigin } from '@modules/config';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { RateLimitGuard } from '@modules/common/guards/rate-limit.guard';
 import { PermissionGuard } from '@modules/rbac/guards/permission.guard';
+import { RedisIoAdapter } from '@modules/realtime';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
@@ -28,10 +29,15 @@ async function bootstrap() {
   app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
   app.enableCors({
-    origin: CORS_ORIGINS === '*' ? true : CORS_ORIGINS.split(','),
+    origin: parseCorsOrigin(CORS_ORIGINS),
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   });
+
+  // WebSocket adapter with Redis pub/sub (production) or in-memory (dev)
+  const wsAdapter = new RedisIoAdapter(app);
+  await wsAdapter.connectToRedis(app);
+  app.useWebSocketAdapter(wsAdapter);
 
   // Global validation pipe
   app.useGlobalPipes(

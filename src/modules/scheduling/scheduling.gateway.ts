@@ -1,16 +1,15 @@
+import { Injectable } from '@nestjs/common';
+import { WebSocketGateway } from '@nestjs/websockets';
 import {
-  ConnectedSocket,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  WebSocketGateway,
-  WebSocketServer,
-} from '@nestjs/websockets';
-import { Injectable, Logger } from '@nestjs/common';
+  AuthenticatedGateway,
+  WsAuthService,
+  WsMetricsService,
+  WsLoggerService,
+  WsRateLimitService,
+} from '@modules/realtime';
+import type { AuthenticatedSocket } from '@modules/realtime';
 import { AppConfigService } from '@modules/config';
-import { JwtService } from '@nestjs/jwt';
-import { PermissionResolverService } from '@modules/rbac/services/permission-resolver.service';
-import type { JwtPayload } from '@common/interfaces';
-import type { Server, Socket } from 'socket.io';
+import { ScheduleRooms } from './schedule.rooms';
 
 export interface ScheduleUpdatedEvent {
   providerId: string;
@@ -30,80 +29,46 @@ export interface OverrideReviewedEvent {
   reviewerId: string | null;
 }
 
-@WebSocketGateway({ namespace: '/schedule', cors: { origin: '*' } })
-@Injectable()
-export class SchedulingGateway
-  implements OnGatewayConnection, OnGatewayDisconnect
-{
-  @WebSocketServer()
-  private server!: Server;
+export interface ScheduleEvents {
+  'schedule.updated': ScheduleUpdatedEvent;
+  'override.requested': OverrideRequestedEvent;
+  'override.reviewed': OverrideReviewedEvent;
+}
 
-  private readonly logger = new Logger(SchedulingGateway.name);
-  private readonly scheduleReadersRoom = 'schedule-readers';
+@WebSocketGateway({ namespace: '/schedule' })
+@Injectable()
+export class SchedulingGateway extends AuthenticatedGateway<ScheduleEvents> {
+  protected readonly namespace = '/schedule';
+  protected readonly requiredPermissions = [
+    'provider_schedules:read',
+    'schedule_overrides:read',
+  ];
+  protected readonly logger = new WsLoggerService(SchedulingGateway.name);
 
   constructor(
-    private readonly jwtService: JwtService,
-    private readonly config: AppConfigService,
-    private readonly permissionResolver: PermissionResolverService,
-  ) {}
-
-  async handleConnection(@ConnectedSocket() client: Socket): Promise<void> {
-    const token = this.extractBearerToken(client);
-    if (!token) {
-      client.disconnect(true);
-      return;
-    }
-
-    try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
-        secret: this.config.jwt.JWT_SECRET,
-      });
-
-      const canReadSchedules = await this.permissionResolver.hasAnyPermission(
-        payload.sub,
-        ['provider_schedules:read', 'schedule_overrides:read'],
-      );
-
-      if (!canReadSchedules) {
-        client.disconnect(true);
-        return;
-      }
-
-      client.data.userId = payload.sub;
-      void client.join(this.scheduleReadersRoom);
-      this.logger.debug(`Schedule socket connected: ${client.id}`);
-    } catch {
-      client.disconnect(true);
-    }
-  }
-
-  handleDisconnect(@ConnectedSocket() client: Socket): void {
-    this.logger.debug(`Schedule socket disconnected: ${client.id}`);
+    wsAuth: WsAuthService,
+    metrics: WsMetricsService,
+    wsRateLimit: WsRateLimitService,
+    config: AppConfigService,
+  ) {
+    super(wsAuth, metrics, wsRateLimit, config);
   }
 
   emitScheduleUpdated(event: ScheduleUpdatedEvent): void {
-    this.server.to(this.scheduleReadersRoom).emit('schedule.updated', event);
+    this.emit(ScheduleRooms.readers(), 'schedule.updated', event);
   }
 
   emitOverrideRequested(event: OverrideRequestedEvent): void {
-    this.server.to(this.scheduleReadersRoom).emit('override.requested', event);
+    this.emit(ScheduleRooms.readers(), 'override.requested', event);
   }
 
   emitOverrideReviewed(event: OverrideReviewedEvent): void {
-    this.server.to(this.scheduleReadersRoom).emit('override.reviewed', event);
+    this.emit(ScheduleRooms.readers(), 'override.reviewed', event);
   }
 
-  private extractBearerToken(client: Socket): string | null {
-    const authHeader = client.handshake.headers.authorization;
-    if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
-      return authHeader.slice(7);
-    }
-
-    const authToken = client.handshake.auth?.token;
-    if (typeof authToken === 'string' && authToken.length > 0) {
-      return authToken;
-    }
-
-    return null;
+  protected async onAuthorizedConnect(
+    client: AuthenticatedSocket,
+  ): Promise<void> {
+    await client.join(ScheduleRooms.readers());
   }
 }

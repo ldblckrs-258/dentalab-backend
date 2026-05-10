@@ -7,6 +7,10 @@ const SENSITIVE_KEYWORDS = [
   'API_KEY',
 ];
 
+export function parseCorsOrigin(raw: string): true | string[] {
+  return raw === '*' ? true : raw.split(',');
+}
+
 export function maskSensitiveValues(
   config: Record<string, unknown>,
 ): Record<string, unknown> {

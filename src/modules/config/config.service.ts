@@ -8,6 +8,7 @@ import type { StorageConfig } from './schemas/storage.schema';
 import type { JwtConfig } from './schemas/jwt.schema';
 import type { AiConfig } from './schemas/ai.schema';
 import type { EmailConfig } from './schemas/email.schema';
+import type { WsConfig } from './schemas/ws.schema';
 
 @Injectable()
 export class AppConfigService {
@@ -43,6 +44,10 @@ export class AppConfigService {
 
   get email(): EmailConfig {
     return this.configService.get<EmailConfig>('email')!;
+  }
+
+  get ws(): WsConfig {
+    return this.configService.get<WsConfig>('ws')!;
   }
 
   get isDevelopment(): boolean {

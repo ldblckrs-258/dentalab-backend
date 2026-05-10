@@ -6,3 +6,4 @@ export * from './storage.schema';
 export * from './jwt.schema';
 export * from './ai.schema';
 export * from './email.schema';
+export * from './ws.schema';

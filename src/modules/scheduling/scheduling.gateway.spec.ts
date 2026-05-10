@@ -1,35 +1,54 @@
 import { Test } from '@nestjs/testing';
 import { SchedulingGateway } from './scheduling.gateway';
-import { JwtService } from '@nestjs/jwt';
+import {
+  WsAuthService,
+  WsMetricsService,
+  WsRateLimitService,
+} from '@modules/realtime';
+import type { AuthenticatedSocket } from '@modules/realtime';
 import { AppConfigService } from '@modules/config';
-import { PermissionResolverService } from '@modules/rbac/services/permission-resolver.service';
-import type { Socket } from 'socket.io';
+import type { Server } from 'socket.io';
 
 describe('SchedulingGateway', () => {
   let gateway: SchedulingGateway;
-  let jwtService: any;
-  let permissionResolver: any;
-  let mockServer: any;
+  let wsAuth: any;
+  let metrics: any;
+  let wsRateLimit: any;
+  let appConfig: any;
+  let mockServer: { to: jest.Mock; emit: jest.Mock };
 
   beforeEach(async () => {
-    jwtService = { verifyAsync: jest.fn() };
-    permissionResolver = { hasAnyPermission: jest.fn() };
-    mockServer = { to: jest.fn().mockReturnValue({ emit: jest.fn() }) };
+    wsAuth = {
+      authenticate: jest.fn(),
+    } as any;
+    metrics = {
+      incrementConnectionsOpened: jest.fn(),
+      incrementConnectionsClosed: jest.fn(),
+      incrementAuthFailures: jest.fn(),
+      incrementRateLimitRejections: jest.fn(),
+    } as any;
+    wsRateLimit = {
+      checkHandshake: jest.fn(),
+      checkEvent: jest.fn(),
+    } as any;
+    appConfig = { ws: { WS_DRAIN_MS: 0 } } as any;
+    mockServer = {
+      to: jest.fn().mockReturnThis(),
+      emit: jest.fn(),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
         SchedulingGateway,
-        { provide: JwtService, useValue: jwtService },
-        {
-          provide: AppConfigService,
-          useValue: { jwt: { JWT_SECRET: 'test-secret' } },
-        },
-        { provide: PermissionResolverService, useValue: permissionResolver },
+        { provide: WsAuthService, useValue: wsAuth },
+        { provide: WsMetricsService, useValue: metrics },
+        { provide: WsRateLimitService, useValue: wsRateLimit },
+        { provide: AppConfigService, useValue: appConfig },
       ],
     }).compile();
 
     gateway = module.get(SchedulingGateway);
-    gateway['server'] = mockServer;
+    gateway['server'] = mockServer as unknown as Server;
   });
 
   afterEach(() => {
@@ -37,71 +56,70 @@ describe('SchedulingGateway', () => {
   });
 
   describe('handleConnection', () => {
+    function createMockClient(token: string | null): jest.Mocked<any> {
+      const headers: Record<string, unknown> = {};
+      if (token) {
+        headers.authorization = `Bearer ${token}`;
+      }
+      return {
+        id: `mock-${Date.now()}-${Math.random()}`,
+        handshake: {
+          headers,
+          auth: {},
+          address: '127.0.0.1',
+        },
+        data: {},
+        disconnect: jest.fn(),
+        join: jest.fn().mockResolvedValue(undefined),
+      };
+    }
+
+    it('should disconnect when handshake rate limited', async () => {
+      wsRateLimit.checkHandshake.mockResolvedValue(false);
+      const mockClient = createMockClient('valid-token');
+
+      await gateway.handleConnection(
+        mockClient as unknown as AuthenticatedSocket,
+      );
+
+      expect(wsRateLimit.checkHandshake).toHaveBeenCalled();
+      expect(metrics.incrementRateLimitRejections).toHaveBeenCalled();
+      expect(mockClient.disconnect).toHaveBeenCalledWith(true);
+      expect(wsAuth.authenticate).not.toHaveBeenCalled();
+    });
+
     it('should disconnect when no token provided', async () => {
-      const mockClient = {
-        handshake: { headers: {}, auth: {} },
-        disconnect: jest.fn(),
-        data: {},
-        join: jest.fn(),
-      } satisfies Record<string, unknown>;
-
-      await gateway.handleConnection(mockClient as unknown as Socket);
+      wsRateLimit.checkHandshake.mockResolvedValue(true);
+      const mockClient = createMockClient(null);
+      await gateway.handleConnection(
+        mockClient as unknown as AuthenticatedSocket,
+      );
 
       expect(mockClient.disconnect).toHaveBeenCalledWith(true);
     });
 
-    it('should disconnect when token is invalid', async () => {
-      jwtService.verifyAsync.mockRejectedValue(new Error('invalid'));
-
-      const mockClient = {
-        handshake: {
-          headers: { authorization: 'Bearer invalid-token' },
-          auth: {},
-        },
-        disconnect: jest.fn(),
-        data: {},
-        join: jest.fn(),
-      } satisfies Record<string, unknown>;
-
-      await gateway.handleConnection(mockClient as unknown as Socket);
+    it('should disconnect when auth fails', async () => {
+      wsRateLimit.checkHandshake.mockResolvedValue(true);
+      wsAuth.authenticate.mockRejectedValue(new Error('WS_NO_TOKEN'));
+      const mockClient = createMockClient('valid-token');
+      await gateway.handleConnection(
+        mockClient as unknown as AuthenticatedSocket,
+      );
 
       expect(mockClient.disconnect).toHaveBeenCalledWith(true);
+      expect(mockClient.join).not.toHaveBeenCalled();
     });
 
-    it('should disconnect when user lacks read permission', async () => {
-      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1' });
-      permissionResolver.hasAnyPermission.mockResolvedValue(false);
-
-      const mockClient = {
-        handshake: {
-          headers: { authorization: 'Bearer valid-token' },
-          auth: {},
-        },
-        disconnect: jest.fn(),
-        data: {},
-        join: jest.fn(),
-      } satisfies Record<string, unknown>;
-
-      await gateway.handleConnection(mockClient as unknown as Socket);
-
-      expect(mockClient.disconnect).toHaveBeenCalledWith(true);
-    });
-
-    it('should join schedule room when authorized', async () => {
-      jwtService.verifyAsync.mockResolvedValue({ sub: 'user-1' });
-      permissionResolver.hasAnyPermission.mockResolvedValue(true);
-
-      const mockClient = {
-        handshake: {
-          headers: { authorization: 'Bearer valid-token' },
-          auth: {},
-        },
-        disconnect: jest.fn(),
-        data: {},
-        join: jest.fn(),
-      } satisfies Record<string, unknown>;
-
-      await gateway.handleConnection(mockClient as unknown as Socket);
+    it('should join schedule room and set userId when authorized', async () => {
+      wsRateLimit.checkHandshake.mockResolvedValue(true);
+      wsAuth.authenticate.mockResolvedValue({
+        userId: 'user-1',
+        payload: { sub: 'user-1' } as any,
+      });
+      const mockClient = createMockClient('valid-token');
+      await gateway.handleConnection(
+        mockClient as unknown as AuthenticatedSocket,
+      );
 
       expect(mockClient.join).toHaveBeenCalled();
       expect(mockClient.data.userId).toBe('user-1');
@@ -110,7 +128,7 @@ describe('SchedulingGateway', () => {
   });
 
   describe('emitScheduleUpdated', () => {
-    it('should emit to schedule-readers room', () => {
+    it('should emit to schedule:readers room', () => {
       const event = {
         providerId: 'provider-1',
         effectFrom: '2026-05-10T00:00:00.000Z',
@@ -118,16 +136,13 @@ describe('SchedulingGateway', () => {
       };
       gateway.emitScheduleUpdated(event);
 
-      expect(mockServer.to).toHaveBeenCalledWith('schedule-readers');
-      expect(mockServer.to().emit).toHaveBeenCalledWith(
-        'schedule.updated',
-        event,
-      );
+      expect(mockServer.to).toHaveBeenCalledWith('schedule:readers');
+      expect(mockServer.emit).toHaveBeenCalledWith('schedule.updated', event);
     });
   });
 
   describe('emitOverrideRequested', () => {
-    it('should emit to schedule-readers room', () => {
+    it('should emit to schedule:readers room', () => {
       const event = {
         id: 'override-1',
         providerId: 'provider-1',
@@ -135,24 +150,21 @@ describe('SchedulingGateway', () => {
       };
       gateway.emitOverrideRequested(event);
 
-      expect(mockServer.to).toHaveBeenCalledWith('schedule-readers');
-      expect(mockServer.to().emit).toHaveBeenCalledWith(
-        'override.requested',
-        event,
-      );
+      expect(mockServer.to).toHaveBeenCalledWith('schedule:readers');
+      expect(mockServer.emit).toHaveBeenCalledWith('override.requested', event);
     });
   });
 
   describe('emitOverrideReviewed', () => {
-    it('should emit to schedule-readers room', () => {
+    it('should emit to schedule:readers room', () => {
       gateway.emitOverrideReviewed({
         id: 'override-1',
         status: 'approved',
         reviewerId: 'user-1',
       });
 
-      expect(mockServer.to).toHaveBeenCalledWith('schedule-readers');
-      expect(mockServer.to().emit).toHaveBeenCalledWith('override.reviewed', {
+      expect(mockServer.to).toHaveBeenCalledWith('schedule:readers');
+      expect(mockServer.emit).toHaveBeenCalledWith('override.reviewed', {
         id: 'override-1',
         status: 'approved',
         reviewerId: 'user-1',

@@ -39,6 +39,7 @@
     "@nestjs/websockets": "^11.1.19",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
+    "@socket.io/redis-adapter": "^8.3.0",
     "amqplib": "^0.10.9",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
