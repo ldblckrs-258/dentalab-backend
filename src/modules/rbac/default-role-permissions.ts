@@ -80,6 +80,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     scopedPerm('treatment_plans', 'read', 'metadata'),
     perm('patient_procedures', 'read'),
     perm('provider_schedules', 'read'),
+    perm('schedule_overrides', 'read'),
     perm('forms', 'read'),
     perm('form_submissions', 'read'),
     perm('kiosk_sessions', 'create'),

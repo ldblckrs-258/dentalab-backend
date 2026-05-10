@@ -5,12 +5,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import dayjs from 'dayjs';
 import { PrismaService } from '@modules/database';
 import { AuditService } from '@modules/audit';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
+import { AppConfigService } from '@modules/config';
 import { t } from '@common/utils';
 import type { AuthenticatedUser } from '@common/interfaces';
+import {
+  SchedulingConflictService,
+  serializeConflicts,
+} from './scheduling-conflict.service';
+import { SchedulingGateway } from './scheduling.gateway';
 import type { CreateScheduleOverrideDto } from './dto/create-schedule-override.dto';
 import type { ReviewScheduleOverrideDto } from './dto/review-schedule-override.dto';
 import type { ScheduleOverrideQueryDto } from './dto/schedule-override-query.dto';
@@ -36,6 +41,9 @@ export class ScheduleOverrideService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly config: AppConfigService,
+    private readonly conflictService: SchedulingConflictService,
+    private readonly schedulingGateway: SchedulingGateway,
   ) {}
 
   async assertOwnProvider(
@@ -54,8 +62,20 @@ export class ScheduleOverrideService {
   }
 
   async create(dto: CreateScheduleOverrideDto, currentUser: AuthenticatedUser) {
-    // Doctors can only request overrides for their own provider record.
-    // Admin/Manager have no linked provider and may specify any providerId.
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const specificDate = new Date(dto.specificDate);
+    specificDate.setUTCHours(0, 0, 0, 0);
+
+    if (specificDate <= today) {
+      throw new BadRequestException(
+        t(
+          'scheduling.cannotCreatePastOverride',
+          'Cannot create an override for today or a past date',
+        ),
+      );
+    }
+
     const userProvider = await this.prisma.baseClient.provider.findFirst({
       where: { userId: currentUser.id },
       select: { id: true },
@@ -66,22 +86,33 @@ export class ScheduleOverrideService {
       );
     }
 
-    return this.prisma.baseClient.providerScheduleOverride.create({
-      data: {
-        providerId: dto.providerId,
-        requestedBy: currentUser.id,
-        specificDate: dto.specificDate,
-        overrideType: dto.overrideType,
-        startTime:
-          dto.overrideType === 'custom_hours' ? (dto.startTime ?? null) : null,
-        endTime:
-          dto.overrideType === 'custom_hours' ? (dto.endTime ?? null) : null,
-        reason: dto.reason,
-        status: 'pending',
-        requestedAt: new Date(),
-      },
-      select: SCHEDULE_OVERRIDE_SELECT,
+    const created =
+      await this.prisma.baseClient.providerScheduleOverride.create({
+        data: {
+          providerId: dto.providerId,
+          requestedBy: currentUser.id,
+          specificDate: dto.specificDate,
+          overrideType: dto.overrideType,
+          startTime:
+            dto.overrideType === 'custom_hours'
+              ? (dto.startTime ?? null)
+              : null,
+          endTime:
+            dto.overrideType === 'custom_hours' ? (dto.endTime ?? null) : null,
+          reason: dto.reason,
+          status: 'pending',
+          requestedAt: new Date(),
+        },
+        select: SCHEDULE_OVERRIDE_SELECT,
+      });
+
+    this.schedulingGateway.emitOverrideRequested({
+      id: created.id,
+      providerId: created.providerId,
+      specificDate: created.specificDate.toISOString(),
     });
+
+    return created;
   }
 
   async findById(id: string) {
@@ -115,7 +146,8 @@ export class ScheduleOverrideService {
       this.prisma.baseClient.providerScheduleOverride.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    const withStale = this.addStaleFlag(data);
+    return buildPaginatedResponse(withStale, total, query);
   }
 
   async findPending(query: ScheduleOverrideQueryDto) {
@@ -144,7 +176,8 @@ export class ScheduleOverrideService {
       this.prisma.baseClient.providerScheduleOverride.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    const withStale = this.addStaleFlag(data);
+    return buildPaginatedResponse(withStale, total, query);
   }
 
   async findMine(
@@ -185,7 +218,8 @@ export class ScheduleOverrideService {
       this.prisma.baseClient.providerScheduleOverride.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    const withStale = this.addStaleFlag(data);
+    return buildPaginatedResponse(withStale, total, query);
   }
 
   async review(
@@ -194,76 +228,42 @@ export class ScheduleOverrideService {
     currentUser: AuthenticatedUser,
   ) {
     const override = await this.findOverrideOrFail(id);
-
-    let conflictList: Array<{
-      id: string;
-      startTime: Date;
-      endTime: Date;
-      status: string;
-    }> = [];
+    const newStatus = dto.decision === 'approve' ? 'approved' : 'rejected';
 
     await this.prisma.transaction(async (tx) => {
-      const updateData: Record<string, unknown> = {
-        status: dto.decision === 'approve' ? 'approved' : 'rejected',
-        reviewedBy: currentUser.id,
-        reviewedAt: new Date(),
-      };
-      if (dto.reviewNote !== undefined) {
-        updateData.reviewNote = dto.reviewNote;
-      }
-
-      await tx.providerScheduleOverride.update({
-        where: { id },
-        data: updateData,
-      });
-
+      // Spec §2.3: approving an override that conflicts with existing
+      // appointments must block — validate before mutating.
       if (dto.decision === 'approve') {
-        const dateStr = dayjs(override.specificDate).format('YYYY-MM-DD');
-        const dateStart = new Date(`${dateStr}T00:00:00.000Z`);
-        const dateEnd = new Date(`${dateStr}T23:59:59.999Z`);
+        const conflicts = await this.conflictService.validateOverrideApproval(
+          override.providerId,
+          new Date(override.specificDate),
+          override.overrideType,
+          override.startTime,
+          override.endTime,
+          tx,
+        );
 
-        const appointments = await tx.appointment.findMany({
-          where: {
-            providerId: override.providerId,
-            status: { notIn: ['cancelled'] },
-            startTime: { gte: dateStart, lt: dateEnd },
-          },
-          select: { id: true, startTime: true, endTime: true, status: true },
-        });
-
-        if (override.overrideType === 'day_off') {
-          conflictList = appointments;
-        } else if (
-          override.overrideType === 'custom_hours' &&
-          override.startTime &&
-          override.endTime
-        ) {
-          const [startH, startM] = override.startTime.split(':').map(Number);
-          const [endH, endM] = override.endTime.split(':').map(Number);
-          const dateStr = dayjs(override.specificDate).format('YYYY-MM-DD');
-          const windowStart = new Date(
-            `${dateStr}T${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:00`,
-          );
-          const windowEnd = new Date(
-            `${dateStr}T${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`,
-          );
-
-          conflictList = appointments.filter(
-            (apt) => apt.startTime < windowEnd && apt.endTime > windowStart,
-          );
-        }
-
-        if (conflictList.length > 0 && !dto.force) {
+        if (conflicts.length > 0) {
           throw new ConflictException({
             code: 'OVERRIDE_HAS_CONFLICTS',
             message: t(
               'scheduling.overrideConflicts',
               'Schedule override has conflicting appointments',
             ),
-            conflicts: conflictList,
+            conflicts: serializeConflicts(conflicts),
           });
         }
       }
+
+      await tx.providerScheduleOverride.update({
+        where: { id },
+        data: {
+          status: newStatus,
+          reviewedBy: currentUser.id,
+          reviewedAt: new Date(),
+          ...(dto.reviewNote !== undefined && { reviewNote: dto.reviewNote }),
+        },
+      });
     });
 
     this.auditService.emit({
@@ -273,16 +273,15 @@ export class ScheduleOverrideService {
           : 'SCHEDULE_OVERRIDE_REJECTED',
       resource: 'schedule_override',
       resourceId: id,
-      metadata: {
-        ...(conflictList.length > 0 && { conflictCount: conflictList.length }),
-      },
     });
 
-    return {
+    this.schedulingGateway.emitOverrideReviewed({
       id,
-      status: dto.decision === 'approve' ? 'approved' : 'rejected',
-      ...(conflictList.length > 0 && { conflictList }),
-    };
+      status: newStatus,
+      reviewerId: currentUser.id,
+    });
+
+    return { id, status: newStatus };
   }
 
   async cancel(id: string, currentUser: AuthenticatedUser) {
@@ -314,11 +313,20 @@ export class ScheduleOverrideService {
       );
     }
 
-    return this.prisma.baseClient.providerScheduleOverride.update({
-      where: { id },
-      data: { status: 'cancelled' },
-      select: SCHEDULE_OVERRIDE_SELECT,
+    const cancelled =
+      await this.prisma.baseClient.providerScheduleOverride.update({
+        where: { id },
+        data: { status: 'cancelled' },
+        select: SCHEDULE_OVERRIDE_SELECT,
+      });
+
+    this.schedulingGateway.emitOverrideReviewed({
+      id,
+      status: 'cancelled',
+      reviewerId: null,
     });
+
+    return cancelled;
   }
 
   private async findOverrideOrFail(id: string) {
@@ -333,5 +341,21 @@ export class ScheduleOverrideService {
       );
     }
     return override;
+  }
+
+  private addStaleFlag<
+    T extends {
+      status: string;
+      requestedAt: Date;
+    },
+  >(overrides: readonly T[]): Array<T & { isStale: boolean }> {
+    const staleDays = this.config.app.SCHEDULE_OVERRIDE_STALE_DAYS;
+    const staleThreshold = new Date();
+    staleThreshold.setUTCDate(staleThreshold.getUTCDate() - staleDays);
+
+    return overrides.map((o) => ({
+      ...o,
+      isStale: o.status === 'pending' && o.requestedAt < staleThreshold,
+    }));
   }
 }

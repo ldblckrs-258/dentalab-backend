@@ -1,8 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { t } from '@common/utils';
 import { InfrastructureException } from '@modules/common/filters/infrastructure.exception';
+import {
+  SchedulingConflictService,
+  serializeConflicts,
+} from './scheduling-conflict.service';
+import { SchedulingGateway } from './scheduling.gateway';
 import type { CreateProviderScheduleDto } from './dto/create-provider-schedule.dto';
 import type { UpdateProviderScheduleDto } from './dto/update-provider-schedule.dto';
 import type { ProviderScheduleQueryDto } from './dto/provider-schedule-query.dto';
@@ -18,7 +27,11 @@ export const PROVIDER_SCHEDULE_SELECT = {
 
 @Injectable()
 export class ProviderScheduleService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly conflictService: SchedulingConflictService,
+    private readonly schedulingGateway: SchedulingGateway,
+  ) {}
 
   async findForProvider(providerId: string, onlyAvailable?: boolean) {
     const where: Record<string, unknown> = { providerId };
@@ -74,16 +87,46 @@ export class ProviderScheduleService {
     await this.validateProvider(dto.providerId);
 
     try {
-      return await this.prisma.baseClient.providerSchedule.create({
-        data: {
-          providerId: dto.providerId,
-          dayOfWeek: dto.dayOfWeek,
-          startTime: dto.startTime,
-          endTime: dto.endTime,
-          isAvailable: dto.isAvailable ?? true,
-        },
-        select: PROVIDER_SCHEDULE_SELECT,
+      const created = await this.prisma.transaction(async (tx) => {
+        const conflicts =
+          await this.conflictService.validateRecurringScheduleChange(
+            dto.providerId,
+            dto.dayOfWeek,
+            dto.startTime,
+            dto.endTime,
+            tx,
+          );
+
+        if (conflicts.length > 0) {
+          throw new ConflictException({
+            code: 'SCHEDULE_CONFLICTS_WITH_APPOINTMENTS',
+            message: t(
+              'scheduling.scheduleConflicts',
+              'Recurring schedule conflicts with existing appointments',
+            ),
+            conflicts: serializeConflicts(conflicts),
+          });
+        }
+
+        return tx.providerSchedule.create({
+          data: {
+            providerId: dto.providerId,
+            dayOfWeek: dto.dayOfWeek,
+            startTime: dto.startTime,
+            endTime: dto.endTime,
+            isAvailable: dto.isAvailable ?? true,
+          },
+          select: PROVIDER_SCHEDULE_SELECT,
+        });
       });
+
+      this.schedulingGateway.emitScheduleUpdated({
+        providerId: created.providerId,
+        effectFrom: new Date().toISOString(),
+        effectTo: null,
+      });
+
+      return created;
     } catch (error: unknown) {
       if (this.isOverlapError(error)) {
         throw new InfrastructureException(
@@ -101,7 +144,7 @@ export class ProviderScheduleService {
   }
 
   async update(id: string, dto: UpdateProviderScheduleDto) {
-    await this.findScheduleOrFail(id);
+    const schedule = await this.findScheduleOrFail(id);
 
     if (dto.endTime && dto.startTime && dto.endTime <= dto.startTime) {
       throw new InfrastructureException(
@@ -116,20 +159,55 @@ export class ProviderScheduleService {
       await this.validateProvider(dto.providerId);
     }
 
+    const finalProviderId = dto.providerId ?? schedule.providerId;
+    const finalDayOfWeek = dto.dayOfWeek ?? schedule.dayOfWeek;
+    const finalStartTime = dto.startTime ?? schedule.startTime;
+    const finalEndTime = dto.endTime ?? schedule.endTime;
+
     try {
-      return await this.prisma.baseClient.providerSchedule.update({
-        where: { id },
-        data: {
-          ...(dto.providerId !== undefined && { providerId: dto.providerId }),
-          ...(dto.dayOfWeek !== undefined && { dayOfWeek: dto.dayOfWeek }),
-          ...(dto.startTime !== undefined && { startTime: dto.startTime }),
-          ...(dto.endTime !== undefined && { endTime: dto.endTime }),
-          ...(dto.isAvailable !== undefined && {
-            isAvailable: dto.isAvailable,
-          }),
-        },
-        select: PROVIDER_SCHEDULE_SELECT,
+      const updated = await this.prisma.transaction(async (tx) => {
+        const conflicts =
+          await this.conflictService.validateRecurringScheduleChange(
+            finalProviderId,
+            finalDayOfWeek,
+            finalStartTime,
+            finalEndTime,
+            tx,
+          );
+
+        if (conflicts.length > 0) {
+          throw new ConflictException({
+            code: 'SCHEDULE_CONFLICTS_WITH_APPOINTMENTS',
+            message: t(
+              'scheduling.scheduleConflicts',
+              'Recurring schedule conflicts with existing appointments',
+            ),
+            conflicts: serializeConflicts(conflicts),
+          });
+        }
+
+        return tx.providerSchedule.update({
+          where: { id },
+          data: {
+            ...(dto.providerId !== undefined && { providerId: dto.providerId }),
+            ...(dto.dayOfWeek !== undefined && { dayOfWeek: dto.dayOfWeek }),
+            ...(dto.startTime !== undefined && { startTime: dto.startTime }),
+            ...(dto.endTime !== undefined && { endTime: dto.endTime }),
+            ...(dto.isAvailable !== undefined && {
+              isAvailable: dto.isAvailable,
+            }),
+          },
+          select: PROVIDER_SCHEDULE_SELECT,
+        });
       });
+
+      this.schedulingGateway.emitScheduleUpdated({
+        providerId: updated.providerId,
+        effectFrom: new Date().toISOString(),
+        effectTo: null,
+      });
+
+      return updated;
     } catch (error: unknown) {
       if (this.isOverlapError(error)) {
         throw new InfrastructureException(
@@ -149,8 +227,8 @@ export class ProviderScheduleService {
   async delete(id: string) {
     const schedule = await this.findScheduleOrFail(id);
 
-    const affectedAppointments =
-      await this.prisma.baseClient.appointment.findMany({
+    const affectedAppointments = await this.prisma.transaction(async (tx) => {
+      const appointments = await tx.appointment.findMany({
         where: {
           providerId: schedule.providerId,
           status: { notIn: ['cancelled'] },
@@ -159,7 +237,16 @@ export class ProviderScheduleService {
         select: { id: true, startTime: true, status: true },
       });
 
-    await this.prisma.baseClient.providerSchedule.delete({ where: { id } });
+      await tx.providerSchedule.delete({ where: { id } });
+
+      return appointments;
+    });
+
+    this.schedulingGateway.emitScheduleUpdated({
+      providerId: schedule.providerId,
+      effectFrom: new Date().toISOString(),
+      effectTo: null,
+    });
 
     return {
       deleted: true,
@@ -202,7 +289,13 @@ export class ProviderScheduleService {
   private async findScheduleOrFail(id: string) {
     const schedule = await this.prisma.baseClient.providerSchedule.findUnique({
       where: { id },
-      select: { id: true, providerId: true, dayOfWeek: true },
+      select: {
+        id: true,
+        providerId: true,
+        dayOfWeek: true,
+        startTime: true,
+        endTime: true,
+      },
     });
     if (!schedule) {
       throw new NotFoundException(

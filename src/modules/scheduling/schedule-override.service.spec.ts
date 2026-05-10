@@ -8,6 +8,9 @@ import {
 import { ScheduleOverrideService } from './schedule-override.service';
 import { PrismaService } from '@modules/database';
 import { AuditService } from '@modules/audit';
+import { AppConfigService } from '@modules/config';
+import { SchedulingConflictService } from './scheduling-conflict.service';
+import { SchedulingGateway } from './scheduling.gateway';
 import { mockI18nContext } from '@common/test/i18n-mock';
 
 const mockUser = {
@@ -36,6 +39,8 @@ describe('ScheduleOverrideService', () => {
   let service: ScheduleOverrideService;
   let prisma: any;
   let auditService: any;
+  let conflictService: any;
+  let gateway: any;
 
   beforeEach(async () => {
     mockI18nContext();
@@ -62,12 +67,25 @@ describe('ScheduleOverrideService', () => {
     };
 
     auditService = { emit: jest.fn() };
+    conflictService = {
+      validateOverrideApproval: jest.fn().mockResolvedValue([]),
+    };
+    gateway = {
+      emitOverrideRequested: jest.fn(),
+      emitOverrideReviewed: jest.fn(),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
         ScheduleOverrideService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: auditService },
+        {
+          provide: AppConfigService,
+          useValue: { app: { SCHEDULE_OVERRIDE_STALE_DAYS: 3 } },
+        },
+        { provide: SchedulingConflictService, useValue: conflictService },
+        { provide: SchedulingGateway, useValue: gateway },
       ],
     }).compile();
 
@@ -159,6 +177,45 @@ describe('ScheduleOverrideService', () => {
       );
 
       expect(result.overrideType).toBe('day_off');
+    });
+
+    it('should throw BadRequestException when date is today or in the past', async () => {
+      await expect(
+        service.create(
+          {
+            providerId: 'provider-1',
+            specificDate: new Date('2024-01-01'),
+            overrideType: 'day_off',
+            reason: 'Old date',
+          },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should emit override.requested event via gateway', async () => {
+      prisma.baseClient.providerScheduleOverride.create.mockResolvedValue(
+        mockOverride,
+      );
+
+      await service.create(
+        {
+          providerId: 'provider-1',
+          specificDate: new Date('2026-05-15'),
+          overrideType: 'custom_hours',
+          startTime: '10:00',
+          endTime: '12:00',
+          reason: 'Personal appointment',
+        },
+        mockUser,
+      );
+
+      expect(gateway.emitOverrideRequested).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'override-1',
+          providerId: 'provider-1',
+        }),
+      );
     });
   });
 
@@ -311,8 +368,8 @@ describe('ScheduleOverrideService', () => {
       );
     });
 
-    it('should throw ConflictException when conflicting appointments exist without force', async () => {
-      prisma.baseClient.appointment.findMany.mockResolvedValue([
+    it('should throw ConflictException when conflicting appointments exist on approve', async () => {
+      conflictService.validateOverrideApproval.mockResolvedValue([
         {
           id: 'apt-1',
           startTime: new Date('2026-05-15T10:30:00'),
@@ -326,24 +383,16 @@ describe('ScheduleOverrideService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should approve despite conflicts when force=true', async () => {
-      prisma.baseClient.appointment.findMany.mockResolvedValue([
-        {
-          id: 'apt-1',
-          startTime: new Date('2026-05-15T10:30:00'),
-          endTime: new Date('2026-05-15T11:30:00'),
-          status: 'scheduled',
-        },
-      ]);
+    it('should emit override.reviewed on approve', async () => {
+      await service.review('override-1', { decision: 'approve' }, mockUser);
 
-      const result = await service.review(
-        'override-1',
-        { decision: 'approve', force: true },
-        mockUser,
+      expect(gateway.emitOverrideReviewed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'override-1',
+          status: 'approved',
+          reviewerId: 'user-1',
+        }),
       );
-
-      expect(result.status).toBe('approved');
-      expect(result.conflictList).toHaveLength(1);
     });
 
     it('should reject without reviewNote (no validation at service level)', async () => {

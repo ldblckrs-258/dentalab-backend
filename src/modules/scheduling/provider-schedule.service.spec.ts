@@ -1,8 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ConflictException } from '@nestjs/common';
 import { ProviderScheduleService } from './provider-schedule.service';
 import { PrismaService } from '@modules/database';
 import { InfrastructureException } from '@modules/common/filters/infrastructure.exception';
+import { SchedulingConflictService } from './scheduling-conflict.service';
+import { SchedulingGateway } from './scheduling.gateway';
 import { mockI18nContext } from '@common/test/i18n-mock';
 
 const mockSchedule = {
@@ -26,6 +28,7 @@ const mockSchedule2 = {
 describe('ProviderScheduleService', () => {
   let service: ProviderScheduleService;
   let prisma: any;
+  let conflictService: any;
 
   beforeEach(async () => {
     mockI18nContext();
@@ -47,12 +50,22 @@ describe('ProviderScheduleService', () => {
           findMany: jest.fn().mockResolvedValue([]),
         },
       },
+      transaction: jest.fn((cb: any) => cb(prisma.baseClient)),
+    };
+
+    conflictService = {
+      validateRecurringScheduleChange: jest.fn().mockResolvedValue([]),
     };
 
     const module = await Test.createTestingModule({
       providers: [
         ProviderScheduleService,
         { provide: PrismaService, useValue: prisma },
+        { provide: SchedulingConflictService, useValue: conflictService },
+        {
+          provide: SchedulingGateway,
+          useValue: { emitScheduleUpdated: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -149,6 +162,30 @@ describe('ProviderScheduleService', () => {
           }),
         }),
       );
+    });
+
+    it('should throw ConflictException when conflicting appointments exist', async () => {
+      prisma.baseClient.provider.findUnique.mockResolvedValue({
+        id: 'provider-1',
+        isActive: true,
+      });
+      conflictService.validateRecurringScheduleChange.mockResolvedValue([
+        {
+          id: 'apt-1',
+          startTime: new Date(),
+          endTime: new Date(),
+          status: 'scheduled',
+        },
+      ]);
+
+      await expect(
+        service.create({
+          providerId: 'provider-1',
+          dayOfWeek: 1,
+          startTime: '08:00',
+          endTime: '12:00',
+        }),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should throw InfrastructureException when endTime <= startTime', async () => {
