@@ -1,5 +1,5 @@
-import { I18nContext, I18nService } from 'nestjs-i18n';
 import { DEFAULT_LANGUAGE } from '@common/constants';
+import { I18nContext, I18nService } from 'nestjs-i18n';
 
 export function t(
   key: string,
@@ -7,11 +7,10 @@ export function t(
   args?: Record<string, unknown>,
 ): string {
   const i18n = I18nContext.current();
-  const value = i18n?.t(key, args ? { args } : undefined) as string | undefined;
-  // nestjs-i18n returns the key itself when no translation exists.
-  // Treat that as a miss and use the fallback.
+  const value = i18n?.t(key, args ? { args } : undefined);
+
   if (!value || value === key) return fallback;
-  return value;
+  return value as string;
 }
 
 export function resolveLang(lang?: string | null): string {

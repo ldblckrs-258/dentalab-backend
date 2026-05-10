@@ -88,11 +88,15 @@ export class ScheduleOverrideService {
     }
 
     if (dto.targetScheduleId) {
-      const shift =
-        await this.prisma.baseClient.providerSchedule.findUnique({
-          where: { id: dto.targetScheduleId },
-          select: { id: true, providerId: true, dayOfWeek: true, isAvailable: true },
-        });
+      const shift = await this.prisma.baseClient.providerSchedule.findUnique({
+        where: { id: dto.targetScheduleId },
+        select: {
+          id: true,
+          providerId: true,
+          dayOfWeek: true,
+          isAvailable: true,
+        },
+      });
       const computedDow = new Date(dto.specificDate).getUTCDay();
       if (
         !shift ||

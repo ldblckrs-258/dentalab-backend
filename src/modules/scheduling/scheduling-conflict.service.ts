@@ -145,7 +145,9 @@ export class SchedulingConflictService {
         const windowEnd = new Date(`${dateStr}T${endTime}:00.000Z`);
 
         return inTargetShift
-          .filter((apt) => apt.startTime < windowStart || apt.endTime > windowEnd)
+          .filter(
+            (apt) => apt.startTime < windowStart || apt.endTime > windowEnd,
+          )
           .map((apt) => ({
             id: apt.id,
             startTime: apt.startTime,

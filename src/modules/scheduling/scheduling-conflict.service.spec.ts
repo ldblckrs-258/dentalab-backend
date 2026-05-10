@@ -209,7 +209,7 @@ describe('SchedulingConflictService', () => {
 
     it('should only flag appointments within targeted shift for day_off with targetScheduleId', async () => {
       prisma.baseClient.appointment.findMany.mockResolvedValue([
-        mockAppointment,  // 09:00-10:00 — within shift 08:00-12:00
+        mockAppointment, // 09:00-10:00 — within shift 08:00-12:00
         mockAppointment2, // 15:00-16:00 — outside shift 08:00-12:00
       ]);
       prisma.baseClient.providerSchedule.findUnique.mockResolvedValue({
@@ -233,7 +233,9 @@ describe('SchedulingConflictService', () => {
     });
 
     it('should return empty when targetScheduleId shift is not found', async () => {
-      prisma.baseClient.appointment.findMany.mockResolvedValue([mockAppointment]);
+      prisma.baseClient.appointment.findMany.mockResolvedValue([
+        mockAppointment,
+      ]);
       prisma.baseClient.providerSchedule.findUnique.mockResolvedValue(null);
 
       const result = await service.validateOverrideApproval(
