@@ -8,11 +8,14 @@
   },
   "invalidTimeRange": "Thời gian kết thúc phải sau thời gian bắt đầu",
   "scheduleOverlap": "Khung thời gian lịch trực trùng với khung thời gian đã tồn tại",
+  "scheduleConflicts": "Lịch trực định kỳ xung đột với các lịch hẹn hiện có",
+  "cannotCreatePastOverride": "Không thể tạo yêu cầu thay đổi cho ngày đã qua hoặc hôm nay",
   "providerNotActive": "Bác sĩ không còn hoạt động",
   "scheduleNotFound": "Không tìm thấy lịch trực",
   "notOwnProvider": "Bác sĩ không thuộc về bạn",
   "overrideConflicts": "Yêu cầu thay đổi lịch trực có xung đột với lịch hẹn",
   "cancelNotPending": "Chỉ có thể hủy các yêu cầu đang chờ duyệt",
   "notOwnOverride": "Bạn chỉ có thể hủy yêu cầu của chính mình",
-  "overrideNotFound": "Không tìm thấy yêu cầu thay đổi lịch trực"
+  "overrideNotFound": "Không tìm thấy yêu cầu thay đổi lịch trực",
+  "targetShiftMismatch": "Ca trực mục tiêu không khớp với yêu cầu thay đổi (bác sĩ, ngày trong tuần, hoặc trạng thái hoạt động)"
 }

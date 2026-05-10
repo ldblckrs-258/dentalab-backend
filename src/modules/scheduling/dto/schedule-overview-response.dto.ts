@@ -1,5 +1,6 @@
 interface ProviderHeader {
   id: string;
+  userId: string;
   fullName: string;
   avatarUrl: string | null;
   specialty: string | null;
@@ -28,6 +29,7 @@ interface OverrideEntry {
   reviewedAt: string | null;
   reviewNote: string | null;
   reason: string | null;
+  targetScheduleId: string | null;
   isStale: boolean;
 }
 

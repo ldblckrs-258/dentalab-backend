@@ -28,6 +28,9 @@ describe('SchedulingConflictService', () => {
         appointment: {
           findMany: jest.fn().mockResolvedValue([]),
         },
+        providerSchedule: {
+          findUnique: jest.fn(),
+        },
       },
     };
 
@@ -189,6 +192,7 @@ describe('SchedulingConflictService', () => {
     it('should accept db parameter for transaction client', async () => {
       const mockTx = {
         appointment: { findMany: jest.fn().mockResolvedValue([]) },
+        providerSchedule: { findUnique: jest.fn() },
       };
 
       await service.validateOverrideApproval(
@@ -201,6 +205,48 @@ describe('SchedulingConflictService', () => {
       );
 
       expect(mockTx.appointment.findMany).toHaveBeenCalled();
+    });
+
+    it('should only flag appointments within targeted shift for day_off with targetScheduleId', async () => {
+      prisma.baseClient.appointment.findMany.mockResolvedValue([
+        mockAppointment,  // 09:00-10:00 — within shift 08:00-12:00
+        mockAppointment2, // 15:00-16:00 — outside shift 08:00-12:00
+      ]);
+      prisma.baseClient.providerSchedule.findUnique.mockResolvedValue({
+        id: 'schedule-1',
+        startTime: '08:00',
+        endTime: '12:00',
+      });
+
+      const result = await service.validateOverrideApproval(
+        'provider-1',
+        new Date('2026-05-18'),
+        'day_off',
+        null,
+        null,
+        undefined,
+        'schedule-1',
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('apt-1');
+    });
+
+    it('should return empty when targetScheduleId shift is not found', async () => {
+      prisma.baseClient.appointment.findMany.mockResolvedValue([mockAppointment]);
+      prisma.baseClient.providerSchedule.findUnique.mockResolvedValue(null);
+
+      const result = await service.validateOverrideApproval(
+        'provider-1',
+        new Date('2026-05-18'),
+        'day_off',
+        null,
+        null,
+        undefined,
+        'nonexistent-schedule',
+      );
+
+      expect(result).toEqual([]);
     });
   });
 });

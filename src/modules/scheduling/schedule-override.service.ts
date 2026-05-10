@@ -34,6 +34,7 @@ const SCHEDULE_OVERRIDE_SELECT = {
   reviewedBy: true,
   reviewedAt: true,
   reviewNote: true,
+  targetScheduleId: true,
 } as const;
 
 @Injectable()
@@ -86,6 +87,28 @@ export class ScheduleOverrideService {
       );
     }
 
+    if (dto.targetScheduleId) {
+      const shift =
+        await this.prisma.baseClient.providerSchedule.findUnique({
+          where: { id: dto.targetScheduleId },
+          select: { id: true, providerId: true, dayOfWeek: true, isAvailable: true },
+        });
+      const computedDow = new Date(dto.specificDate).getUTCDay();
+      if (
+        !shift ||
+        shift.providerId !== dto.providerId ||
+        shift.dayOfWeek !== computedDow ||
+        !shift.isAvailable
+      ) {
+        throw new BadRequestException(
+          t(
+            'scheduling.targetShiftMismatch',
+            'Target shift does not match override (provider, day-of-week, or active state)',
+          ),
+        );
+      }
+    }
+
     const created =
       await this.prisma.baseClient.providerScheduleOverride.create({
         data: {
@@ -102,6 +125,7 @@ export class ScheduleOverrideService {
           reason: dto.reason,
           status: 'pending',
           requestedAt: new Date(),
+          targetScheduleId: dto.targetScheduleId ?? null,
         },
         select: SCHEDULE_OVERRIDE_SELECT,
       });
@@ -241,6 +265,7 @@ export class ScheduleOverrideService {
           override.startTime,
           override.endTime,
           tx,
+          override.targetScheduleId ?? null,
         );
 
         if (conflicts.length > 0) {

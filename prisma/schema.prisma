@@ -191,34 +191,37 @@ model Provider {
 }
 
 model ProviderSchedule {
-  id          String   @id @default(uuid()) @db.Uuid
-  providerId  String   @map("provider_id") @db.Uuid
-  dayOfWeek   Int      @map("day_of_week")
-  startTime   String   @map("start_time")
-  endTime     String   @map("end_time")
-  isAvailable Boolean  @default(true) @map("is_available")
-  provider    Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  id                String                     @id @default(uuid()) @db.Uuid
+  providerId        String                     @map("provider_id") @db.Uuid
+  dayOfWeek         Int                        @map("day_of_week")
+  startTime         String                     @map("start_time")
+  endTime           String                     @map("end_time")
+  isAvailable       Boolean                    @default(true) @map("is_available")
+  provider          Provider                   @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  targetedOverrides ProviderScheduleOverride[] @relation("ScheduleOverrideTarget")
 
   @@map("provider_schedules")
 }
 
 model ProviderScheduleOverride {
-  id           String    @id @default(uuid()) @db.Uuid
-  providerId   String    @map("provider_id") @db.Uuid
-  requestedBy  String    @map("requested_by") @db.Uuid
-  specificDate DateTime  @map("specific_date") @db.Date
-  overrideType String    @map("override_type")
-  startTime    String?   @map("start_time")
-  endTime      String?   @map("end_time")
-  reason       String?
-  status       String    @default("pending")
-  requestedAt  DateTime  @default(now()) @map("requested_at")
-  reviewedBy   String?   @map("reviewed_by") @db.Uuid
-  reviewedAt   DateTime? @map("reviewed_at")
-  reviewNote   String?   @map("review_note")
-  provider     Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
-  requester    User      @relation("RequestedByUser", fields: [requestedBy], references: [id])
-  reviewer     User?     @relation("ReviewedByUser", fields: [reviewedBy], references: [id])
+  id               String            @id @default(uuid()) @db.Uuid
+  providerId       String            @map("provider_id") @db.Uuid
+  requestedBy      String            @map("requested_by") @db.Uuid
+  specificDate     DateTime          @map("specific_date") @db.Date
+  overrideType     String            @map("override_type")
+  startTime        String?           @map("start_time")
+  endTime          String?           @map("end_time")
+  reason           String?
+  status           String            @default("pending")
+  requestedAt      DateTime          @default(now()) @map("requested_at")
+  reviewedBy       String?           @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?         @map("reviewed_at")
+  reviewNote       String?           @map("review_note")
+  targetScheduleId String?           @map("target_schedule_id") @db.Uuid
+  provider         Provider          @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  requester        User              @relation("RequestedByUser", fields: [requestedBy], references: [id])
+  reviewer         User?             @relation("ReviewedByUser", fields: [reviewedBy], references: [id])
+  targetSchedule   ProviderSchedule? @relation("ScheduleOverrideTarget", fields: [targetScheduleId], references: [id], onDelete: Cascade)
 
   @@unique([providerId, specificDate], map: "overrides_day_off_unique", where: raw("(status = 'approved' AND override_type = 'day_off')"))
   @@map("provider_schedule_overrides")

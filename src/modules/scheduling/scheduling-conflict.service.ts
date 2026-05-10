@@ -96,6 +96,7 @@ export class SchedulingConflictService {
     startTime: string | null,
     endTime: string | null,
     db?: Prisma.TransactionClient,
+    targetScheduleId?: string | null,
   ): Promise<ConflictResult[]> {
     const client = this.getDb(db);
     const dateStr = specificDate.toISOString().split('T')[0];
@@ -115,6 +116,46 @@ export class SchedulingConflictService {
         status: true,
       },
     });
+
+    if (targetScheduleId) {
+      const shift = await client.providerSchedule.findUnique({
+        where: { id: targetScheduleId },
+        select: { startTime: true, endTime: true },
+      });
+      if (!shift) return [];
+
+      const shiftStart = new Date(`${dateStr}T${shift.startTime}:00.000Z`);
+      const shiftEnd = new Date(`${dateStr}T${shift.endTime}:00.000Z`);
+
+      const inTargetShift = appointments.filter(
+        (apt) => apt.startTime >= shiftStart && apt.endTime <= shiftEnd,
+      );
+
+      if (overrideType === 'day_off') {
+        return inTargetShift.map((apt) => ({
+          id: apt.id,
+          startTime: apt.startTime,
+          endTime: apt.endTime,
+          status: apt.status,
+        }));
+      }
+
+      if (overrideType === 'custom_hours' && startTime && endTime) {
+        const windowStart = new Date(`${dateStr}T${startTime}:00.000Z`);
+        const windowEnd = new Date(`${dateStr}T${endTime}:00.000Z`);
+
+        return inTargetShift
+          .filter((apt) => apt.startTime < windowStart || apt.endTime > windowEnd)
+          .map((apt) => ({
+            id: apt.id,
+            startTime: apt.startTime,
+            endTime: apt.endTime,
+            status: apt.status,
+          }));
+      }
+
+      return [];
+    }
 
     if (overrideType === 'day_off') {
       return appointments.map((apt) => ({

@@ -8,11 +8,14 @@
   },
   "invalidTimeRange": "End time must be after start time",
   "scheduleOverlap": "Schedule time block overlaps with an existing block",
+  "scheduleConflicts": "Recurring schedule conflicts with existing appointments",
+  "cannotCreatePastOverride": "Cannot create an override for today or a past date",
   "providerNotActive": "Provider is not active",
   "scheduleNotFound": "Schedule not found",
   "notOwnProvider": "Provider does not belong to you",
   "overrideConflicts": "Schedule override has conflicting appointments",
   "cancelNotPending": "Only pending overrides can be cancelled",
   "notOwnOverride": "You can only cancel your own overrides",
-  "overrideNotFound": "Schedule override not found"
+  "overrideNotFound": "Schedule override not found",
+  "targetShiftMismatch": "Target shift does not match override (provider, day-of-week, or active state)"
 }

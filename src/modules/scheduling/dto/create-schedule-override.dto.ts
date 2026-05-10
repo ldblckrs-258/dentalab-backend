@@ -1,4 +1,5 @@
 import {
+  IsDate,
   IsIn,
   IsNotEmpty,
   IsOptional,
@@ -12,6 +13,7 @@ export class CreateScheduleOverrideDto {
   @IsUUID()
   providerId: string;
 
+  @IsDate()
   @Type(() => Date)
   specificDate: Date;
 
@@ -27,6 +29,10 @@ export class CreateScheduleOverrideDto {
   @IsNotEmpty()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
   endTime?: string;
+
+  @IsOptional()
+  @IsUUID()
+  targetScheduleId?: string;
 
   @IsOptional()
   reason?: string;

@@ -33,6 +33,7 @@ const mockOverride = {
   reviewedBy: null,
   reviewedAt: null,
   reviewNote: null,
+  targetScheduleId: null,
 };
 
 describe('ScheduleOverrideService', () => {
@@ -57,6 +58,9 @@ describe('ScheduleOverrideService', () => {
         },
         provider: {
           findFirst: jest.fn(),
+          findUnique: jest.fn(),
+        },
+        providerSchedule: {
           findUnique: jest.fn(),
         },
         appointment: {
@@ -216,6 +220,76 @@ describe('ScheduleOverrideService', () => {
           providerId: 'provider-1',
         }),
       );
+    });
+
+    it('should create override with valid targetScheduleId', async () => {
+      // 2026-05-15 is a Friday — UTC day 5
+      prisma.baseClient.providerSchedule.findUnique.mockResolvedValue({
+        id: 'schedule-1',
+        providerId: 'provider-1',
+        dayOfWeek: 5,
+        isAvailable: true,
+      });
+      prisma.baseClient.providerScheduleOverride.create.mockResolvedValue({
+        ...mockOverride,
+        targetScheduleId: 'schedule-1',
+      });
+
+      const result = await service.create(
+        {
+          providerId: 'provider-1',
+          specificDate: new Date('2026-05-15'),
+          overrideType: 'day_off',
+          targetScheduleId: 'schedule-1',
+        },
+        mockUser,
+      );
+
+      expect(result.targetScheduleId).toBe('schedule-1');
+    });
+
+    it('should throw BadRequestException when targetScheduleId has mismatched day-of-week', async () => {
+      // 2026-05-15 is Friday (DOW 5), but shift is on Monday (DOW 1)
+      prisma.baseClient.providerSchedule.findUnique.mockResolvedValue({
+        id: 'schedule-1',
+        providerId: 'provider-1',
+        dayOfWeek: 1,
+        isAvailable: true,
+      });
+
+      await expect(
+        service.create(
+          {
+            providerId: 'provider-1',
+            specificDate: new Date('2026-05-15'),
+            overrideType: 'day_off',
+            targetScheduleId: 'schedule-1',
+          },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when targetScheduleId has mismatched provider', async () => {
+      // shift belongs to a different provider
+      prisma.baseClient.providerSchedule.findUnique.mockResolvedValue({
+        id: 'schedule-1',
+        providerId: 'provider-2',
+        dayOfWeek: 5,
+        isAvailable: true,
+      });
+
+      await expect(
+        service.create(
+          {
+            providerId: 'provider-1',
+            specificDate: new Date('2026-05-15'),
+            overrideType: 'day_off',
+            targetScheduleId: 'schedule-1',
+          },
+          mockUser,
+        ),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 

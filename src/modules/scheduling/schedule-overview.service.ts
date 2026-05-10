@@ -29,6 +29,7 @@ export class ScheduleOverviewService {
       where: providerFilter,
       select: {
         id: true,
+        userId: true,
         specialty: true,
         user: {
           select: {
@@ -80,6 +81,7 @@ export class ScheduleOverviewService {
           reviewedAt: true,
           reviewNote: true,
           reason: true,
+          targetScheduleId: true,
         },
       }),
       this.prisma.baseClient.appointment.findMany({
@@ -119,6 +121,7 @@ export class ScheduleOverviewService {
     return {
       providers: providers.map((p) => ({
         id: p.id,
+        userId: p.userId,
         fullName: p.user.fullName,
         avatarUrl: p.user.avatarUrl,
         specialty: p.specialty,

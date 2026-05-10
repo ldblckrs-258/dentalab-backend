@@ -3,8 +3,8 @@ import {
   AUDIT_ACCESS_KEY,
   AUDIT_MUTATION_KEY,
 } from '@common/decorators/audit.decorator';
-import { AuditService } from '@modules/audit/audit.service';
 import { getAuditActorContext } from '@modules/audit/audit-context';
+import { AuditService } from '@modules/audit/audit.service';
 import {
   ArgumentsHost,
   Catch,
@@ -282,12 +282,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         const message = Array.isArray(resp.message)
           ? (resp.message[0] as string)
           : ((resp.message as string) ?? exception.message);
+
+        const { message: _m, statusCode: _s, error: _e, ...extra } = resp;
+        const hasStructuredExtras = Object.keys(extra).length > 0;
         return {
           statusCode: status,
           errorCode,
           message,
-          // Only include details for validation errors (message array)
-          details: Array.isArray(resp.message) ? resp.message : undefined,
+          details: Array.isArray(resp.message)
+            ? resp.message
+            : hasStructuredExtras
+              ? extra
+              : undefined,
         };
       }
 
