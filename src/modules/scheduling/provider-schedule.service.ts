@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
+import type { Prisma } from '@prisma/client';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { t } from '@common/utils';
 import { InfrastructureException } from '@modules/common/filters/infrastructure.exception';
@@ -15,6 +16,12 @@ import { SchedulingGateway } from './scheduling.gateway';
 import type { CreateProviderScheduleDto } from './dto/create-provider-schedule.dto';
 import type { UpdateProviderScheduleDto } from './dto/update-provider-schedule.dto';
 import type { ProviderScheduleQueryDto } from './dto/provider-schedule-query.dto';
+import type { ReplaceProviderSchedulesDto } from './dto/replace-provider-schedules.dto';
+import {
+  diffShifts,
+  findIntraPayloadOverlaps,
+  findInvalidTimeRanges,
+} from './diff-shifts';
 
 export const PROVIDER_SCHEDULE_SELECT = {
   id: true,
@@ -224,6 +231,126 @@ export class ProviderScheduleService {
     }
   }
 
+  /**
+   * Atomically replace the full set of recurring shifts for one provider.
+   * Diffs incoming vs existing, deletes-missing + updates-changed + creates-new
+   * in a single transaction. Runs intra-payload validation and a union-based
+   * appointment conflict check before any write. Emits schedule.updated once.
+   */
+  async replaceForProvider(
+    providerId: string,
+    dto: ReplaceProviderSchedulesDto,
+  ) {
+    const invalidRanges = findInvalidTimeRanges(dto.shifts);
+    if (invalidRanges.length > 0) {
+      throw new InfrastructureException(
+        'SCHEDULE_INVALID_TIME_RANGE',
+        'scheduling',
+        'validateTimeRange',
+        t('scheduling.invalidTimeRange', 'End time must be after start time'),
+      );
+    }
+
+    const overlaps = findIntraPayloadOverlaps(dto.shifts);
+    if (overlaps.length > 0) {
+      throw new InfrastructureException(
+        'SCHEDULE_INTRAPAYLOAD_OVERLAP',
+        'scheduling',
+        'validateIntraPayload',
+        t(
+          'scheduling.intraPayloadOverlap',
+          'Two or more shifts in the same day overlap',
+        ),
+      );
+    }
+
+    try {
+      const result = await this.prisma.transaction(async (tx) => {
+        await this.validateProvider(providerId, tx);
+
+        const existing = await tx.providerSchedule.findMany({
+          where: { providerId },
+          select: PROVIDER_SCHEDULE_SELECT,
+          orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+        });
+
+        // Only shifts that will actually accept appointments count as
+        // coverage. Unavailable shifts are stored but excluded from the
+        // EXCLUDE constraint and must not mask appointment conflicts.
+        const conflicts =
+          await this.conflictService.validateBulkRecurringSchedules(
+            providerId,
+            dto.shifts
+              .filter((s) => s.isAvailable !== false)
+              .map((s) => ({
+                dayOfWeek: s.dayOfWeek,
+                startTime: s.startTime,
+                endTime: s.endTime,
+              })),
+            tx,
+          );
+
+        if (conflicts.length > 0) {
+          throw new ConflictException({
+            code: 'SCHEDULE_CONFLICTS_WITH_APPOINTMENTS',
+            message: t(
+              'scheduling.scheduleConflicts',
+              'Recurring schedule conflicts with existing appointments',
+            ),
+            conflicts: serializeConflicts(conflicts),
+          });
+        }
+
+        const { toCreate, toUpdate, toDelete } = diffShifts(
+          existing,
+          dto.shifts,
+        );
+
+        for (const id of toDelete) {
+          await tx.providerSchedule.delete({ where: { id } });
+        }
+        for (const u of toUpdate) {
+          await tx.providerSchedule.update({
+            where: { id: u.id },
+            data: u.data,
+          });
+        }
+        for (const c of toCreate) {
+          await tx.providerSchedule.create({
+            data: { providerId, ...c },
+          });
+        }
+
+        return tx.providerSchedule.findMany({
+          where: { providerId },
+          select: PROVIDER_SCHEDULE_SELECT,
+          orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
+        });
+      });
+
+      this.schedulingGateway.emitScheduleUpdated({
+        providerId,
+        effectFrom: new Date().toISOString(),
+        effectTo: null,
+      });
+
+      return { shifts: result };
+    } catch (error: unknown) {
+      if (this.isOverlapError(error)) {
+        throw new InfrastructureException(
+          'SCHEDULE_OVERLAP',
+          'scheduling',
+          'replaceForProvider',
+          t(
+            'scheduling.scheduleOverlap',
+            'Schedule time block overlaps with an existing block',
+          ),
+        );
+      }
+      throw error;
+    }
+  }
+
   async delete(id: string) {
     const schedule = await this.findScheduleOrFail(id);
 
@@ -254,8 +381,12 @@ export class ProviderScheduleService {
     };
   }
 
-  private async validateProvider(providerId: string) {
-    const provider = await this.prisma.baseClient.provider.findUnique({
+  private async validateProvider(
+    providerId: string,
+    db?: Prisma.TransactionClient,
+  ) {
+    const client = db ?? this.prisma.baseClient;
+    const provider = await client.provider.findUnique({
       where: { id: providerId },
       select: { id: true, isActive: true },
     });

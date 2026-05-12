@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { AuditMutation, RequirePermissions } from '@common/decorators';
@@ -13,6 +15,7 @@ import { ProviderScheduleService } from './provider-schedule.service';
 import { CreateProviderScheduleDto } from './dto/create-provider-schedule.dto';
 import { ProviderScheduleQueryDto } from './dto/provider-schedule-query.dto';
 import { UpdateProviderScheduleDto } from './dto/update-provider-schedule.dto';
+import { ReplaceProviderSchedulesDto } from './dto/replace-provider-schedules.dto';
 
 @Controller()
 export class ProviderScheduleController {
@@ -52,6 +55,19 @@ export class ProviderScheduleController {
   })
   async create(@Body() dto: CreateProviderScheduleDto) {
     return this.providerScheduleService.create(dto);
+  }
+
+  @Put('providers/:providerId/schedules')
+  @RequirePermissions('provider_schedules:update')
+  @AuditMutation({
+    code: 'PROVIDER_SCHEDULE_BULK_REPLACED',
+    resource: 'provider_schedule',
+  })
+  async replaceForProvider(
+    @Param('providerId', ParseUUIDPipe) providerId: string,
+    @Body() dto: ReplaceProviderSchedulesDto,
+  ) {
+    return this.providerScheduleService.replaceForProvider(providerId, dto);
   }
 
   @Patch('provider-schedules/:id')

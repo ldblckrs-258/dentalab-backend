@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
-import type { PrismaClient, Prisma } from '@prisma/client';
+import { Injectable } from '@nestjs/common';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 export interface ConflictResult {
   id: string;
@@ -38,6 +38,70 @@ export class SchedulingConflictService {
     return (db ?? this.prisma.baseClient) as
       | Prisma.TransactionClient
       | PrismaClient;
+  }
+
+  async validateBulkRecurringSchedules(
+    providerId: string,
+    shifts: ReadonlyArray<{
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+    }>,
+    db?: Prisma.TransactionClient,
+  ): Promise<ConflictResult[]> {
+    const client = this.getDb(db);
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    tomorrow.setUTCHours(0, 0, 0, 0);
+
+    const futureAppointments = await client.$queryRaw<
+      Array<{
+        id: string;
+        startTime: Date;
+        endTime: Date;
+        status: string;
+        dow: number;
+      }>
+    >`
+      SELECT id,
+             start_time as "startTime",
+             end_time as "endTime",
+             status,
+             EXTRACT(DOW FROM start_time AT TIME ZONE 'UTC')::int as "dow"
+      FROM appointments
+      WHERE provider_id = ${providerId}::uuid
+        AND status <> 'cancelled'
+        AND start_time >= ${tomorrow}
+    `;
+
+    const shiftsByDow = new Map<
+      number,
+      Array<{ start: number; end: number }>
+    >();
+    for (const s of shifts) {
+      const arr = shiftsByDow.get(s.dayOfWeek) ?? [];
+      arr.push({ start: toMinutes(s.startTime), end: toMinutes(s.endTime) });
+      shiftsByDow.set(s.dayOfWeek, arr);
+    }
+
+    return futureAppointments
+      .filter((apt) => {
+        const aptStart =
+          apt.startTime.getUTCHours() * 60 + apt.startTime.getUTCMinutes();
+        const aptEnd =
+          apt.endTime.getUTCHours() * 60 + apt.endTime.getUTCMinutes();
+        const dowShifts = shiftsByDow.get(apt.dow) ?? [];
+        const covered = dowShifts.some(
+          (s) => aptStart >= s.start && aptEnd <= s.end,
+        );
+        return !covered;
+      })
+      .map((apt) => ({
+        id: apt.id,
+        startTime: apt.startTime,
+        endTime: apt.endTime,
+        status: apt.status,
+      }));
   }
 
   async validateRecurringScheduleChange(

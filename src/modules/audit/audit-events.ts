@@ -105,6 +105,10 @@ export const AUDIT_EVENTS = {
   PROVIDER_SCHEDULE_CREATED: { category: 'operations', severity: 'info' },
   PROVIDER_SCHEDULE_UPDATED: { category: 'operations', severity: 'info' },
   PROVIDER_SCHEDULE_DELETED: { category: 'operations', severity: 'notice' },
+  PROVIDER_SCHEDULE_BULK_REPLACED: {
+    category: 'operations',
+    severity: 'notice',
+  },
 
   SCHEDULE_OVERRIDE_REQUESTED: { category: 'operations', severity: 'info' },
   SCHEDULE_OVERRIDE_APPROVED: { category: 'operations', severity: 'notice' },

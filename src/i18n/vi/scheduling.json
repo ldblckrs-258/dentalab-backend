@@ -8,6 +8,7 @@
   },
   "invalidTimeRange": "Thời gian kết thúc phải sau thời gian bắt đầu",
   "scheduleOverlap": "Khung thời gian lịch trực trùng với khung thời gian đã tồn tại",
+  "intraPayloadOverlap": "Hai hoặc nhiều ca trong cùng một ngày bị trùng giờ",
   "scheduleConflicts": "Lịch trực định kỳ xung đột với các lịch hẹn hiện có",
   "cannotCreatePastOverride": "Không thể tạo yêu cầu thay đổi cho ngày đã qua hoặc hôm nay",
   "providerNotActive": "Bác sĩ không còn hoạt động",

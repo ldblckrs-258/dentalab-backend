@@ -55,6 +55,7 @@ describe('ProviderScheduleService', () => {
 
     conflictService = {
       validateRecurringScheduleChange: jest.fn().mockResolvedValue([]),
+      validateBulkRecurringSchedules: jest.fn().mockResolvedValue([]),
     };
 
     const module = await Test.createTestingModule({
@@ -269,6 +270,149 @@ describe('ProviderScheduleService', () => {
       await expect(
         service.update('unknown', { startTime: '09:00' }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('replaceForProvider', () => {
+    beforeEach(() => {
+      prisma.baseClient.provider.findUnique.mockResolvedValue({
+        id: 'provider-1',
+        isActive: true,
+      });
+    });
+
+    it('replaces empty payload → deletes all existing', async () => {
+      prisma.baseClient.providerSchedule.findMany
+        .mockResolvedValueOnce([mockSchedule, mockSchedule2])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.replaceForProvider('provider-1', {
+        shifts: [],
+      });
+
+      expect(prisma.baseClient.providerSchedule.delete).toHaveBeenCalledTimes(
+        2,
+      );
+      expect(prisma.baseClient.providerSchedule.create).not.toHaveBeenCalled();
+      expect(result.shifts).toEqual([]);
+    });
+
+    it('creates new shift when none exist', async () => {
+      prisma.baseClient.providerSchedule.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([mockSchedule]);
+      prisma.baseClient.providerSchedule.create.mockResolvedValue(mockSchedule);
+
+      await service.replaceForProvider('provider-1', {
+        shifts: [{ dayOfWeek: 1, startTime: '08:00', endTime: '12:00' }],
+      });
+
+      expect(prisma.baseClient.providerSchedule.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            providerId: 'provider-1',
+            dayOfWeek: 1,
+            startTime: '08:00',
+            endTime: '12:00',
+            isAvailable: true,
+          }),
+        }),
+      );
+    });
+
+    it('updates existing shift when id matches and fields change', async () => {
+      prisma.baseClient.providerSchedule.findMany
+        .mockResolvedValueOnce([mockSchedule])
+        .mockResolvedValueOnce([{ ...mockSchedule, endTime: '13:00' }]);
+
+      await service.replaceForProvider('provider-1', {
+        shifts: [
+          {
+            id: mockSchedule.id,
+            dayOfWeek: 1,
+            startTime: '08:00',
+            endTime: '13:00',
+          },
+        ],
+      });
+
+      expect(prisma.baseClient.providerSchedule.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockSchedule.id },
+          data: expect.objectContaining({ endTime: '13:00' }),
+        }),
+      );
+    });
+
+    it('no-op when payload identical to existing tuple', async () => {
+      prisma.baseClient.providerSchedule.findMany
+        .mockResolvedValueOnce([mockSchedule])
+        .mockResolvedValueOnce([mockSchedule]);
+
+      await service.replaceForProvider('provider-1', {
+        shifts: [
+          {
+            dayOfWeek: mockSchedule.dayOfWeek,
+            startTime: mockSchedule.startTime,
+            endTime: mockSchedule.endTime,
+          },
+        ],
+      });
+
+      expect(prisma.baseClient.providerSchedule.create).not.toHaveBeenCalled();
+      expect(prisma.baseClient.providerSchedule.update).not.toHaveBeenCalled();
+      expect(prisma.baseClient.providerSchedule.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws on intra-payload overlap', async () => {
+      await expect(
+        service.replaceForProvider('provider-1', {
+          shifts: [
+            { dayOfWeek: 1, startTime: '08:00', endTime: '12:00' },
+            { dayOfWeek: 1, startTime: '10:00', endTime: '14:00' },
+          ],
+        }),
+      ).rejects.toThrow(InfrastructureException);
+    });
+
+    it('throws on invalid time range (end <= start)', async () => {
+      await expect(
+        service.replaceForProvider('provider-1', {
+          shifts: [{ dayOfWeek: 1, startTime: '12:00', endTime: '08:00' }],
+        }),
+      ).rejects.toThrow(InfrastructureException);
+    });
+
+    it('throws ConflictException when appointments fall outside union', async () => {
+      prisma.baseClient.providerSchedule.findMany.mockResolvedValue([]);
+      conflictService.validateBulkRecurringSchedules.mockResolvedValue([
+        {
+          id: 'apt-1',
+          startTime: new Date('2026-05-18T08:00:00Z'),
+          endTime: new Date('2026-05-18T09:00:00Z'),
+          status: 'scheduled',
+        },
+      ]);
+
+      await expect(
+        service.replaceForProvider('provider-1', {
+          shifts: [{ dayOfWeek: 1, startTime: '13:00', endTime: '17:00' }],
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('emits schedule.updated on success', async () => {
+      prisma.baseClient.providerSchedule.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]);
+      const gateway = (service as any).schedulingGateway;
+
+      await service.replaceForProvider('provider-1', { shifts: [] });
+
+      expect(gateway.emitScheduleUpdated).toHaveBeenCalledTimes(1);
+      expect(gateway.emitScheduleUpdated).toHaveBeenCalledWith(
+        expect.objectContaining({ providerId: 'provider-1' }),
+      );
     });
   });
 

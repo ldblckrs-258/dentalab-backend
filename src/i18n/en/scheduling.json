@@ -8,6 +8,7 @@
   },
   "invalidTimeRange": "End time must be after start time",
   "scheduleOverlap": "Schedule time block overlaps with an existing block",
+  "intraPayloadOverlap": "Two or more shifts in the same day overlap",
   "scheduleConflicts": "Recurring schedule conflicts with existing appointments",
   "cannotCreatePastOverride": "Cannot create an override for today or a past date",
   "providerNotActive": "Provider is not active",

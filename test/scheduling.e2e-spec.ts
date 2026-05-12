@@ -130,6 +130,106 @@ describe('Scheduling (e2e)', () => {
     });
   });
 
+  describe('Bulk Replace Recurring Shifts', () => {
+    afterAll(async () => {
+      // Reset to empty so other suites' fixtures are unaffected.
+      if (!testProviderId) return;
+      await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ shifts: [] });
+    });
+
+    it('PUT /providers/:id/schedules with empty payload deletes all', async () => {
+      if (!testProviderId) return;
+      const res = await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ shifts: [] })
+        .expect(200);
+      expect(res.body.data.shifts).toEqual([]);
+    });
+
+    it('PUT replaces with new set atomically', async () => {
+      if (!testProviderId) return;
+      const res = await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          shifts: [
+            { dayOfWeek: 2, startTime: '08:00', endTime: '12:00' },
+            { dayOfWeek: 2, startTime: '13:00', endTime: '17:00' },
+            { dayOfWeek: 4, startTime: '09:00', endTime: '17:00' },
+          ],
+        })
+        .expect(200);
+      expect(res.body.data.shifts).toHaveLength(3);
+    });
+
+    it('PUT rejects intra-payload overlap with 400', async () => {
+      if (!testProviderId) return;
+      await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          shifts: [
+            { dayOfWeek: 1, startTime: '08:00', endTime: '12:00' },
+            { dayOfWeek: 1, startTime: '10:00', endTime: '14:00' },
+          ],
+        })
+        .expect(400);
+    });
+
+    it('PUT rejects end <= start with 400', async () => {
+      if (!testProviderId) return;
+      await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          shifts: [{ dayOfWeek: 1, startTime: '12:00', endTime: '08:00' }],
+        })
+        .expect(400);
+    });
+
+    it('PUT rejects unauthenticated request with 401', async () => {
+      if (!testProviderId) return;
+      await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .send({ shifts: [] })
+        .expect(401);
+    });
+
+    it('PUT returns 404 for unknown provider', async () => {
+      await request(app.getHttpServer())
+        .put(`/api/v1/providers/00000000-0000-0000-0000-000000000000/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ shifts: [] })
+        .expect(404);
+    });
+
+    it('PUT idempotent — same payload twice yields same result', async () => {
+      if (!testProviderId) return;
+      const payload = {
+        shifts: [{ dayOfWeek: 5, startTime: '09:00', endTime: '12:00' }],
+      };
+      const first = await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload)
+        .expect(200);
+      const second = await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(payload)
+        .expect(200);
+      const firstIds = first.body.data.shifts.map((s: { id: string }) => s.id);
+      const secondIds = second.body.data.shifts.map(
+        (s: { id: string }) => s.id,
+      );
+      expect(secondIds.sort()).toEqual(firstIds.sort());
+    });
+  });
+
   describe('Schedule Override Lifecycle', () => {
     it('POST /api/v1/schedule-overrides should create a pending override', async () => {
       if (!testProviderId || !doctorToken) return;
