@@ -302,6 +302,7 @@ export class ScheduleOverrideService {
           : 'SCHEDULE_OVERRIDE_REJECTED',
       resource: 'schedule_override',
       resourceId: id,
+      ...(dto.decision === 'reject' && { reason: dto.reviewNote }),
     });
 
     this.schedulingGateway.emitOverrideReviewed({

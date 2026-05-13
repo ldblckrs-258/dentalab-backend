@@ -1,11 +1,11 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
 
 export class ReviewScheduleOverrideDto {
   @IsIn(['approve', 'reject'])
   decision: 'approve' | 'reject';
 
-  @IsOptional()
-  @IsNotEmpty()
+  @ValidateIf((o: ReviewScheduleOverrideDto) => o.decision === 'reject')
   @IsString()
+  @IsNotEmpty()
   reviewNote?: string;
 }

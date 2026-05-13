@@ -426,7 +426,7 @@ describe('ScheduleOverrideService', () => {
       );
     });
 
-    it('should emit SCHEDULE_OVERRIDE_REJECTED on reject', async () => {
+    it('should emit SCHEDULE_OVERRIDE_REJECTED on reject with reviewNote as reason', async () => {
       await service.review(
         'override-1',
         { decision: 'reject', reviewNote: 'No approval needed' },
@@ -438,6 +438,7 @@ describe('ScheduleOverrideService', () => {
           code: 'SCHEDULE_OVERRIDE_REJECTED',
           resource: 'schedule_override',
           resourceId: 'override-1',
+          reason: 'No approval needed',
         }),
       );
     });
