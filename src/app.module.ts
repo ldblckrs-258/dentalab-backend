@@ -18,6 +18,7 @@ import { EmailModule } from '@modules/email';
 import { KioskModule } from '@modules/kiosk';
 import { RealtimeModule } from '@modules/realtime';
 import { ProcedureModule } from '@modules/procedure/procedure.module';
+import { AppointmentTypeModule } from '@modules/appointment-type/appointment-type.module';
 import { TreatmentPlanModule } from '@modules/treatment-plan/treatment-plan.module';
 import { SchedulingModule } from '@modules/scheduling/scheduling.module';
 import { PatientProcedureModule } from '@modules/patient-procedure';
@@ -59,6 +60,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     PatientModule,
     KioskModule,
     ProcedureModule,
+    AppointmentTypeModule,
     TreatmentPlanModule,
     SchedulingModule,
     PatientProcedureModule,

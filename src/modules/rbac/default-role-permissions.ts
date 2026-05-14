@@ -97,6 +97,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     scopedPerm('users', 'read', 'non_admin'),
     perm('appointments', 'read'),
     perm('patients', 'read'),
+    ...allActions('appointment_types'),
     ...allActions('internal_documents'),
     ...allActions('inventory_items'),
     ...allActions('forms'),

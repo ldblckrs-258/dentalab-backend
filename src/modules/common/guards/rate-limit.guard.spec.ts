@@ -81,7 +81,7 @@ describe('RateLimitGuard', () => {
       const exc = e as HttpException;
       expect(exc.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
       const response = exc.getResponse() as Record<string, unknown>;
-      expect(response.message).toBe('common.rate_limit_exceeded');
+      expect(response.message).toBe('Rate limit exceeded.');
       expect(response.errorCode).toBe('COMMON_RATE_LIMIT_EXCEEDED');
     }
   });

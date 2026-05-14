@@ -232,9 +232,15 @@ model AppointmentType {
   name            String
   durationMinutes Int           @map("duration_minutes")
   color           String?
+  textColor       String?       @map("text_color")
   isActive        Boolean       @default(true) @map("is_active")
+  createdBy       String?       @map("created_by") @db.Uuid
+  updatedBy       String?       @map("updated_by") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
   appointments    Appointment[]
 
+  @@unique([name])
   @@map("appointment_types")
 }
 

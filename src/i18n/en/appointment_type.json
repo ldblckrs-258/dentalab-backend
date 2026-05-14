@@ -1,0 +1,8 @@
+{
+  "not_found": "Appointment type not found",
+  "duplicate_name": "An active appointment type with this name already exists",
+  "already_inactive": "Appointment type is already inactive",
+  "created": "Appointment type created successfully",
+  "updated": "Appointment type updated successfully",
+  "deactivated": "Appointment type deactivated successfully"
+}

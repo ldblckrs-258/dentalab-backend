@@ -145,7 +145,7 @@ describe('KioskService', () => {
       prisma.baseClient.kioskSession.update.mockResolvedValue({});
 
       const result = await service.closeSession('session-1');
-      expect(result.message).toBe('kiosk.session_closed');
+      expect(result.message).toBe('Session closed');
       expect(prisma.baseClient.kioskSession.update).toHaveBeenCalledWith({
         where: { id: 'session-1' },
         data: {
@@ -164,7 +164,7 @@ describe('KioskService', () => {
         'staff-user-1',
         'Patient left',
       );
-      expect(result.message).toBe('kiosk.session_closed');
+      expect(result.message).toBe('Session closed');
       expect(prisma.baseClient.kioskSession.update).toHaveBeenCalledWith({
         where: { id: 'session-1' },
         data: {

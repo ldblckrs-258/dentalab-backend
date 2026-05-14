@@ -102,6 +102,11 @@ export const AUDIT_EVENTS = {
   PROCEDURE_DISABLED: { category: 'clinical', severity: 'notice' },
   PROCEDURE_ENABLED: { category: 'clinical', severity: 'info' },
 
+  APPOINTMENT_TYPE_CREATED: { category: 'clinical', severity: 'notice' },
+  APPOINTMENT_TYPE_UPDATED: { category: 'clinical', severity: 'notice' },
+  APPOINTMENT_TYPE_DISABLED: { category: 'clinical', severity: 'notice' },
+  APPOINTMENT_TYPE_ENABLED: { category: 'clinical', severity: 'info' },
+
   PROVIDER_SCHEDULE_CREATED: { category: 'operations', severity: 'info' },
   PROVIDER_SCHEDULE_UPDATED: { category: 'operations', severity: 'info' },
   PROVIDER_SCHEDULE_DELETED: { category: 'operations', severity: 'notice' },

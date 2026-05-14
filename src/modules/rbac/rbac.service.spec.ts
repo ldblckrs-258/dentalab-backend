@@ -178,7 +178,7 @@ describe('RbacService', () => {
       prisma.baseClient.role.delete.mockResolvedValue({});
 
       const result = await service.deleteRole('r1');
-      expect(result).toEqual({ message: 'rbac.role_deleted' });
+      expect(result).toEqual({ message: 'Role deleted' });
     });
   });
 

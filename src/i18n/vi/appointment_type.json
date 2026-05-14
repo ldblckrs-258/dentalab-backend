@@ -1,0 +1,8 @@
+{
+  "not_found": "Không tìm thấy loại lịch hẹn",
+  "duplicate_name": "Đã tồn tại loại lịch hẹn đang hoạt động với tên này",
+  "already_inactive": "Loại lịch hẹn này đã bị vô hiệu",
+  "created": "Đã tạo loại lịch hẹn thành công",
+  "updated": "Đã cập nhật loại lịch hẹn thành công",
+  "deactivated": "Đã vô hiệu loại lịch hẹn thành công"
+}

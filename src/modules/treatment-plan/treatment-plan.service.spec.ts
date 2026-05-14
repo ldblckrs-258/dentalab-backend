@@ -188,7 +188,7 @@ describe('TreatmentPlanService', () => {
       });
 
       const result = await service.findById('plan-1');
-      expect(result.patientName).toBe('patient.deletedPlaceholder');
+      expect(result.patientName).toBe('Deleted Patient');
     });
 
     it('should throw NotFoundException if not found', async () => {
