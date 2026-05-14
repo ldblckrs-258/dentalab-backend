@@ -6,6 +6,7 @@ import { AuditService } from '@modules/audit/audit.service';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { ResponseInterceptor } from './interceptors/response.interceptor';
 import { RequestContextInterceptor } from './interceptors/request-context.interceptor';
+import { CacheEndpointInterceptor } from './interceptors/cache-endpoint.interceptor';
 import { RateLimitGuard } from './guards/rate-limit.guard';
 
 @Global()
@@ -28,6 +29,10 @@ import { RateLimitGuard } from './guards/rate-limit.guard';
     {
       provide: APP_INTERCEPTOR,
       useClass: ResponseInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CacheEndpointInterceptor,
     },
     // RateLimitGuard is wired explicitly via main.ts useGlobalGuards()
     // (alongside JwtAuthGuard and PermissionGuard) to lock execution order.

@@ -15,6 +15,7 @@ describe('CacheService', () => {
       set: jest.fn(),
       incr: jest.fn(),
       expire: jest.fn(),
+      scan: jest.fn(),
     };
 
     const module = await Test.createTestingModule({
@@ -79,6 +80,57 @@ describe('CacheService', () => {
     it('should delete the correct key', async () => {
       await service.del('auth', 'user-1');
       expect(redis.del).toHaveBeenCalledWith('dentalab:auth:user-1');
+    });
+  });
+
+  describe('remember', () => {
+    it('should return cached value without running factory', async () => {
+      redis.get.mockResolvedValue(JSON.stringify({ cached: true }));
+      const factory = jest.fn();
+
+      const result = await service.remember('domain', 'key', 60, factory);
+
+      expect(result).toEqual({ cached: true });
+      expect(factory).not.toHaveBeenCalled();
+    });
+
+    it('should cache factory result on miss', async () => {
+      redis.get.mockResolvedValue(null);
+      const factory = jest.fn().mockResolvedValue({ fresh: true });
+
+      const result = await service.remember('domain', 'key', 60, factory);
+
+      expect(result).toEqual({ fresh: true });
+      expect(redis.setex).toHaveBeenCalledWith(
+        'dentalab:domain:key',
+        60,
+        JSON.stringify({ fresh: true }),
+      );
+    });
+  });
+
+  describe('invalidateDomain', () => {
+    it('should invalidate all keys within the domain', async () => {
+      redis.scan.mockResolvedValueOnce([
+        '0',
+        ['dentalab:domain:key-1', 'dentalab:domain:key-2'],
+      ]);
+      redis.del.mockResolvedValue(2);
+
+      const result = await service.invalidateDomain('domain');
+
+      expect(result).toBe(2);
+      expect(redis.scan).toHaveBeenCalledWith(
+        0,
+        'MATCH',
+        'dentalab:domain:*',
+        'COUNT',
+        100,
+      );
+      expect(redis.del).toHaveBeenCalledWith(
+        'dentalab:domain:key-1',
+        'dentalab:domain:key-2',
+      );
     });
   });
 

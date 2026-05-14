@@ -1,6 +1,8 @@
 import {
   AuditMutation,
+  CacheEndpoint,
   CurrentUser,
+  InvalidateCache,
   RequirePermissions,
 } from '@common/decorators';
 import {
@@ -26,18 +28,21 @@ export class AppointmentTypeController {
 
   @Get()
   @RequirePermissions('appointment_types:read')
+  @CacheEndpoint({ domain: 'appointment-types' })
   findAll(@Query() query: AppointmentTypeQueryDto) {
     return this.appointmentTypeService.findAll(query);
   }
 
   @Get(':id')
   @RequirePermissions('appointment_types:read')
+  @CacheEndpoint({ domain: 'appointment-types' })
   findById(@Param('id') id: string) {
     return this.appointmentTypeService.findById(id);
   }
 
   @Post()
   @RequirePermissions('appointment_types:create')
+  @InvalidateCache('appointment-types')
   @AuditMutation({
     code: 'APPOINTMENT_TYPE_CREATED',
     resource: 'appointment_type',
@@ -51,6 +56,7 @@ export class AppointmentTypeController {
 
   @Patch(':id')
   @RequirePermissions('appointment_types:update')
+  @InvalidateCache('appointment-types')
   async update(
     @Param('id') id: string,
     @Body() dto: UpdateAppointmentTypeDto,
@@ -61,6 +67,7 @@ export class AppointmentTypeController {
 
   @Delete(':id')
   @RequirePermissions('appointment_types:delete')
+  @InvalidateCache('appointment-types')
   @AuditMutation({
     code: 'APPOINTMENT_TYPE_DISABLED',
     resource: 'appointment_type',

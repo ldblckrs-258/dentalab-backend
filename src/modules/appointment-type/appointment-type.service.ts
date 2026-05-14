@@ -1,13 +1,11 @@
 import { t } from '@common/utils';
 import { PrismaService } from '@modules/database';
 import { buildPaginatedResponse, buildPrismaQuery } from '@modules/pagination';
-import { CacheService, REDIS_NAMESPACE } from '@modules/redis';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import stableStringify from 'fast-json-stable-stringify';
 import type { AppointmentTypeQueryDto } from './dto/appointment-type-query.dto';
 import type { CreateAppointmentTypeDto } from './dto/create-appointment-type.dto';
 import type { UpdateAppointmentTypeDto } from './dto/update-appointment-type.dto';
@@ -25,23 +23,11 @@ const SELECT = {
   updatedAt: true,
 } as const;
 
-const CACHE_DOMAIN = 'appointment-types';
-const CACHE_TTL_SECONDS = 300;
-
 @Injectable()
 export class AppointmentTypeService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly cacheService: CacheService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findAll(query: AppointmentTypeQueryDto) {
-    const cacheKey = `list:${stableStringify(query)}`;
-    const cached = await this.cacheService.get<
-      Awaited<ReturnType<typeof this.findAll>>
-    >(CACHE_DOMAIN, cacheKey);
-    if (cached) return cached;
-
     const prismaArgs = buildPrismaQuery(
       query,
       ['name', 'durationMinutes', 'createdAt'],
@@ -65,23 +51,10 @@ export class AppointmentTypeService {
       this.prisma.baseClient.appointmentType.count({ where }),
     ]);
 
-    const response = buildPaginatedResponse(data, total, query);
-    await this.cacheService.set(
-      CACHE_DOMAIN,
-      cacheKey,
-      response,
-      CACHE_TTL_SECONDS,
-    );
-    return response;
+    return buildPaginatedResponse(data, total, query);
   }
 
   async findById(id: string) {
-    const cacheKey = `detail:${id}`;
-    const cached = await this.cacheService.get<
-      Awaited<ReturnType<typeof this.findById>>
-    >(CACHE_DOMAIN, cacheKey);
-    if (cached) return cached;
-
     const record = await this.prisma.baseClient.appointmentType.findUnique({
       where: { id },
       select: SELECT,
@@ -91,12 +64,6 @@ export class AppointmentTypeService {
         t('appointment_type.not_found', 'Appointment type not found'),
       );
     }
-    await this.cacheService.set(
-      CACHE_DOMAIN,
-      cacheKey,
-      record,
-      CACHE_TTL_SECONDS,
-    );
     return record;
   }
 
@@ -114,7 +81,6 @@ export class AppointmentTypeService {
       },
       select: SELECT,
     });
-    await this.invalidateCache();
     return created;
   }
 
@@ -137,7 +103,6 @@ export class AppointmentTypeService {
       },
       select: SELECT,
     });
-    await this.invalidateCache();
     return updated;
   }
 
@@ -158,14 +123,7 @@ export class AppointmentTypeService {
       data: { isActive: false, updatedBy: userId },
       select: SELECT,
     });
-    await this.invalidateCache();
     return updated;
-  }
-
-  private async invalidateCache() {
-    await this.cacheService.invalidatePattern(
-      `${REDIS_NAMESPACE}:${CACHE_DOMAIN}:*`,
-    );
   }
 
   private async assertNameUnique(name: string) {

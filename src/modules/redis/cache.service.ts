@@ -62,6 +62,24 @@ export class CacheService {
     }
   }
 
+  async remember<T>(
+    domain: string,
+    identifier: string,
+    ttlSeconds: number,
+    factory: () => Promise<T>,
+  ): Promise<T> {
+    const cached = await this.get<T>(domain, identifier);
+    if (cached !== null) return cached;
+
+    const value = await factory();
+    await this.set(domain, identifier, value, ttlSeconds);
+    return value;
+  }
+
+  async invalidateDomain(domain: string): Promise<number> {
+    return this.invalidatePattern(`${REDIS_NAMESPACE}:${domain}:*`);
+  }
+
   async exists(domain: string, identifier: string): Promise<boolean> {
     try {
       const key = this.buildKey(domain, identifier);

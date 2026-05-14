@@ -2,7 +2,6 @@ import { Test } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { AppointmentTypeService } from './appointment-type.service';
 import { PrismaService } from '@modules/database';
-import { CacheService } from '@modules/redis';
 import { mockI18nContext } from '@common/test/i18n-mock';
 import type { AppointmentTypeQueryDto } from './dto/appointment-type-query.dto';
 
@@ -22,7 +21,6 @@ const mockType = {
 describe('AppointmentTypeService', () => {
   let service: AppointmentTypeService;
   let prisma: any;
-  let cacheService: any;
 
   beforeEach(async () => {
     mockI18nContext();
@@ -43,17 +41,10 @@ describe('AppointmentTypeService', () => {
       },
     };
 
-    cacheService = {
-      get: jest.fn().mockResolvedValue(null),
-      set: jest.fn().mockResolvedValue(undefined),
-      invalidatePattern: jest.fn().mockResolvedValue(0),
-    };
-
     const module = await Test.createTestingModule({
       providers: [
         AppointmentTypeService,
         { provide: PrismaService, useValue: prisma },
-        { provide: CacheService, useValue: cacheService },
       ],
     }).compile();
 
@@ -74,32 +65,6 @@ describe('AppointmentTypeService', () => {
 
       expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(1);
-      expect(cacheService.set).toHaveBeenCalledWith(
-        'appointment-types',
-        expect.stringMatching(/^list:/),
-        result,
-        300,
-      );
-    });
-
-    it('should return cached paginated results when available', async () => {
-      const cached = {
-        data: [mockType],
-        meta: {
-          total: 1,
-          page: 1,
-          limit: 10,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPreviousPage: false,
-        },
-      };
-      cacheService.get.mockResolvedValue(cached);
-
-      const result = await service.findAll({ page: 1, limit: 10 });
-
-      expect(result).toBe(cached);
-      expect(prisma.baseClient.appointmentType.findMany).not.toHaveBeenCalled();
     });
 
     it('should filter by isActive', async () => {
@@ -152,23 +117,6 @@ describe('AppointmentTypeService', () => {
         name: 'Check-up',
         isActive: true,
       });
-      expect(cacheService.set).toHaveBeenCalledWith(
-        'appointment-types',
-        'detail:type-1',
-        mockType,
-        300,
-      );
-    });
-
-    it('should return cached appointment type by id when available', async () => {
-      cacheService.get.mockResolvedValue(mockType);
-
-      const result = await service.findById('type-1');
-
-      expect(result).toBe(mockType);
-      expect(
-        prisma.baseClient.appointmentType.findUnique,
-      ).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when not found', async () => {
@@ -206,9 +154,6 @@ describe('AppointmentTypeService', () => {
           }),
         }),
       );
-      expect(cacheService.invalidatePattern).toHaveBeenCalledWith(
-        'dentalab:appointment-types:*',
-      );
     });
 
     it('should reject duplicate active name', async () => {
@@ -244,9 +189,6 @@ describe('AppointmentTypeService', () => {
 
       expect(result.name).toBe('New Check-up');
       expect(result.durationMinutes).toBe(45);
-      expect(cacheService.invalidatePattern).toHaveBeenCalledWith(
-        'dentalab:appointment-types:*',
-      );
     });
 
     it('should set updatedBy when updating', async () => {
@@ -288,9 +230,6 @@ describe('AppointmentTypeService', () => {
         expect.objectContaining({
           data: { isActive: false, updatedBy: 'user-1' },
         }),
-      );
-      expect(cacheService.invalidatePattern).toHaveBeenCalledWith(
-        'dentalab:appointment-types:*',
       );
     });
 
