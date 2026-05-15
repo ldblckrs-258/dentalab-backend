@@ -1,4 +1,11 @@
 import {
+  AuditMutation,
+  RequireAnyPermission,
+  RequirePermissions,
+} from '@common/decorators';
+import { BatchAvailabilityQueryDto } from '@modules/scheduling/dto/batch-availability-query.dto';
+import { ProviderAvailabilityService } from '@modules/scheduling/provider-availability.service';
+import {
   Body,
   Controller,
   Delete,
@@ -8,26 +15,50 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { AuditMutation, RequirePermissions } from '@common/decorators';
-import { ProviderService } from './provider.service';
 import { BulkUpdateProviderStatusDto } from './dto/bulk-update-provider-status.dto';
 import { CreateProviderDto } from './dto/create-provider.dto';
-import { UpdateProviderDto } from './dto/update-provider.dto';
-import { UpdateProviderStatusDto } from './dto/update-provider-status.dto';
 import { ProviderQueryDto } from './dto/provider-query.dto';
+import { UpdateProviderStatusDto } from './dto/update-provider-status.dto';
+import { UpdateProviderDto } from './dto/update-provider.dto';
+import { ProviderService } from './provider.service';
 
 @Controller('providers')
 export class ProviderController {
-  constructor(private readonly providerService: ProviderService) {}
+  constructor(
+    private readonly providerService: ProviderService,
+    private readonly providerAvailabilityService: ProviderAvailabilityService,
+  ) {}
 
   @Get()
-  @RequirePermissions('providers:read')
+  @RequireAnyPermission(
+    'providers:read',
+    'provider_schedules:read',
+    'appointments:read',
+  )
   async findAll(@Query() query: ProviderQueryDto) {
     return this.providerService.findAll(query);
   }
 
+  @Get('availability')
+  @RequireAnyPermission(
+    'provider_schedules:read',
+    'providers:read',
+    'appointments:read',
+  )
+  async getBatchAvailability(@Query() query: BatchAvailabilityQueryDto) {
+    return this.providerAvailabilityService.getBatchAvailability(
+      query.providerIds,
+      query.from,
+      query.to,
+    );
+  }
+
   @Get(':id')
-  @RequirePermissions('providers:read')
+  @RequireAnyPermission(
+    'providers:read',
+    'provider_schedules:read',
+    'appointments:read',
+  )
   async findById(@Param('id') id: string) {
     return this.providerService.findById(id);
   }

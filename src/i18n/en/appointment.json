@@ -1,0 +1,16 @@
+{
+  "NOT_FOUND": "Appointment not found",
+  "TYPE_NOT_FOUND": "Appointment type not found",
+  "TYPE_INACTIVE": "Appointment type is inactive",
+  "PATIENT_NOT_FOUND": "Patient not found",
+  "PROVIDER_NOT_FOUND": "Provider not found or inactive",
+  "PROCEDURES_NOT_FOUND": "Procedure(s) not found: {ids}",
+  "PROCEDURES_INVALID": "Procedure(s) cannot be linked (wrong patient, not planned, already linked, or deleted): {ids}",
+  "STATUS_BLOCKS_UPDATE": "Cannot update appointment in status {status}",
+  "STATUS_BLOCKS_RESCHEDULE": "Cannot reschedule from status {status}",
+  "STATUS_BLOCKS_CANCEL": "Cannot cancel appointment in status {status}",
+  "STATUS_TRANSITION_INVALID": "Cannot transition appointment from {from} to {to}",
+  "PROVIDER_OFF": "Provider is off on this date",
+  "OUTSIDE_HOURS": "Slot is outside provider working hours",
+  "SLOT_CONFLICT": "Slot conflicts with an existing appointment"
+}

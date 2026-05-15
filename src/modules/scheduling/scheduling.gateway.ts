@@ -10,6 +10,11 @@ import {
 import type { AuthenticatedSocket } from '@modules/realtime';
 import { AppConfigService } from '@modules/config';
 import { ScheduleRooms } from './schedule.rooms';
+import type {
+  AppointmentCreatedEvent,
+  AppointmentUpdatedEvent,
+  AppointmentCancelledEvent,
+} from '@modules/appointment/appointment.types';
 
 export interface ScheduleUpdatedEvent {
   providerId: string;
@@ -33,6 +38,9 @@ export interface ScheduleEvents {
   'schedule.updated': ScheduleUpdatedEvent;
   'override.requested': OverrideRequestedEvent;
   'override.reviewed': OverrideReviewedEvent;
+  'appointment.created': AppointmentCreatedEvent;
+  'appointment.updated': AppointmentUpdatedEvent;
+  'appointment.cancelled': AppointmentCancelledEvent;
 }
 
 @WebSocketGateway({ namespace: '/schedule' })
@@ -64,6 +72,18 @@ export class SchedulingGateway extends AuthenticatedGateway<ScheduleEvents> {
 
   emitOverrideReviewed(event: OverrideReviewedEvent): void {
     this.emit(ScheduleRooms.readers(), 'override.reviewed', event);
+  }
+
+  emitAppointmentCreated(event: AppointmentCreatedEvent): void {
+    this.emit(ScheduleRooms.readers(), 'appointment.created', event);
+  }
+
+  emitAppointmentUpdated(event: AppointmentUpdatedEvent): void {
+    this.emit(ScheduleRooms.readers(), 'appointment.updated', event);
+  }
+
+  emitAppointmentCancelled(event: AppointmentCancelledEvent): void {
+    this.emit(ScheduleRooms.readers(), 'appointment.cancelled', event);
   }
 
   protected async onAuthorizedConnect(

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 
 export interface AvailabilityWindow {
@@ -18,6 +18,44 @@ export interface ProviderAvailabilityResult {
 @Injectable()
 export class ProviderAvailabilityService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Batch availability lookup for the calendar UI. Caps providers at 10 and
+   * span at 14 days to bound response size and DB load.
+   */
+  async getBatchAvailability(
+    providerIds: string[],
+    from: string,
+    to: string,
+  ): Promise<ProviderAvailabilityResult[]> {
+    const fromDate = new Date(`${from.substring(0, 10)}T00:00:00.000Z`);
+    const toDate = new Date(`${to.substring(0, 10)}T00:00:00.000Z`);
+    const dayMs = 86_400_000;
+    const spanDays = Math.floor(
+      (toDate.getTime() - fromDate.getTime()) / dayMs,
+    );
+    if (spanDays < 0) {
+      throw new BadRequestException('to must be after from');
+    }
+    if (spanDays > 14) {
+      throw new BadRequestException(
+        'Span between from and to cannot exceed 14 days',
+      );
+    }
+
+    const dates: string[] = [];
+    for (let i = 0; i <= spanDays; i += 1) {
+      const d = new Date(fromDate.getTime() + i * dayMs);
+      dates.push(d.toISOString().substring(0, 10));
+    }
+
+    const results = await Promise.all(
+      providerIds.flatMap((providerId) =>
+        dates.map((date) => this.getAvailability(providerId, date)),
+      ),
+    );
+    return results;
+  }
 
   async getAvailability(
     providerId: string,

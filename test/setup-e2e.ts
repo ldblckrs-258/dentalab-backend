@@ -30,4 +30,45 @@ export default async (): Promise<void> => {
     stdio: 'inherit',
     env: { ...process.env, DATABASE_URL: connectionString },
   });
+
+  const client2 = new Client({ connectionString });
+  try {
+    await client2.connect();
+    await client2.query(`
+      DELETE FROM appointments
+      WHERE provider_id = 'b2c3d4e5-f6a7-4890-bcde-f12345678901';
+    `);
+
+    await client2.query(`
+      INSERT INTO users (id, email, password_hash, full_name, is_active, created_at, updated_at)
+      VALUES (
+        'a1b2c3d4-e5f6-4789-abcd-ef1234567890',
+        'e2e-doctor@dentalab.com',
+        '$2b$10$YvH9o5UNbLDdUyaLRvmMy.W3Z0yLkTIL2VX/oiQjqkb4SV0c5OPRS',
+        'E2E Doctor',
+        true,
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (id) DO NOTHING;
+    `);
+    await client2.query(`
+      INSERT INTO providers (id, user_id, specialty, license_number, is_active, created_at, updated_at)
+      VALUES (
+        'b2c3d4e5-f6a7-4890-bcde-f12345678901',
+        'a1b2c3d4-e5f6-4789-abcd-ef1234567890',
+        'General Dentistry',
+        'E2E-LIC-001',
+        true,
+        NOW(),
+        NOW()
+      )
+      ON CONFLICT (id) DO NOTHING;
+    `);
+  } catch (error) {
+    console.error('Failed to seed e2e provider fixture:', error);
+    throw error;
+  } finally {
+    await client2.end();
+  }
 };

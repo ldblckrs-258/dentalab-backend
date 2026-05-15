@@ -16,6 +16,12 @@ export const PATIENT_PROCEDURE_SELECT = {
   procedure: {
     select: { id: true, adaCode: true, name: true, category: true },
   },
+  plannedProvider: {
+    select: {
+      id: true,
+      user: { select: { id: true, fullName: true } },
+    },
+  },
 } as const;
 
 export const PATIENT_PROCEDURE_DETAIL_SELECT = {
