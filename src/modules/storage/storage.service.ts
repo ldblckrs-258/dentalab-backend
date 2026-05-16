@@ -63,12 +63,15 @@ export class StorageService {
       options.originalFilename,
     );
 
+    const sseEnabled = this.config.storage.S3_SSE_ENABLED;
+
     await this.s3.send(
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
         Body: file,
         ContentType: options.contentType,
+        ...(sseEnabled ? { ServerSideEncryption: 'AES256' as const } : {}),
         Metadata: {
           'uploaded-by': options.uploadedBy,
           'original-filename': encodeURIComponent(options.originalFilename),
@@ -93,10 +96,13 @@ export class StorageService {
     contentType: string,
     expiresInSeconds: number = DEFAULT_PRESIGNED_EXPIRY,
   ): Promise<{ uploadUrl: string; key: string }> {
+    const sseEnabled = this.config.storage.S3_SSE_ENABLED;
+
     const command = new PutObjectCommand({
       Bucket: this.bucket,
       Key: key,
       ContentType: contentType,
+      ...(sseEnabled ? { ServerSideEncryption: 'AES256' as const } : {}),
     });
 
     const uploadUrl = await getSignedUrl(this.s3, command, {
@@ -109,10 +115,23 @@ export class StorageService {
   async generatePresignedDownloadUrl(
     key: string,
     expiresInSeconds: number = DEFAULT_PRESIGNED_EXPIRY,
+    options?: { filename?: string; forceAttachment?: boolean },
   ): Promise<{ downloadUrl: string }> {
+    let contentDisposition: string | undefined;
+    if (options?.forceAttachment) {
+      const name = options.filename
+        ? encodeURIComponent(options.filename)
+        : 'download';
+      contentDisposition = `attachment; filename*=UTF-8''${name}`;
+    } else if (options?.filename) {
+      const name = encodeURIComponent(options.filename);
+      contentDisposition = `inline; filename*=UTF-8''${name}`;
+    }
+
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
+      ResponseContentDisposition: contentDisposition,
     });
 
     const downloadUrl = await getSignedUrl(this.s3, command, {

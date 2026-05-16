@@ -9,7 +9,7 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "transformIgnorePatterns": ["node_modules/(?!.pnpm|uuid)"],
+  "transformIgnorePatterns": ["node_modules/(?!.pnpm|uuid|file-type|token-types|strtoul)"],
   "moduleNameMapper": {
     "^@common/(.*)$": "<rootDir>/../src/common/$1",
     "^@modules/(.*)$": "<rootDir>/../src/modules/$1"

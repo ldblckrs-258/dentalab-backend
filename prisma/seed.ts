@@ -210,6 +210,32 @@ const PERMISSIONS: {
     description: 'Gửi lại email thất bại, xem thống kê',
   },
 
+  // Document Access (Module 4)
+  {
+    resource: 'documents',
+    action: 'access',
+    scope: 'hr',
+    description: 'Truy cập tài liệu nội bộ dành cho Nhân sự',
+  },
+  {
+    resource: 'documents',
+    action: 'access',
+    scope: 'finance',
+    description: 'Truy cập tài liệu nội bộ dành cho Tài chính',
+  },
+  {
+    resource: 'documents',
+    action: 'access',
+    scope: 'clinical',
+    description: 'Truy cập tài liệu nội bộ dành cho Lâm sàng',
+  },
+  {
+    resource: 'documents',
+    action: 'access',
+    scope: 'operations',
+    description: 'Truy cập tài liệu nội bộ dành cho Vận hành',
+  },
+
   // AI Chatbot
   { resource: 'chat_sessions', action: 'create' },
   { resource: 'chat_sessions', action: 'read' },

@@ -25,13 +25,31 @@ export const ALLOWED_MIME_TYPES = [
   'text/yaml',
 ];
 
-export const DEFAULT_PRESIGNED_EXPIRY = 3600; // 1 hour
+export const DEFAULT_PRESIGNED_EXPIRY = 3600;
 
-// Avatar-specific constants
-export const AVATAR_MAX_SIZE = 2 * 1024 * 1024; // 2MB
+export const AVATAR_MAX_SIZE = 2 * 1024 * 1024;
 export const AVATAR_ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
 ];
-export const AVATAR_DIMENSION = 256; // 256x256 px
+export const AVATAR_DIMENSION = 256;
+
+export const INTERNAL_DOC_ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'image/png',
+  'image/jpeg',
+];
+
+export const INTERNAL_DOC_MAX_SIZE = 25 * 1024 * 1024;
+
+export const INTERNAL_DOC_PRESIGNED_EXPIRY = 300;
+
+export const INLINE_DISPLAY_MIME_TYPES = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+];

@@ -21,6 +21,7 @@ model User {
   cancelledAppointments   Appointment[]              @relation("CancelledByUser")
   createdAppointments     Appointment[]              @relation("CreatedByUser")
   chatSessions            ChatSession[]
+  createdCategories       DocumentCategory[]
   documentVersionChanges  DocumentVersion[]
   createdForms            Form[]
   authoredDocuments       InternalDocument[]
@@ -61,7 +62,7 @@ model Permission {
   action                  String
   scope                   String?
   description             String?
-  ragDocumentPermissions  RagDocumentPermission[]
+  documentAccessGrants    DocumentAccess[]
   rolePermissions         RolePermission[]
   userPermissionOverrides UserPermissionOverride[]
 
@@ -498,33 +499,67 @@ model KioskSessionForm {
 }
 
 model InternalDocument {
-  id             String            @id @default(uuid()) @db.Uuid
-  createdBy      String            @map("created_by") @db.Uuid
-  title          String
-  content        String?
-  category       String?
-  currentVersion Int               @default(1) @map("current_version")
-  isPublished    Boolean           @default(false) @map("is_published")
-  createdAt      DateTime          @default(now()) @map("created_at")
-  updatedAt      DateTime          @updatedAt @map("updated_at")
-  deletedAt      DateTime?         @map("deleted_at")
-  versions       DocumentVersion[]
-  creator        User              @relation(fields: [createdBy], references: [id])
+  id              String            @id @default(uuid()) @db.Uuid
+  createdBy       String            @map("created_by") @db.Uuid
+  title           String
+  categoryId      String?           @db.Uuid @map("category_id")
+  activeVersionId String?           @db.Uuid @map("active_version_id")
+  isPublished     Boolean           @default(false) @map("is_published")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
+  activeVersion   DocumentVersion?  @relation("ActiveVersion", fields: [activeVersionId], references: [id], onDelete: SetNull)
+  category        DocumentCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  versions        DocumentVersion[]
+  creator         User              @relation(fields: [createdBy], references: [id])
 
   @@map("internal_documents")
 }
 
 model DocumentVersion {
-  id            String           @id @default(uuid()) @db.Uuid
-  documentId    String           @map("document_id") @db.Uuid
-  changedBy     String           @map("changed_by") @db.Uuid
-  versionNumber Int              @map("version_number")
-  content       String?
-  createdAt     DateTime         @default(now()) @map("created_at")
-  changer       User             @relation(fields: [changedBy], references: [id])
-  document      InternalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  id              String             @id @default(uuid()) @db.Uuid
+  documentId      String             @map("document_id") @db.Uuid
+  changedBy       String             @map("changed_by") @db.Uuid
+  versionNumber   Int                @map("version_number")
+  fileKey         String             @map("file_key")
+  fileName        String             @map("file_name")
+  mimeType        String             @map("mime_type")
+  fileSize        Int                @map("file_size")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  activeDocuments InternalDocument[] @relation("ActiveVersion")
+  changer         User               @relation(fields: [changedBy], references: [id])
+  document        InternalDocument   @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
+  @@unique([documentId, versionNumber])
   @@map("document_versions")
+}
+
+model DocumentCategory {
+  id          String             @id @default(uuid()) @db.Uuid
+  name        String             @unique
+  description String?
+  createdBy   String             @map("created_by") @db.Uuid
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+  deletedAt   DateTime?          @map("deleted_at")
+  documents   InternalDocument[]
+  creator     User               @relation(fields: [createdBy], references: [id])
+
+  @@map("document_categories")
+}
+
+model DocumentAccess {
+  id           String     @id @default(uuid()) @db.Uuid
+  sourceType   String     @map("source_type")
+  sourceId     String     @db.Uuid @map("source_id")
+  permissionId String     @db.Uuid @map("permission_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceType, sourceId, permissionId])
+  @@index([sourceType, sourceId])
+  @@index([permissionId])
+  @@map("document_access")
 }
 
 model InventoryItem {
@@ -605,25 +640,12 @@ model RagDocument {
   ingestionTimeMs     Float?                  @map("ingestion_time_ms")
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @updatedAt @map("updated_at")
-  childChunks         ChildChunk[]
-  parentChunks        ParentChunk[]
-  documentPermissions RagDocumentPermission[]
+  childChunks  ChildChunk[]
+  parentChunks ParentChunk[]
 
   @@unique([sourceType, sourceId], map: "rag_documents_source_unique", where: raw("(status <> 'failed'::text)"))
   @@index([sourceType, sourceId])
   @@map("rag_documents")
-}
-
-model RagDocumentPermission {
-  id            String      @id @default(uuid()) @db.Uuid
-  ragDocumentId String      @map("rag_document_id") @db.Uuid
-  permissionId  String      @map("permission_id") @db.Uuid
-  permission    Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
-  ragDocument   RagDocument @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
-
-  @@unique([ragDocumentId, permissionId])
-  @@index([ragDocumentId])
-  @@map("rag_document_permissions")
 }
 
 model ParentChunk {

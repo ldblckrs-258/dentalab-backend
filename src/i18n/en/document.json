@@ -1,0 +1,8 @@
+{
+  "not_found": "Document not found",
+  "category_not_found": "Category not found",
+  "version_not_found": "Document version not found",
+  "file_required": "File is required",
+  "version_conflict": "Version number conflict, please retry",
+  "invalid_permission_ids": "One or more permission IDs are invalid"
+}

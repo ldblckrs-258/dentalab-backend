@@ -23,7 +23,7 @@ const mockOverride = {
   id: 'override-1',
   providerId: 'provider-1',
   requestedBy: 'user-1',
-  specificDate: new Date('2026-05-15T00:00:00.000Z'),
+  specificDate: new Date('2030-05-17T00:00:00.000Z'),
   overrideType: 'custom_hours',
   startTime: '10:00',
   endTime: '12:00',
@@ -139,7 +139,7 @@ describe('ScheduleOverrideService', () => {
       const result = await service.create(
         {
           providerId: 'provider-1',
-          specificDate: new Date('2026-05-15'),
+          specificDate: new Date('2030-05-17'),
           overrideType: 'custom_hours',
           startTime: '10:00',
           endTime: '12:00',
@@ -173,7 +173,7 @@ describe('ScheduleOverrideService', () => {
       const result = await service.create(
         {
           providerId: 'provider-1',
-          specificDate: new Date('2026-05-15'),
+          specificDate: new Date('2030-05-17'),
           overrideType: 'day_off',
           reason: 'Vacation',
         },
@@ -205,7 +205,7 @@ describe('ScheduleOverrideService', () => {
       await service.create(
         {
           providerId: 'provider-1',
-          specificDate: new Date('2026-05-15'),
+          specificDate: new Date('2030-05-17'),
           overrideType: 'custom_hours',
           startTime: '10:00',
           endTime: '12:00',
@@ -223,7 +223,7 @@ describe('ScheduleOverrideService', () => {
     });
 
     it('should create override with valid targetScheduleId', async () => {
-      // 2026-05-15 is a Friday — UTC day 5
+      // 2030-05-17 is a Friday — UTC day 5
       prisma.baseClient.providerSchedule.findUnique.mockResolvedValue({
         id: 'schedule-1',
         providerId: 'provider-1',
@@ -238,7 +238,7 @@ describe('ScheduleOverrideService', () => {
       const result = await service.create(
         {
           providerId: 'provider-1',
-          specificDate: new Date('2026-05-15'),
+          specificDate: new Date('2030-05-17'),
           overrideType: 'day_off',
           targetScheduleId: 'schedule-1',
         },
@@ -249,7 +249,7 @@ describe('ScheduleOverrideService', () => {
     });
 
     it('should throw BadRequestException when targetScheduleId has mismatched day-of-week', async () => {
-      // 2026-05-15 is Friday (DOW 5), but shift is on Monday (DOW 1)
+      // 2030-05-17 is Friday (DOW 5), but shift is on Monday (DOW 1)
       prisma.baseClient.providerSchedule.findUnique.mockResolvedValue({
         id: 'schedule-1',
         providerId: 'provider-1',
@@ -261,7 +261,7 @@ describe('ScheduleOverrideService', () => {
         service.create(
           {
             providerId: 'provider-1',
-            specificDate: new Date('2026-05-15'),
+            specificDate: new Date('2030-05-17'),
             overrideType: 'day_off',
             targetScheduleId: 'schedule-1',
           },
@@ -283,7 +283,7 @@ describe('ScheduleOverrideService', () => {
         service.create(
           {
             providerId: 'provider-1',
-            specificDate: new Date('2026-05-15'),
+            specificDate: new Date('2030-05-17'),
             overrideType: 'day_off',
             targetScheduleId: 'schedule-1',
           },
@@ -447,8 +447,8 @@ describe('ScheduleOverrideService', () => {
       conflictService.validateOverrideApproval.mockResolvedValue([
         {
           id: 'apt-1',
-          startTime: new Date('2026-05-15T10:30:00'),
-          endTime: new Date('2026-05-15T11:30:00'),
+          startTime: new Date('2030-05-17T10:30:00'),
+          endTime: new Date('2030-05-17T11:30:00'),
           status: 'scheduled',
         },
       ]);
