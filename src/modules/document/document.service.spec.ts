@@ -3,6 +3,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { DocumentService } from './document.service';
 import { PrismaService } from '@modules/database';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import { StorageService } from '@modules/storage';
 import { mockI18nContext } from '@common/test/i18n-mock';
 import type { AuthenticatedUser } from '@common/interfaces';
@@ -73,6 +74,7 @@ describe('DocumentService', () => {
   let service: DocumentService;
   let prisma: any;
   let storageService: any;
+  let queueService: { publish: jest.Mock };
 
   beforeEach(async () => {
     mockI18nContext();
@@ -142,11 +144,14 @@ describe('DocumentService', () => {
         .mockResolvedValue({ downloadUrl: 'https://example.com/download' }),
     };
 
+    queueService = { publish: jest.fn() };
+
     const module = await Test.createTestingModule({
       providers: [
         DocumentService,
         { provide: PrismaService, useValue: prisma },
         { provide: StorageService, useValue: storageService },
+        { provide: QueueProducerService, useValue: queueService },
       ],
     }).compile();
 
@@ -499,6 +504,23 @@ describe('DocumentService', () => {
       );
     });
 
+    it('publishes document.deleted on successful soft-delete', async () => {
+      prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
+      prisma.baseClient.internalDocument.update.mockResolvedValue(makeDoc());
+
+      await service.delete('doc-1', managerUser);
+
+      expect(queueService.publish).toHaveBeenCalledWith(
+        ROUTING_KEY.DOCUMENT_DELETED,
+        {
+          sourceType: 'internal_document',
+          sourceId: 'doc-1',
+          action: 'deleted',
+        },
+      );
+    });
+
     it('throws NotFoundException if doc missing', async () => {
       prisma.baseClient.internalDocument.findFirst.mockResolvedValue(null);
 
@@ -549,6 +571,28 @@ describe('DocumentService', () => {
 
     beforeEach(() => {
       (validateMagicBytes as jest.Mock).mockResolvedValue(undefined);
+    });
+
+    it('publishes document.updated on successful upload', async () => {
+      prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
+
+      const result = await service.uploadVersion(
+        'doc-1',
+        pdfFile,
+        'user-1',
+        managerUser,
+      );
+
+      expect(result).toBeDefined();
+      expect(queueService.publish).toHaveBeenCalledWith(
+        ROUTING_KEY.DOCUMENT_UPDATED,
+        {
+          sourceType: 'internal_document',
+          sourceId: 'doc-1',
+          action: 'updated',
+        },
+      );
     });
 
     it('validates MIME type — rejects disallowed type', async () => {
@@ -738,6 +782,28 @@ describe('DocumentService', () => {
         managerUser,
       );
       expect(result.activeVersionId).toBe('ver-1');
+    });
+
+    it('publishes document.updated on successful version swap', async () => {
+      prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
+      prisma.baseClient.documentVersion.findFirst.mockResolvedValue(
+        makeVersion(),
+      );
+      prisma.baseClient.internalDocument.update.mockResolvedValue(
+        makeDoc({ activeVersionId: 'ver-1' }),
+      );
+
+      await service.setActiveVersion('doc-1', 'ver-1', managerUser);
+
+      expect(queueService.publish).toHaveBeenCalledWith(
+        ROUTING_KEY.DOCUMENT_UPDATED,
+        {
+          sourceType: 'internal_document',
+          sourceId: 'doc-1',
+          action: 'updated',
+        },
+      );
     });
 
     it('throws NotFoundException when version belongs to different doc', async () => {

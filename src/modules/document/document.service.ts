@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@modules/database';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import { StorageService } from '@modules/storage';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import {
@@ -74,10 +76,36 @@ function mapVersion(v: VersionWithChanger) {
 
 @Injectable()
 export class DocumentService {
+  private readonly logger = new Logger(DocumentService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
+    private readonly queue: QueueProducerService,
   ) {}
+
+  private publishDocumentEvent(
+    action: 'created' | 'updated' | 'deleted',
+    sourceId: string,
+  ): void {
+    const routingKey =
+      action === 'created'
+        ? ROUTING_KEY.DOCUMENT_CREATED
+        : action === 'updated'
+          ? ROUTING_KEY.DOCUMENT_UPDATED
+          : ROUTING_KEY.DOCUMENT_DELETED;
+    try {
+      this.queue.publish(routingKey, {
+        sourceType: DOC_SOURCE_TYPE,
+        sourceId,
+        action,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to publish ${routingKey} for ${sourceId}: ${(err as Error).message}`,
+      );
+    }
+  }
 
   private isManager(user: AuthenticatedUser): boolean {
     const roleCodes = user.roleCodes ?? [];
@@ -325,6 +353,8 @@ export class DocumentService {
       data: { deletedAt: new Date() },
     });
 
+    this.publishDocumentEvent('deleted', id);
+
     return { id };
   }
 
@@ -419,6 +449,7 @@ export class DocumentService {
         });
 
         const { fileKey: _fileKey, ...versionFields } = result;
+        this.publishDocumentEvent('updated', documentId);
         return mapVersion(versionFields);
       } catch (err) {
         const isPrismaUniqueViolation =
@@ -470,11 +501,13 @@ export class DocumentService {
       );
     }
 
-    return this.prisma.baseClient.internalDocument.update({
+    const updated = await this.prisma.baseClient.internalDocument.update({
       where: { id: documentId },
       data: { activeVersionId: versionId },
       select: DOCUMENT_SELECT,
     });
+    this.publishDocumentEvent('updated', documentId);
+    return updated;
   }
 
   async getDownloadUrl(
