@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import type { Prisma } from '@prisma/client';
@@ -83,10 +84,7 @@ export class ProviderScheduleService {
 
   async create(dto: CreateProviderScheduleDto) {
     if (dto.endTime <= dto.startTime) {
-      throw new InfrastructureException(
-        'SCHEDULE_INVALID_TIME_RANGE',
-        'scheduling',
-        'validateTimeRange',
+      throw new BadRequestException(
         t('scheduling.invalidTimeRange', 'End time must be after start time'),
       );
     }
@@ -136,10 +134,7 @@ export class ProviderScheduleService {
       return created;
     } catch (error: unknown) {
       if (this.isOverlapError(error)) {
-        throw new InfrastructureException(
-          'SCHEDULE_OVERLAP',
-          'scheduling',
-          'createProviderSchedule',
+        throw new ConflictException(
           t(
             'scheduling.scheduleOverlap',
             'Schedule time block overlaps with an existing block',
@@ -154,10 +149,7 @@ export class ProviderScheduleService {
     const schedule = await this.findScheduleOrFail(id);
 
     if (dto.endTime && dto.startTime && dto.endTime <= dto.startTime) {
-      throw new InfrastructureException(
-        'SCHEDULE_INVALID_TIME_RANGE',
-        'scheduling',
-        'validateTimeRange',
+      throw new BadRequestException(
         t('scheduling.invalidTimeRange', 'End time must be after start time'),
       );
     }
@@ -217,10 +209,7 @@ export class ProviderScheduleService {
       return updated;
     } catch (error: unknown) {
       if (this.isOverlapError(error)) {
-        throw new InfrastructureException(
-          'SCHEDULE_OVERLAP',
-          'scheduling',
-          'updateProviderSchedule',
+        throw new ConflictException(
           t(
             'scheduling.scheduleOverlap',
             'Schedule time block overlaps with an existing block',
@@ -243,20 +232,14 @@ export class ProviderScheduleService {
   ) {
     const invalidRanges = findInvalidTimeRanges(dto.shifts);
     if (invalidRanges.length > 0) {
-      throw new InfrastructureException(
-        'SCHEDULE_INVALID_TIME_RANGE',
-        'scheduling',
-        'validateTimeRange',
+      throw new BadRequestException(
         t('scheduling.invalidTimeRange', 'End time must be after start time'),
       );
     }
 
     const overlaps = findIntraPayloadOverlaps(dto.shifts);
     if (overlaps.length > 0) {
-      throw new InfrastructureException(
-        'SCHEDULE_INTRAPAYLOAD_OVERLAP',
-        'scheduling',
-        'validateIntraPayload',
+      throw new BadRequestException(
         t(
           'scheduling.intraPayloadOverlap',
           'Two or more shifts in the same day overlap',
@@ -277,28 +260,33 @@ export class ProviderScheduleService {
         // Only shifts that will actually accept appointments count as
         // coverage. Unavailable shifts are stored but excluded from the
         // EXCLUDE constraint and must not mask appointment conflicts.
-        const conflicts =
-          await this.conflictService.validateBulkRecurringSchedules(
-            providerId,
-            dto.shifts
-              .filter((s) => s.isAvailable !== false)
-              .map((s) => ({
-                dayOfWeek: s.dayOfWeek,
-                startTime: s.startTime,
-                endTime: s.endTime,
-              })),
-            tx,
-          );
+        // Skip conflict check when clearing all shifts — orphaned appointments
+        // are a business concern handled separately.
+        const availableShifts = dto.shifts
+          .filter((s) => s.isAvailable !== false)
+          .map((s) => ({
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+          }));
+        if (availableShifts.length > 0) {
+          const conflicts =
+            await this.conflictService.validateBulkRecurringSchedules(
+              providerId,
+              availableShifts,
+              tx,
+            );
 
-        if (conflicts.length > 0) {
-          throw new ConflictException({
-            code: 'SCHEDULE_CONFLICTS_WITH_APPOINTMENTS',
-            message: t(
-              'scheduling.scheduleConflicts',
-              'Recurring schedule conflicts with existing appointments',
-            ),
-            conflicts: serializeConflicts(conflicts),
-          });
+          if (conflicts.length > 0) {
+            throw new ConflictException({
+              code: 'SCHEDULE_CONFLICTS_WITH_APPOINTMENTS',
+              message: t(
+                'scheduling.scheduleConflicts',
+                'Recurring schedule conflicts with existing appointments',
+              ),
+              conflicts: serializeConflicts(conflicts),
+            });
+          }
         }
 
         const { toCreate, toUpdate, toDelete } = diffShifts(
@@ -337,10 +325,7 @@ export class ProviderScheduleService {
       return { shifts: result };
     } catch (error: unknown) {
       if (this.isOverlapError(error)) {
-        throw new InfrastructureException(
-          'SCHEDULE_OVERLAP',
-          'scheduling',
-          'replaceForProvider',
+        throw new ConflictException(
           t(
             'scheduling.scheduleOverlap',
             'Schedule time block overlaps with an existing block',
@@ -408,13 +393,19 @@ export class ProviderScheduleService {
   }
 
   private isOverlapError(error: unknown): boolean {
-    return (
-      error !== null &&
-      typeof error === 'object' &&
-      'code' in error &&
-      ((error as { code: string }).code === 'P2009' ||
-        (error as { code: string }).code === 'P2010')
-    );
+    if (error === null || typeof error !== 'object') return false;
+    const e = error as Record<string, unknown>;
+    const msg: string = typeof e['message'] === 'string' ? e['message'] : '';
+    if (msg.includes('provider_schedules_no_overlap')) return true;
+    const cause = e['cause'] as Record<string, unknown> | undefined;
+    if ((cause?.['code'] as string) === '23P01') return true;
+    if (
+      (cause?.['message'] as string | undefined)?.includes(
+        'provider_schedules_no_overlap',
+      )
+    )
+      return true;
+    return false;
   }
 
   private async findScheduleOrFail(id: string) {

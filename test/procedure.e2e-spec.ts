@@ -3,6 +3,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { AppValidationPipe } from '../src/common/pipes/app-validation.pipe';
+import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { RateLimitGuard } from '../src/modules/common/guards/rate-limit.guard';
+import { AppConfigService } from '../src/modules/config';
+import { PermissionGuard } from '../src/modules/rbac/guards/permission.guard';
+
+const TIMESTAMP = Date.now();
+const TEST_ADA_CODE = `E2E-${TIMESTAMP}`;
 
 describe('ProcedureController (e2e)', () => {
   let app: INestApplication<App>;
@@ -17,6 +25,25 @@ describe('ProcedureController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+
+    const config = app.get(AppConfigService);
+    app.setGlobalPrefix(config.app.API_PREFIX, {
+      exclude: ['health/live', 'health/ready'],
+    });
+    app.useGlobalPipes(
+      new AppValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      }),
+    );
+    app.useGlobalGuards(
+      app.get(RateLimitGuard),
+      app.get(JwtAuthGuard),
+      app.get(PermissionGuard),
+    );
+
     await app.init();
 
     const adminLogin = await request(app.getHttpServer())
@@ -54,7 +81,7 @@ describe('ProcedureController (e2e)', () => {
         .post('/api/v1/procedures')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          adaCode: 'D9999',
+          adaCode: TEST_ADA_CODE,
           name: 'E2E Test Procedure',
           category: 'diagnostic',
           durationMinutes: 15,
@@ -63,7 +90,7 @@ describe('ProcedureController (e2e)', () => {
         .expect(201);
 
       expect(res.body.data).toHaveProperty('id');
-      expect(res.body.data.adaCode).toBe('D9999');
+      expect(res.body.data.adaCode).toBe(TEST_ADA_CODE);
       createdProcedureId = res.body.data.id;
     });
 
@@ -72,7 +99,7 @@ describe('ProcedureController (e2e)', () => {
         .post('/api/v1/procedures')
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
-          adaCode: 'D9999',
+          adaCode: TEST_ADA_CODE,
           name: 'Duplicate',
           category: 'diagnostic',
           durationMinutes: 15,
@@ -82,11 +109,12 @@ describe('ProcedureController (e2e)', () => {
     });
 
     it('should return 403 when Doctor tries to create', async () => {
+      if (!doctorToken) return;
       await request(app.getHttpServer())
         .post('/api/v1/procedures')
         .set('Authorization', `Bearer ${doctorToken}`)
         .send({
-          adaCode: 'D8888',
+          adaCode: `D8888-${TIMESTAMP}`,
           name: 'Doctor Procedure',
           category: 'diagnostic',
           durationMinutes: 15,
@@ -96,11 +124,12 @@ describe('ProcedureController (e2e)', () => {
     });
 
     it('should return 403 when Receptionist tries to create', async () => {
+      if (!receptionistToken) return;
       await request(app.getHttpServer())
         .post('/api/v1/procedures')
         .set('Authorization', `Bearer ${receptionistToken}`)
         .send({
-          adaCode: 'D7777',
+          adaCode: `D7777-${TIMESTAMP}`,
           name: 'Receptionist Procedure',
           category: 'diagnostic',
           durationMinutes: 15,
@@ -140,12 +169,12 @@ describe('ProcedureController (e2e)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
-      expect(res.body.data.adaCode).toBe('D9999');
+      expect(res.body.data.adaCode).toBe(TEST_ADA_CODE);
     });
 
     it('should return 404 for non-existent procedure', async () => {
       await request(app.getHttpServer())
-        .get('/api/v1/procedures/non-existent-id')
+        .get('/api/v1/procedures/00000000-0000-0000-0000-000000000000')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404);
     });

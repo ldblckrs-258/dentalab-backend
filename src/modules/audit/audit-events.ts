@@ -73,7 +73,10 @@ export const AUDIT_EVENTS = {
   },
   CLINICAL_NOTE_CREATED: { category: 'phi', severity: 'notice' },
   CLINICAL_NOTE_UPDATED: { category: 'phi', severity: 'notice' },
+  CLINICAL_NOTE_SIGNED: { category: 'phi', severity: 'notice' },
+  CLINICAL_NOTE_ADDENDUM_CREATED: { category: 'phi', severity: 'notice' },
   CLINICAL_NOTE_DELETED: { category: 'phi', severity: 'warning' },
+  CLINICAL_NOTE_MIGRATED: { category: 'phi', severity: 'notice' },
   PATIENT_FILE_DOWNLOADED: {
     category: 'phi',
     severity: 'notice',

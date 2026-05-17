@@ -1,0 +1,96 @@
+export const CLINICAL_NOTE_FULL_SELECT = {
+  id: true,
+  patientId: true,
+  providerId: true,
+  appointmentId: true,
+  parentNoteId: true,
+  version: true,
+  status: true,
+  subjective: true,
+  objective: true,
+  assessment: true,
+  plan: true,
+  signedAt: true,
+  signedBy: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  signer: {
+    select: { id: true, fullName: true, email: true },
+  },
+  creator: {
+    select: { id: true, fullName: true, email: true },
+  },
+  provider: {
+    select: {
+      id: true,
+      user: { select: { id: true, fullName: true } },
+    },
+  },
+} as const;
+
+export const CLINICAL_NOTE_LIST_SELECT = {
+  id: true,
+  patientId: true,
+  providerId: true,
+  appointmentId: true,
+  parentNoteId: true,
+  version: true,
+  status: true,
+  subjective: true,
+  objective: true,
+  assessment: true,
+  plan: true,
+  signedAt: true,
+  signedBy: true,
+  createdBy: true,
+  createdAt: true,
+  updatedAt: true,
+  provider: {
+    select: {
+      id: true,
+      user: { select: { id: true, fullName: true } },
+    },
+  },
+  addendums: {
+    where: { deletedAt: null },
+    orderBy: { version: 'asc' },
+    select: {
+      id: true,
+      patientId: true,
+      providerId: true,
+      appointmentId: true,
+      parentNoteId: true,
+      version: true,
+      status: true,
+      subjective: true,
+      objective: true,
+      assessment: true,
+      plan: true,
+      signedAt: true,
+      signedBy: true,
+      createdBy: true,
+      createdAt: true,
+      updatedAt: true,
+      provider: {
+        select: {
+          id: true,
+          user: { select: { id: true, fullName: true } },
+        },
+      },
+    },
+  },
+} as const;
+
+export const CLINICAL_NOTE_METADATA_SELECT = {
+  id: true,
+  patientId: true,
+  providerId: true,
+  appointmentId: true,
+  parentNoteId: true,
+  version: true,
+  status: true,
+  signedAt: true,
+  createdAt: true,
+} as const;

@@ -24,6 +24,7 @@ import { SchedulingModule } from '@modules/scheduling/scheduling.module';
 import { PatientProcedureModule } from '@modules/patient-procedure';
 import { AppointmentModule } from '@modules/appointment';
 import { DocumentModule } from '@modules/document';
+import { ClinicalNoteModule } from '@modules/clinical-note';
 import { DEFAULT_LANGUAGE } from '@common/constants';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -68,6 +69,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     PatientProcedureModule,
     AppointmentModule,
     DocumentModule,
+    ClinicalNoteModule,
     HealthModule,
   ],
   controllers: [AppController],

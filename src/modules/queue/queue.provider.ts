@@ -94,6 +94,10 @@ export const rabbitmqChannelProvider: Provider = {
     if (!connection) return null;
     try {
       const channel = await connection.createChannel();
+      channel.on('error', (err) =>
+        logger.error('RabbitMQ channel error', err.message),
+      );
+      channel.on('close', () => logger.warn('RabbitMQ channel closed'));
       await channel.prefetch(config.queue.RABBITMQ_PREFETCH_COUNT);
       await setupTopology(channel);
       return channel;

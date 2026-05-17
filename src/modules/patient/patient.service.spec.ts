@@ -154,7 +154,7 @@ describe('PatientService', () => {
       expect(prisma.transaction).toHaveBeenCalled();
       expect(queueProducer.publish).toHaveBeenCalledWith(
         ROUTING_KEY.DOCUMENT_DELETED,
-        { documentId: 'patient-1', sourceType: 'patient' },
+        { sourceType: 'patient', sourceId: 'patient-1', action: 'deleted' },
       );
     });
 

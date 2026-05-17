@@ -3,6 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { AppValidationPipe } from '../src/common/pipes/app-validation.pipe';
+import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { RateLimitGuard } from '../src/modules/common/guards/rate-limit.guard';
+import { AppConfigService } from '../src/modules/config';
+import { PermissionGuard } from '../src/modules/rbac/guards/permission.guard';
 
 describe('Scheduling (e2e)', () => {
   let app: INestApplication<App>;
@@ -18,6 +23,25 @@ describe('Scheduling (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+
+    const config = app.get(AppConfigService);
+    app.setGlobalPrefix(config.app.API_PREFIX, {
+      exclude: ['health/live', 'health/ready'],
+    });
+    app.useGlobalPipes(
+      new AppValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      }),
+    );
+    app.useGlobalGuards(
+      app.get(RateLimitGuard),
+      app.get(JwtAuthGuard),
+      app.get(PermissionGuard),
+    );
+
     await app.init();
 
     const adminLogin = await request(app.getHttpServer())
@@ -34,6 +58,13 @@ describe('Scheduling (e2e)', () => {
       .get('/api/v1/providers?limit=1')
       .set('Authorization', `Bearer ${adminToken}`);
     testProviderId = providersRes.body.data?.[0]?.id ?? '';
+
+    if (testProviderId) {
+      await request(app.getHttpServer())
+        .put(`/api/v1/providers/${testProviderId}/schedules`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ shifts: [] });
+    }
   });
 
   afterAll(async () => {

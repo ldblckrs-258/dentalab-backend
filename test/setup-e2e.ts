@@ -1,7 +1,25 @@
 import { execSync } from 'child_process';
 import { Client } from 'pg';
+import Redis from 'ioredis';
 
 export default async (): Promise<void> => {
+  const redisHost = process.env.REDIS_HOST ?? 'localhost';
+  const redisPort = parseInt(process.env.REDIS_PORT ?? '6380', 10);
+  const redis = new Redis({
+    host: redisHost,
+    port: redisPort,
+    lazyConnect: true,
+  });
+  try {
+    await redis.connect();
+    const keys = await redis.keys('rate_limit:*');
+    if (keys.length > 0) {
+      await redis.del(...keys);
+    }
+  } finally {
+    await redis.quit();
+  }
+
   const connectionString =
     process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 

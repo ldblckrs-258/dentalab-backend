@@ -24,6 +24,8 @@ export class RateLimitGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (process.env.DISABLE_RATE_LIMIT === 'true') return true;
+
     const options = this.reflector.getAllAndOverride<RateLimitOptions>(
       RATE_LIMIT_KEY,
       [context.getHandler(), context.getClass()],

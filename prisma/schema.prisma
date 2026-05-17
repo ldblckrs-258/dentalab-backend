@@ -39,6 +39,8 @@ model User {
   userPermissionOverrides  UserPermissionOverride[]
   userRoles                UserRole[]
   createdPatientProcedures PatientProcedure[]         @relation("PatientProcedureCreator")
+  clinicalNotesCreated     ClinicalNote[]             @relation("ClinicalNoteCreator")
+  clinicalNotesSigned      ClinicalNote[]             @relation("ClinicalNoteSigner")
 
   @@map("users")
 }
@@ -307,7 +309,7 @@ model Appointment {
   patient            Patient            @relation(fields: [patientId], references: [id])
   provider           Provider           @relation(fields: [providerId], references: [id])
   appointmentType    AppointmentType    @relation(fields: [typeId], references: [id])
-  clinicalNote       ClinicalNote?
+  clinicalNotes      ClinicalNote[]
   formSubmissions    FormSubmission[]
   kioskSessions      KioskSession[]
   patientProcedures  PatientProcedure[]
@@ -360,22 +362,34 @@ model PatientProcedure {
 }
 
 model ClinicalNote {
-  id            String      @id @default(uuid()) @db.Uuid
-  patientId     String      @map("patient_id") @db.Uuid
-  providerId    String      @map("provider_id") @db.Uuid
-  appointmentId String      @unique @map("appointment_id") @db.Uuid
+  id            String        @id @default(uuid()) @db.Uuid
+  patientId     String        @map("patient_id") @db.Uuid
+  providerId    String        @map("provider_id") @db.Uuid
+  appointmentId String?       @map("appointment_id") @db.Uuid
+  parentNoteId  String?       @map("parent_note_id") @db.Uuid
+  version       Int           @default(1)
+  status        String        @default("draft") @db.VarChar(16)
   subjective    String?
   objective     String?
   assessment    String?
   plan          String?
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
-  deletedAt     DateTime?   @map("deleted_at")
-  appointment   Appointment @relation(fields: [appointmentId], references: [id])
-  patient       Patient     @relation(fields: [patientId], references: [id])
-  provider      Provider    @relation(fields: [providerId], references: [id])
+  signedAt      DateTime?     @map("signed_at")
+  signedBy      String?       @map("signed_by") @db.Uuid
+  createdBy     String        @map("created_by") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  deletedAt     DateTime?     @map("deleted_at")
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  patient       Patient       @relation(fields: [patientId], references: [id])
+  provider      Provider      @relation(fields: [providerId], references: [id])
+  parentNote    ClinicalNote? @relation("NoteAddendums", fields: [parentNoteId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "clinical_notes_parent_fk")
+  addendums     ClinicalNote[] @relation("NoteAddendums")
+  creator       User          @relation("ClinicalNoteCreator", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "clinical_notes_creator_fk")
+  signer        User?         @relation("ClinicalNoteSigner", fields: [signedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "clinical_notes_signer_fk")
 
   @@index([patientId, deletedAt])
+  @@index([parentNoteId])
+  @@index([providerId, status], map: "clinical_notes_provider_status_idx")
   @@map("clinical_notes")
 }
 
@@ -675,6 +689,9 @@ model ChildChunk {
   ragDocument   RagDocument              @relation(fields: [ragDocumentId], references: [id], onDelete: Cascade)
 
   @@index([ragDocumentId])
+  @@index([parentChunkId, chunkIndex], map: "child_chunks_parent_chunk_index_idx")
+  @@index([embedding], map: "child_chunks_embedding_hnsw_idx")
+  @@index([searchVector], type: Gin, map: "child_chunks_search_vector_idx")
   @@map("child_chunks")
 }
 

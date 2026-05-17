@@ -12,6 +12,16 @@ import { SYSTEM_ROLE_CODE } from '../../common/constants';
  *  always flow to Admin without having to update this list.
  */
 
+export const CLINICAL_NOTES_PERMISSIONS = [
+  'clinical_notes:create',
+  'clinical_notes:read',
+  'clinical_notes:read:full',
+  'clinical_notes:update',
+  'clinical_notes:sign',
+  'clinical_notes:addendum',
+  'clinical_notes:delete',
+] as const;
+
 export function perm(resource: string, action: string): string {
   return `${resource}:${action}`;
 }
@@ -35,7 +45,13 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('procedures', 'read'),
     perm('appointment_types', 'read'),
     perm('patients', 'read'),
-    ...allActions('clinical_notes'),
+    perm('clinical_notes', 'create'),
+    perm('clinical_notes', 'read'),
+    scopedPerm('clinical_notes', 'read', 'full'),
+    perm('clinical_notes', 'update'),
+    perm('clinical_notes', 'sign'),
+    perm('clinical_notes', 'addendum'),
+    perm('clinical_notes', 'delete'),
     perm('patient_files', 'create'),
     perm('patient_files', 'read'),
     perm('treatment_plans', 'create'),
@@ -76,6 +92,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('patient_files', 'delete'),
     perm('procedures', 'read'),
     perm('appointment_types', 'read'),
+    perm('clinical_notes', 'read'),
     perm('treatment_plans', 'read'),
     scopedPerm('treatment_plans', 'read', 'metadata'),
     perm('patient_procedures', 'read'),

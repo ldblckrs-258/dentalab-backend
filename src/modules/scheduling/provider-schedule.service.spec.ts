@@ -1,5 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { ProviderScheduleService } from './provider-schedule.service';
 import { PrismaService } from '@modules/database';
 import { InfrastructureException } from '@modules/common/filters/infrastructure.exception';
@@ -189,7 +193,7 @@ describe('ProviderScheduleService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('should throw InfrastructureException when endTime <= startTime', async () => {
+    it('should throw BadRequestException when endTime <= startTime', async () => {
       await expect(
         service.create({
           providerId: 'provider-1',
@@ -197,7 +201,7 @@ describe('ProviderScheduleService', () => {
           startTime: '12:00',
           endTime: '10:00',
         }),
-      ).rejects.toThrow(InfrastructureException);
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw NotFoundException when provider not found', async () => {
@@ -234,8 +238,8 @@ describe('ProviderScheduleService', () => {
         id: 'provider-1',
         isActive: true,
       });
-      prisma.baseClient.providerSchedule.create.mockRejectedValue({
-        code: 'P2009',
+      prisma.transaction.mockRejectedValue({
+        cause: { code: '23P01', message: 'provider_schedules_no_overlap' },
       });
 
       await expect(
@@ -245,7 +249,7 @@ describe('ProviderScheduleService', () => {
           startTime: '08:00',
           endTime: '12:00',
         }),
-      ).rejects.toThrow(InfrastructureException);
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -372,7 +376,7 @@ describe('ProviderScheduleService', () => {
             { dayOfWeek: 1, startTime: '10:00', endTime: '14:00' },
           ],
         }),
-      ).rejects.toThrow(InfrastructureException);
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws on invalid time range (end <= start)', async () => {
@@ -380,7 +384,7 @@ describe('ProviderScheduleService', () => {
         service.replaceForProvider('provider-1', {
           shifts: [{ dayOfWeek: 1, startTime: '12:00', endTime: '08:00' }],
         }),
-      ).rejects.toThrow(InfrastructureException);
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws ConflictException when appointments fall outside union', async () => {

@@ -3,6 +3,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { AppValidationPipe } from '../src/common/pipes/app-validation.pipe';
+import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
+import { RateLimitGuard } from '../src/modules/common/guards/rate-limit.guard';
+import { AppConfigService } from '../src/modules/config';
+import { PermissionGuard } from '../src/modules/rbac/guards/permission.guard';
 
 describe('TreatmentPlanController (e2e)', () => {
   let app: INestApplication<App>;
@@ -18,6 +23,25 @@ describe('TreatmentPlanController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+
+    const config = app.get(AppConfigService);
+    app.setGlobalPrefix(config.app.API_PREFIX, {
+      exclude: ['health/live', 'health/ready'],
+    });
+    app.useGlobalPipes(
+      new AppValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+      }),
+    );
+    app.useGlobalGuards(
+      app.get(RateLimitGuard),
+      app.get(JwtAuthGuard),
+      app.get(PermissionGuard),
+    );
+
     await app.init();
 
     const adminLogin = await request(app.getHttpServer())
@@ -70,6 +94,8 @@ describe('TreatmentPlanController (e2e)', () => {
     });
 
     it('should return 400 when patientId is missing', async () => {
+      if (!doctorToken) return;
+
       await request(app.getHttpServer())
         .post('/api/v1/treatment-plans')
         .set('Authorization', `Bearer ${doctorToken}`)

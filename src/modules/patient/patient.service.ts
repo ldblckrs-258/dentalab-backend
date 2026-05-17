@@ -161,8 +161,9 @@ export class PatientService {
     });
 
     this.queueProducer.publish(ROUTING_KEY.DOCUMENT_DELETED, {
-      documentId: id,
       sourceType: 'patient',
+      sourceId: id,
+      action: 'deleted',
     });
 
     this.logger.log(`Patient ${id} deleted (GDPR cascade). Reason: ${reason}`);
