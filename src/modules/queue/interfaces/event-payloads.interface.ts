@@ -1,21 +1,7 @@
-export interface DocumentCreatedPayload {
-  documentId: string;
+export interface DocumentEventPayload {
   sourceType: string;
-  title: string;
-  contentHash: string;
-}
-
-export interface DocumentUpdatedPayload {
-  documentId: string;
-  sourceType: string;
-  title: string;
-  contentHash: string;
-  previousHash: string;
-}
-
-export interface DocumentDeletedPayload {
-  documentId: string;
-  sourceType: string;
+  sourceId: string;
+  action: 'created' | 'updated' | 'deleted';
 }
 
 export interface ClinicalNoteCreatedPayload {
@@ -63,9 +49,7 @@ export interface InventoryLowStockPayload {
 }
 
 export type EventPayload =
-  | DocumentCreatedPayload
-  | DocumentUpdatedPayload
-  | DocumentDeletedPayload
+  | DocumentEventPayload
   | ClinicalNoteCreatedPayload
   | ClinicalNoteUpdatedPayload
   | EmailSendReminderPayload
