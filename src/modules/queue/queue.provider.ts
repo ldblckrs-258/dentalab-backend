@@ -7,6 +7,7 @@ import {
   EXCHANGE_EVENTS,
   EXCHANGE_DLX,
   QUEUE_RAG_INDEXING,
+  QUEUE_RAG_STATUS_EVENTS,
   QUEUE_EMAIL_SEND,
   QUEUE_NOTIFICATION_INVENTORY,
   QUEUE_DLQ,
@@ -57,6 +58,19 @@ async function setupTopology(channel: amqplib.Channel): Promise<void> {
     QUEUE_NOTIFICATION_INVENTORY,
     EXCHANGE_EVENTS,
     'inventory.low_stock',
+  );
+
+  // RAG status events queue
+  await channel.assertQueue(QUEUE_RAG_STATUS_EVENTS, {
+    durable: true,
+    arguments: {
+      'x-dead-letter-exchange': EXCHANGE_DLX,
+    },
+  });
+  await channel.bindQueue(
+    QUEUE_RAG_STATUS_EVENTS,
+    EXCHANGE_EVENTS,
+    'rag.document.status_changed',
   );
 
   logger.log('RabbitMQ topology configured');

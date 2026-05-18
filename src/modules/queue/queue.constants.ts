@@ -7,6 +7,7 @@ export const EXCHANGE_DLX = 'dental.dlx';
 
 // Queues
 export const QUEUE_RAG_INDEXING = 'rag.indexing';
+export const QUEUE_RAG_STATUS_EVENTS = 'rag.status.events';
 export const QUEUE_EMAIL_SEND = 'email.send';
 export const QUEUE_NOTIFICATION_INVENTORY = 'notification.inventory';
 export const QUEUE_DLQ = 'dental.dlq';
@@ -22,6 +23,7 @@ export const ROUTING_KEY = {
   EMAIL_SEND_RESET_PASSWORD: 'email.send_reset_password',
   EMAIL_SEND_WELCOME: 'email.send_welcome',
   INVENTORY_LOW_STOCK: 'inventory.low_stock',
+  RAG_DOCUMENT_STATUS_CHANGED: 'rag.document.status_changed',
 } as const;
 
 // DLQ

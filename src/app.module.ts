@@ -25,6 +25,7 @@ import { PatientProcedureModule } from '@modules/patient-procedure';
 import { AppointmentModule } from '@modules/appointment';
 import { DocumentModule } from '@modules/document';
 import { ClinicalNoteModule } from '@modules/clinical-note';
+import { RagModule } from '@modules/rag/rag.module';
 import { DEFAULT_LANGUAGE } from '@common/constants';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -70,6 +71,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     AppointmentModule,
     DocumentModule,
     ClinicalNoteModule,
+    RagModule,
     HealthModule,
   ],
   controllers: [AppController],

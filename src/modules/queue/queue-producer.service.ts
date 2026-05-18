@@ -1,7 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Channel } from 'amqplib';
 import { v4 as uuidv4 } from 'uuid';
-import { RABBITMQ_CHANNEL, EXCHANGE_EVENTS } from './queue.constants';
+import {
+  RABBITMQ_CHANNEL,
+  EXCHANGE_EVENTS,
+  ROUTING_KEY,
+} from './queue.constants';
 import type { EventPayload } from './interfaces/event-payloads.interface';
 import type {
   QueueMessage,
@@ -22,6 +26,14 @@ export class QueueProducerService {
     options?: PublishOptions,
   ): void {
     this.publishToExchange(EXCHANGE_EVENTS, routingKey, payload, options);
+  }
+
+  publishDocumentUpdated(documentId: string): void {
+    this.publish(ROUTING_KEY.DOCUMENT_UPDATED, {
+      sourceType: 'internal_document',
+      sourceId: documentId,
+      action: 'updated',
+    });
   }
 
   publishToExchange(
