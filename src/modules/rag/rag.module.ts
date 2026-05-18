@@ -4,10 +4,12 @@ import { RagService } from './rag.service';
 import { RagController } from './rag.controller';
 import { RagConsumer } from './rag.consumer';
 import { RagGateway } from './rag.gateway';
+import { RagSearchService } from './rag-search.service';
+import { RagSearchController } from './rag-search.controller';
 
 @Module({
   imports: [DocumentModule],
-  controllers: [RagController],
-  providers: [RagService, RagConsumer, RagGateway],
+  controllers: [RagController, RagSearchController],
+  providers: [RagService, RagConsumer, RagGateway, RagSearchService],
 })
 export class RagModule {}

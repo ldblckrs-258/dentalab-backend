@@ -112,6 +112,10 @@ export class DocumentService {
     return roleCodes.includes('ADMIN') || roleCodes.includes('MANAGER');
   }
 
+  async getUserPermissionIds(userId: string): Promise<string[]> {
+    return this.resolveUserPermissionIds(userId);
+  }
+
   private async resolveUserPermissionIds(userId: string): Promise<string[]> {
     const userRoles = await this.prisma.baseClient.userRole.findMany({
       where: { userId },
