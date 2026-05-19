@@ -41,6 +41,7 @@ model User {
   createdPatientProcedures PatientProcedure[]         @relation("PatientProcedureCreator")
   clinicalNotesCreated     ClinicalNote[]             @relation("ClinicalNoteCreator")
   clinicalNotesSigned      ClinicalNote[]             @relation("ClinicalNoteSigner")
+  createdAiProviders       AiProvider[]               @relation("AiProviderCreatedBy")
 
   @@map("users")
 }
@@ -696,14 +697,17 @@ model ChildChunk {
 }
 
 model ChatSession {
-  id        String        @id @default(uuid()) @db.Uuid
-  userId    String        @map("user_id") @db.Uuid
-  title     String?
-  createdAt DateTime      @default(now()) @map("created_at")
-  updatedAt DateTime      @updatedAt @map("updated_at")
-  messages  ChatMessage[]
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String        @id @default(uuid()) @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  title         String?
+  answerModelId String?       @map("answer_model_id") @db.Uuid
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  messages      ChatMessage[]
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answerModel   AiModel?      @relation(fields: [answerModelId], references: [id], onDelete: SetNull)
 
+  @@index([answerModelId])
   @@map("chat_sessions")
 }
 
@@ -713,8 +717,51 @@ model ChatMessage {
   role      String
   content   String
   citations Json?
+  metadata  Json?
   createdAt DateTime    @default(now()) @map("created_at")
   session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
+}
+
+model AiProvider {
+  id                String      @id @default(uuid()) @db.Uuid
+  name              String      @unique
+  provider          String
+  apiKeyCiphertext  Bytes       @map("api_key_ciphertext")
+  apiKeyIv          Bytes       @map("api_key_iv")
+  apiKeyTag         Bytes       @map("api_key_tag")
+  apiKeyLast4       String?     @map("api_key_last4")
+  baseUrl           String?     @map("base_url")
+  isActive          Boolean     @default(true) @map("is_active")
+  createdBy         String?     @map("created_by") @db.Uuid
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  createdByUser     User?       @relation("AiProviderCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  models            AiModel[]
+
+  @@map("ai_providers")
+}
+
+model AiModel {
+  id            String        @id @default(uuid()) @db.Uuid
+  providerId    String        @map("provider_id") @db.Uuid
+  role          String
+  modelName     String        @map("model_name")
+  displayName   String        @map("display_name")
+  systemPrompt  String        @map("system_prompt")
+  temperature   Float         @default(0.4)
+  topP          Float?        @map("top_p")
+  maxTokens     Int?          @map("max_tokens")
+  ragTopK       Int?          @default(5) @map("rag_top_k")
+  historyWindow Int?          @default(8) @map("history_window")
+  isActive      Boolean       @default(true) @map("is_active")
+  isDefault     Boolean       @default(false) @map("is_default")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  provider      AiProvider    @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  sessions      ChatSession[]
+
+  @@index([providerId])
+  @@map("ai_models")
 }

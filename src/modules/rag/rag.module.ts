@@ -11,5 +11,6 @@ import { RagSearchController } from './rag-search.controller';
   imports: [DocumentModule],
   controllers: [RagController, RagSearchController],
   providers: [RagService, RagConsumer, RagGateway, RagSearchService],
+  exports: [RagSearchService],
 })
 export class RagModule {}

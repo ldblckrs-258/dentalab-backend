@@ -26,6 +26,8 @@ import { AppointmentModule } from '@modules/appointment';
 import { DocumentModule } from '@modules/document';
 import { ClinicalNoteModule } from '@modules/clinical-note';
 import { RagModule } from '@modules/rag/rag.module';
+import { AiConfigModule } from '@modules/ai-config/ai-config.module';
+import { ChatModule } from '@modules/chat/chat.module';
 import { DEFAULT_LANGUAGE } from '@common/constants';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -72,6 +74,8 @@ const isDev = process.env.NODE_ENV !== 'production';
     DocumentModule,
     ClinicalNoteModule,
     RagModule,
+    AiConfigModule,
+    ChatModule,
     HealthModule,
   ],
   controllers: [AppController],

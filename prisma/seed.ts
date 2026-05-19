@@ -259,6 +259,21 @@ const PERMISSIONS: {
   { resource: 'chat_sessions', action: 'delete' },
   { resource: 'rag_patient_notes', action: 'read' },
   { resource: 'rag_internal_docs', action: 'read' },
+  {
+    resource: 'chat',
+    action: 'use',
+    description: 'Sử dụng thanh chat AI bên phải',
+  },
+  {
+    resource: 'ai_config',
+    action: 'read',
+    description: 'Xem cấu hình AI provider + model (API key đã ẩn)',
+  },
+  {
+    resource: 'ai_config',
+    action: 'manage',
+    description: 'CRUD AI provider + model',
+  },
 
   // Scoped: Admin user management
   {

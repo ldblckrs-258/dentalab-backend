@@ -62,9 +62,13 @@ export class RagSearchService {
     dto: RagSearchDto,
     user: AuthenticatedUser,
   ): Promise<RagSearchResponse> {
-    const permissionIds = await this.documentService.getUserPermissionIds(
-      user.id,
-    );
+    const roleCodes = user.roleCodes ?? [];
+    const isManager =
+      roleCodes.includes('ADMIN') || roleCodes.includes('MANAGER');
+
+    const permissionIds = isManager
+      ? []
+      : await this.documentService.getUserPermissionIds(user.id);
 
     const { RAG_SERVICE_URL, RAG_SERVICE_TOKEN } = this.config.ai;
     const url = `${RAG_SERVICE_URL.replace(/\/$/, '')}/query`;
@@ -72,6 +76,7 @@ export class RagSearchService {
     const body = {
       query: dto.query,
       permission_ids: permissionIds,
+      is_manager: isManager,
       top_k: dto.topK,
       min_score: dto.minScore,
       source_types: dto.sourceTypes ?? ['internal_document'],

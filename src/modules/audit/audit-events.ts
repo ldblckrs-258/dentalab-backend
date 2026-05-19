@@ -162,6 +162,13 @@ export const AUDIT_EVENTS = {
   RAG_DOCUMENT_INGESTED: { category: 'system', severity: 'info' },
   CHAT_SESSION_STARTED: { category: 'ops', severity: 'info' },
 
+  AI_PROVIDER_CREATED: { category: 'system', severity: 'notice' },
+  AI_PROVIDER_UPDATED: { category: 'system', severity: 'notice' },
+  AI_PROVIDER_DELETED: { category: 'system', severity: 'warning' },
+  AI_MODEL_CREATED: { category: 'system', severity: 'notice' },
+  AI_MODEL_UPDATED: { category: 'system', severity: 'notice' },
+  AI_MODEL_DELETED: { category: 'system', severity: 'warning' },
+
   PHI_ACCESS_ERROR: { category: 'phi', severity: 'warning' },
   SECURITY_ANOMALY_DETECTED: {
     category: 'security',
