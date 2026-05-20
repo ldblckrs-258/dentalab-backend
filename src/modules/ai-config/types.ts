@@ -8,7 +8,7 @@ export interface ResolvedModelMeta {
   providerKind: ProviderKind;
   baseUrl: string | null;
   modelName: string;
-  systemPrompt: string;
+  userInstruction: string | null;
   temperature: number;
   topP: number | null;
   maxTokens: number | null;
@@ -27,7 +27,7 @@ export interface AiModelRow {
   role: string;
   modelName: string;
   displayName: string;
-  systemPrompt: string;
+  userInstruction: string | null;
   temperature: number;
   topP: number | null;
   maxTokens: number | null;

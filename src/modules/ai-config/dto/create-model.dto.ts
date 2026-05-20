@@ -29,9 +29,10 @@ export class CreateModelDto {
   @Length(1, 128)
   displayName!: string;
 
+  @IsOptional()
   @IsString()
-  @Length(1, 8192)
-  systemPrompt!: string;
+  @Length(0, 8192)
+  userInstruction?: string | null;
 
   @IsOptional()
   @IsNumber()

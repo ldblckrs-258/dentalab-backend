@@ -53,7 +53,7 @@ export class AiModelService {
           role: dto.role,
           modelName: dto.modelName,
           displayName: dto.displayName,
-          systemPrompt: dto.systemPrompt,
+          userInstruction: dto.userInstruction ?? null,
           temperature: dto.temperature ?? 0.4,
           topP: dto.topP ?? null,
           maxTokens: dto.maxTokens ?? null,
@@ -117,7 +117,8 @@ export class AiModelService {
       if (dto.role !== undefined) data.role = dto.role;
       if (dto.modelName !== undefined) data.modelName = dto.modelName;
       if (dto.displayName !== undefined) data.displayName = dto.displayName;
-      if (dto.systemPrompt !== undefined) data.systemPrompt = dto.systemPrompt;
+      if (dto.userInstruction !== undefined)
+        data.userInstruction = dto.userInstruction;
       if (dto.temperature !== undefined) data.temperature = dto.temperature;
       if (dto.topP !== undefined) data.topP = dto.topP;
       if (dto.maxTokens !== undefined) data.maxTokens = dto.maxTokens;

@@ -95,7 +95,7 @@ export class AiProviderController {
         role: 'answer',
         modelName: modelId,
         displayName: modelId,
-        systemPrompt: dto.systemPrompt,
+        userInstruction: dto.userInstruction ?? null,
         temperature: dto.temperature ?? 0.4,
         isActive: true,
         isDefault: false,

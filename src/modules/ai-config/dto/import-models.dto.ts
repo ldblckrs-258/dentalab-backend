@@ -18,10 +18,11 @@ export class ImportModelsDto {
   @IsString({ each: true })
   modelIds!: string[];
 
+  @IsOptional()
   @IsString()
-  @MinLength(1)
+  @MinLength(0)
   @MaxLength(8192)
-  systemPrompt!: string;
+  userInstruction?: string | null;
 
   @IsOptional()
   @IsNumber()

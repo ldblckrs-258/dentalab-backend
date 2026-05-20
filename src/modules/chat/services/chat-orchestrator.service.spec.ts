@@ -32,7 +32,7 @@ const baseMeta = {
   providerKind: 'gemini' as const,
   baseUrl: null,
   modelName: 'gemini-2.0-flash',
-  systemPrompt: 'sys',
+  userInstruction: 'sys',
   temperature: 0.4,
   topP: null,
   maxTokens: null,
@@ -98,16 +98,40 @@ describe('ChatOrchestratorService.runTurn', () => {
     } as unknown as jest.Mocked<ChatRagService>;
 
     mapper = {
-      toCitations: jest.fn().mockResolvedValue([
-        {
-          sourceId: 'doc-1',
-          title: 'Doc',
-          heading: null,
-          snippet: 'ctx',
-          score: 0.9,
-          linkTo: '/documents/doc-1',
-        },
-      ]),
+      toCitations: jest.fn().mockResolvedValue({
+        citations: [
+          {
+            index: 1,
+            ragDocumentId: 'r',
+            sourceType: 'internal_document',
+            sourceId: 'doc-1',
+            title: 'Doc',
+            typeLabel: 'Document',
+            breadcrumbs: [],
+            heading: null,
+            snippet: 'ctx',
+            score: 0.9,
+            linkTo: '/documents/doc-1',
+          },
+        ],
+        dedupedHits: [
+          {
+            childChunkId: 'c',
+            parentChunkId: 'p',
+            ragDocumentId: 'r',
+            sourceType: 'internal_document',
+            sourceId: 'doc-1',
+            filename: null,
+            childContent: 'context content',
+            parentContent: 'context',
+            score: 0.9,
+            metadata: null,
+            heading: null,
+            headingLevel: 0,
+            breadcrumbs: [],
+          },
+        ],
+      }),
     } as unknown as jest.Mocked<CitationMapperService>;
 
     llm = {
@@ -156,6 +180,25 @@ describe('ChatOrchestratorService.runTurn', () => {
       'delta',
       'done',
     ]);
+  });
+
+  it('SSE citations payload has 1-based index matching prompt indexing', async () => {
+    const writer = makeWriter();
+    const ac = new AbortController();
+    await orch.runTurn({
+      sessionId: 's1',
+      userId: 'u1',
+      userMessage: 'q',
+      clientSignal: ac.signal,
+      writer,
+    });
+    const citEvt = (writer as unknown as { calls: EmitCall[] }).calls.find(
+      (c) => c.event === 'citations',
+    );
+    const sources = (citEvt!.data as { sources: Array<{ index: number }> })
+      .sources;
+    expect(sources.length).toBeGreaterThan(0);
+    expect(sources[0].index).toBe(1);
   });
 
   it('persists user + assistant messages on happy path', async () => {

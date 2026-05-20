@@ -48,18 +48,21 @@ describe('CitationMapperService', () => {
     service = module.get(CitationMapperService);
   });
 
-  it('maps RAG hit to citation with title, snippet, linkTo', async () => {
-    const out = await service.toCitations([
+  it('maps RAG hit to citation with title, snippet, linkTo, index', async () => {
+    const { citations: out } = await service.toCitations([
       makeHit({ sourceId: 'doc-1', heading: 'Clinical Signs' }),
     ]);
     expect(out).toHaveLength(1);
     expect(out[0].title).toBe('Gingivitis SOP');
     expect(out[0].linkTo).toBe('/documents/doc-1?heading=clinical-signs');
-    expect(out[0].snippet.length).toBeLessThanOrEqual(200);
+    expect(out[0].snippet.length).toBeLessThanOrEqual(300);
+    expect(out[0].index).toBe(1);
+    expect(out[0].typeLabel).toBe('Document');
+    expect(out[0].ragDocumentId).toBe('r1');
   });
 
   it('handles hit without heading', async () => {
-    const out = await service.toCitations([
+    const { citations: out } = await service.toCitations([
       makeHit({ sourceId: 'doc-2', heading: null }),
     ]);
     expect(out[0].linkTo).toBe('/documents/doc-2');
@@ -67,7 +70,7 @@ describe('CitationMapperService', () => {
 
   it('falls back to filename when document missing', async () => {
     findMany.mockResolvedValue([]);
-    const out = await service.toCitations([
+    const { citations: out } = await service.toCitations([
       makeHit({ sourceId: 'missing', filename: 'fallback.pdf' }),
     ]);
     expect(out[0].title).toBe('fallback.pdf');
@@ -75,12 +78,83 @@ describe('CitationMapperService', () => {
 
   it('deduplicates internalDocument id lookups', async () => {
     await service.toCitations([
-      makeHit({ sourceId: 'doc-1' }),
-      makeHit({ sourceId: 'doc-1', heading: 'Other' }),
-      makeHit({ sourceId: 'doc-2' }),
+      makeHit({ sourceId: 'doc-1', parentChunkId: 'p-a' }),
+      makeHit({ sourceId: 'doc-1', parentChunkId: 'p-b', heading: 'Other' }),
+      makeHit({ sourceId: 'doc-2', parentChunkId: 'p-c' }),
     ]);
     expect(findMany).toHaveBeenCalledTimes(1);
     const arg = findMany.mock.calls[0][0];
     expect(arg.where.id.in.sort()).toEqual(['doc-1', 'doc-2']);
+  });
+
+  it('dedups hits sharing (sourceType, sourceId, parentChunkId) — collapses to one citation', async () => {
+    const { citations: out } = await service.toCitations([
+      makeHit({ childChunkId: 'c-a', parentChunkId: 'p1' }),
+      makeHit({ childChunkId: 'c-b', parentChunkId: 'p1' }),
+      makeHit({ childChunkId: 'c-c', parentChunkId: 'p2', sourceId: 'doc-2' }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out.map((c) => c.index)).toEqual([1, 2]);
+  });
+
+  it('assigns 1-based contiguous indexes preserving rank order', async () => {
+    const { citations: out } = await service.toCitations([
+      makeHit({ parentChunkId: 'pA', sourceId: 'doc-1' }),
+      makeHit({ parentChunkId: 'pB', sourceId: 'doc-2' }),
+    ]);
+    expect(out[0].index).toBe(1);
+    expect(out[1].index).toBe(2);
+  });
+
+  it('typeLabel uses map for known types and titlecase fallback for unknown', async () => {
+    findMany.mockResolvedValue([]);
+    const { citations: out } = await service.toCitations([
+      makeHit({ sourceType: 'procedure', sourceId: 'proc-1' }),
+      makeHit({
+        sourceType: 'custom_resource_kind',
+        sourceId: 'cust-1',
+        parentChunkId: 'p9',
+      }),
+    ]);
+    expect(out[0].typeLabel).toBe('Procedure');
+    expect(out[1].typeLabel).toBe('Custom Resource Kind');
+  });
+
+  it('breadcrumbs from RagSearchResult propagate through', async () => {
+    const { citations: out } = await service.toCitations([
+      makeHit({
+        sourceId: 'doc-1',
+        breadcrumbs: ['Chapter 1', 'Section A'],
+      }),
+    ]);
+    expect(out[0].breadcrumbs).toEqual(['Chapter 1', 'Section A']);
+  });
+
+  it('snippet truncated to 300 chars', async () => {
+    const long = 'a'.repeat(500);
+    const { citations: out } = await service.toCitations([
+      makeHit({ sourceId: 'doc-1', childContent: long }),
+    ]);
+    expect(out[0].snippet.length).toBe(300);
+  });
+
+  it('empty hits → empty arrays (not error)', async () => {
+    const { citations, dedupedHits } = await service.toCitations([]);
+    expect(citations).toEqual([]);
+    expect(dedupedHits).toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns dedupedHits aligned 1:1 with citations after dedup', async () => {
+    const { citations, dedupedHits } = await service.toCitations([
+      makeHit({ childChunkId: 'c-a', parentChunkId: 'p1' }),
+      makeHit({ childChunkId: 'c-b', parentChunkId: 'p1' }),
+      makeHit({ childChunkId: 'c-c', parentChunkId: 'p2', sourceId: 'doc-2' }),
+    ]);
+    expect(dedupedHits).toHaveLength(citations.length);
+    expect(dedupedHits[0].parentChunkId).toBe('p1');
+    expect(dedupedHits[1].parentChunkId).toBe('p2');
+    expect(citations[0].sourceId).toBe(dedupedHits[0].sourceId);
+    expect(citations[1].sourceId).toBe(dedupedHits[1].sourceId);
   });
 });

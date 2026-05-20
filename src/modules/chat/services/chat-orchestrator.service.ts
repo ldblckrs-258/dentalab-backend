@@ -74,7 +74,11 @@ export class ChatOrchestratorService {
         rewritten = await this.llm.generateRewrite(
           rewrite.meta,
           rewrite.decryptedApiKey,
-          buildRewritePrompt(history, userMessage),
+          buildRewritePrompt(
+            history,
+            userMessage,
+            rewrite.meta.userInstruction,
+          ),
           clientSignal,
         );
       } catch (e) {
@@ -107,14 +111,15 @@ export class ChatOrchestratorService {
         return;
       }
 
-      const citations = await this.mapper.toCitations(ragHits);
+      const { citations, dedupedHits } = await this.mapper.toCitations(ragHits);
       writer.emit('citations', { sources: citations });
 
       const chatMessages = buildChatMessages(
         history,
         userMessage,
-        ragHits,
-        answer.meta.systemPrompt,
+        citations,
+        dedupedHits,
+        answer.meta.userInstruction,
       );
 
       let full = '';

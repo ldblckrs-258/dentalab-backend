@@ -87,7 +87,7 @@ export class AiResolverService {
         providerKind: model.provider.provider as ProviderKind,
         baseUrl: model.provider.baseUrl,
         modelName: model.modelName,
-        systemPrompt: model.systemPrompt,
+        userInstruction: model.userInstruction,
         temperature: model.temperature,
         topP: model.topP,
         maxTokens: model.maxTokens,

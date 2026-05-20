@@ -29,8 +29,13 @@ export interface ChatMessageDto {
 }
 
 export interface CitationItem {
+  index: number;
+  ragDocumentId: string;
+  sourceType: string;
   sourceId: string;
   title: string;
+  typeLabel: string;
+  breadcrumbs: string[];
   heading: string | null;
   snippet: string;
   score: number;
