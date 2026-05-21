@@ -105,6 +105,15 @@ export class ChatSessionService {
     });
   }
 
+  async setTitleIfEmpty(sessionId: string, title: string): Promise<void> {
+    const trimmed = title.trim().slice(0, 80);
+    if (!trimmed) return;
+    await this.prisma.client.chatSession.updateMany({
+      where: { id: sessionId, title: null },
+      data: { title: trimmed },
+    });
+  }
+
   async remove(sessionId: string, userId: string): Promise<{ id: string }> {
     await this.getOwnedOrThrow(sessionId, userId);
     await this.prisma.client.chatSession.delete({ where: { id: sessionId } });

@@ -68,10 +68,40 @@ export class ChatMessageService {
     });
   }
 
+  async countUserMessages(sessionId: string): Promise<number> {
+    return this.prisma.client.chatMessage.count({
+      where: { sessionId, role: 'user' },
+    });
+  }
+
+  async truncateFrom(
+    sessionId: string,
+    messageId: string,
+  ): Promise<{ deletedCount: number }> {
+    const target = await this.prisma.client.chatMessage.findFirst({
+      where: { id: messageId, sessionId },
+      select: { id: true, createdAt: true },
+    });
+    if (!target) {
+      return { deletedCount: 0 };
+    }
+    const result = await this.prisma.client.chatMessage.deleteMany({
+      where: {
+        sessionId,
+        createdAt: { gte: target.createdAt },
+      },
+    });
+    return { deletedCount: result.count };
+  }
+
   async lastN(sessionId: string, n: number | null): Promise<MessageTurn[]> {
     const take = n && n > 0 ? n : 8;
     const rows = await this.prisma.client.chatMessage.findMany({
-      where: { sessionId },
+      where: {
+        sessionId,
+        role: { in: ['user', 'assistant'] },
+        content: { not: '' },
+      },
       orderBy: { createdAt: 'desc' },
       take,
       select: { role: true, content: true },

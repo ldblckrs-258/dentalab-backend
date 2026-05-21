@@ -47,7 +47,7 @@ interface WorkerSearchResponse {
   timing: WorkerSearchTiming;
 }
 
-const WORKER_TIMEOUT_MS = 15_000;
+const WORKER_TIMEOUT_MS = 20_000;
 
 @Injectable()
 export class RagSearchService {

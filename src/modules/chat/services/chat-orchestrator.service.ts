@@ -1,13 +1,13 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import { AiResolverService } from '@modules/ai-config/services/ai-resolver.service';
-import { ChatSessionService } from './chat-session.service';
-import { ChatMessageService } from './chat-message.service';
-import { ChatRagService } from './chat-rag.service';
 import type { RagSearchResult } from '@modules/rag/dto/rag-search-result.dto';
-import { ChatLlmService } from './chat-llm.service';
-import { CitationMapperService } from './citation-mapper.service';
-import { buildChatMessages, buildRewritePrompt } from './chat-prompts';
+import { ConflictException, Injectable, Logger } from '@nestjs/common';
 import type { SseWriter } from '../sse/sse-writer';
+import { ChatLlmService } from './chat-llm.service';
+import { ChatMessageService } from './chat-message.service';
+import { buildChatMessages, buildRewritePrompt } from './chat-prompts';
+import { ChatRagService } from './chat-rag.service';
+import { ChatSessionService } from './chat-session.service';
+import { CitationMapperService } from './citation-mapper.service';
 
 interface RunTurnArgs {
   sessionId: string;
@@ -53,6 +53,11 @@ export class ChatOrchestratorService {
         session.answerModelId ?? undefined,
       );
 
+      const history = await this.messages.lastN(
+        sessionId,
+        answer.meta.historyWindow,
+      );
+
       const userMsg = await this.messages.append(
         sessionId,
         'user',
@@ -63,11 +68,6 @@ export class ChatOrchestratorService {
         sessionId,
         userMessageId: userMsg.id,
       });
-
-      const history = await this.messages.lastN(
-        sessionId,
-        answer.meta.historyWindow,
-      );
 
       let rewritten: string;
       try {
@@ -84,23 +84,27 @@ export class ChatOrchestratorService {
       } catch (e) {
         if (clientSignal.aborted) {
           writer.emit('error', { code: 'aborted' });
-          await this.messages.append(sessionId, 'assistant', '', null, {
-            aborted: true,
-            stage: 'rewrite',
-          });
           return;
         }
         if (isAbortError(e)) {
           writer.emit('error', { code: 'timeout' });
-          await this.messages.append(sessionId, 'assistant', '', null, {
-            timedOut: true,
-            stage: 'rewrite',
-          });
           return;
         }
         throw e;
       }
       writer.emit('rewritten', { query: rewritten });
+
+      if (!session.title) {
+        const userMessageCount =
+          await this.messages.countUserMessages(sessionId);
+        if (userMessageCount === 1) {
+          try {
+            await this.sessions.setTitleIfEmpty(sessionId, rewritten);
+          } catch (e) {
+            this.logger.warn(`setTitleIfEmpty failed: ${(e as Error).message}`);
+          }
+        }
+      }
 
       let ragHits: RagSearchResult[];
       try {
@@ -146,17 +150,19 @@ export class ChatOrchestratorService {
         const aborted = clientSignal.aborted;
         const timedOut = !aborted && isAbortError(e);
         if (aborted || timedOut) {
-          await this.messages.append(
-            sessionId,
-            'assistant',
-            full,
-            citations as unknown,
-            {
-              aborted,
-              timedOut,
-              ...(fullReasoning ? { reasoning: fullReasoning } : {}),
-            },
-          );
+          if (full || fullReasoning) {
+            await this.messages.append(
+              sessionId,
+              'assistant',
+              full,
+              citations as unknown,
+              {
+                aborted,
+                timedOut,
+                ...(fullReasoning ? { reasoning: fullReasoning } : {}),
+              },
+            );
+          }
           writer.emit('error', { code: aborted ? 'aborted' : 'timeout' });
           return;
         }
