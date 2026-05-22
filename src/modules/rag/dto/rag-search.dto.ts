@@ -13,7 +13,7 @@ import {
   MinLength,
 } from 'class-validator';
 
-const ALLOWED_SOURCE_TYPES = ['internal_document'] as const;
+const ALLOWED_SOURCE_TYPES = ['internal_document', 'clinical_note'] as const;
 export type RagSourceType = (typeof ALLOWED_SOURCE_TYPES)[number];
 
 export class RagSearchDto {

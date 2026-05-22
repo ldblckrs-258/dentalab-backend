@@ -4,6 +4,7 @@ import { QUEUE_RAG_STATUS_EVENTS } from '@modules/queue/queue.constants';
 import type { QueueMessage } from '@modules/queue/interfaces';
 import { ragStatusEventSchema } from './rag.events';
 import { RagGateway } from './rag.gateway';
+import { ClinicalNoteRagGateway } from './rag.clinical-note.gateway';
 
 @Injectable()
 export class RagConsumer implements OnModuleInit {
@@ -12,6 +13,7 @@ export class RagConsumer implements OnModuleInit {
   constructor(
     private readonly queueConsumer: QueueConsumerService,
     private readonly ragGateway: RagGateway,
+    private readonly clinicalNoteRagGateway: ClinicalNoteRagGateway,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -33,6 +35,10 @@ export class RagConsumer implements OnModuleInit {
       return;
     }
 
-    this.ragGateway.emitStatus(result.data);
+    if (result.data.sourceType === 'clinical_note') {
+      this.clinicalNoteRagGateway.emitStatus(result.data);
+    } else {
+      this.ragGateway.emitStatus(result.data);
+    }
   }
 }

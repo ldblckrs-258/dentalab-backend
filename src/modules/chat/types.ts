@@ -40,6 +40,8 @@ export interface CitationItem {
   snippet: string;
   score: number;
   linkTo: string;
+  patientName?: string;
+  signedAt?: string;
 }
 
 export interface MessageTurn {

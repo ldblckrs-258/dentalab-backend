@@ -4,7 +4,7 @@ export const ragStageSchema = z.enum(['extracting', 'chunking', 'embedding']);
 export type RagStage = z.infer<typeof ragStageSchema>;
 
 export const ragStatusEventSchema = z.object({
-  sourceType: z.literal('internal_document'),
+  sourceType: z.enum(['internal_document', 'clinical_note']),
   sourceId: z.uuid(),
   ragDocumentId: z.uuid(),
   status: z.enum(['processing', 'completed', 'failed']),

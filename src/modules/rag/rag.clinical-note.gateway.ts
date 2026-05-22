@@ -12,7 +12,7 @@ import type { AuthenticatedSocket } from '@modules/realtime';
 import { AppConfigService } from '@modules/config';
 import { PrismaService } from '@modules/database';
 import { RagRooms } from './rag.rooms';
-import { SubscribeDocDto } from './dto/subscribe-doc.dto';
+import { SubscribeNoteDto } from './dto/subscribe-note.dto';
 import type { RagEvents, RagStatusEvent } from './rag.events';
 
 const RAG_STATUS_VALUES = ['processing', 'completed', 'failed'] as const;
@@ -22,12 +22,12 @@ function isRagStatusValue(value: string): value is RagStatusValue {
   return (RAG_STATUS_VALUES as readonly string[]).includes(value);
 }
 
-@WebSocketGateway({ namespace: '/documents' })
+@WebSocketGateway({ namespace: '/clinical-notes' })
 @Injectable()
-export class RagGateway extends AuthenticatedGateway<RagEvents> {
-  protected readonly namespace = '/documents';
-  protected readonly requiredPermissions = ['internal_documents:update'];
-  protected readonly logger = new WsLoggerService(RagGateway.name);
+export class ClinicalNoteRagGateway extends AuthenticatedGateway<RagEvents> {
+  protected readonly namespace = '/clinical-notes';
+  protected readonly requiredPermissions = ['clinical_notes:read'];
+  protected readonly logger = new WsLoggerService(ClinicalNoteRagGateway.name);
 
   constructor(
     wsAuth: WsAuthService,
@@ -39,30 +39,30 @@ export class RagGateway extends AuthenticatedGateway<RagEvents> {
     super(wsAuth, metrics, wsRateLimit, config);
   }
 
-  @SubscribeMessage('subscribe-doc')
+  @SubscribeMessage('subscribe-note')
   @UsePipes(new WsValidationPipe())
-  async onSubscribeDoc(
+  async onSubscribeNote(
     client: AuthenticatedSocket,
-    dto: SubscribeDocDto,
+    dto: SubscribeNoteDto,
   ): Promise<{ ok: true }> {
-    await client.join(RagRooms.scoped('internal_document', dto.docId));
-    await this.sendCurrentStatus(client, dto.docId);
+    await client.join(RagRooms.scoped('clinical_note', dto.noteId));
+    await this.sendCurrentStatus(client, dto.noteId);
     return { ok: true };
   }
 
   private async sendCurrentStatus(
     client: AuthenticatedSocket,
-    docId: string,
+    noteId: string,
   ): Promise<void> {
     try {
       const row = await this.prisma.baseClient.ragDocument.findFirst({
-        where: { sourceType: 'internal_document', sourceId: docId },
+        where: { sourceType: 'clinical_note', sourceId: noteId },
         orderBy: { createdAt: 'desc' },
       });
       if (!row || !isRagStatusValue(row.status)) return;
 
       const event: RagStatusEvent = {
-        sourceType: 'internal_document',
+        sourceType: 'clinical_note',
         sourceId: row.sourceId,
         ragDocumentId: row.id,
         status: row.status,
@@ -82,7 +82,7 @@ export class RagGateway extends AuthenticatedGateway<RagEvents> {
       client.emit('rag.status', event);
     } catch (err) {
       this.logger.warn(
-        `ws.subscribe.catchup_failed docId=${docId}: ${(err as Error).message}`,
+        `ws.subscribe.catchup_failed noteId=${noteId}: ${(err as Error).message}`,
         {
           namespace: this.namespace,
           clientId: client.id,
@@ -91,19 +91,19 @@ export class RagGateway extends AuthenticatedGateway<RagEvents> {
     }
   }
 
-  @SubscribeMessage('unsubscribe-doc')
+  @SubscribeMessage('unsubscribe-note')
   @UsePipes(new WsValidationPipe())
-  async onUnsubscribeDoc(
+  async onUnsubscribeNote(
     client: AuthenticatedSocket,
-    dto: SubscribeDocDto,
+    dto: SubscribeNoteDto,
   ): Promise<{ ok: true }> {
-    await client.leave(RagRooms.scoped('internal_document', dto.docId));
+    await client.leave(RagRooms.scoped('clinical_note', dto.noteId));
     return { ok: true };
   }
 
   emitStatus(event: RagStatusEvent): void {
     this.emit(
-      RagRooms.scoped('internal_document', event.sourceId),
+      RagRooms.scoped('clinical_note', event.sourceId),
       'rag.status',
       event,
     );

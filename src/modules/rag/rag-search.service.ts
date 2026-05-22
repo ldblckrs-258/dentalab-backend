@@ -79,7 +79,7 @@ export class RagSearchService {
       is_manager: isManager,
       top_k: dto.topK,
       min_score: dto.minScore,
-      source_types: dto.sourceTypes ?? ['internal_document'],
+      source_types: dto.sourceTypes ?? ['internal_document', 'clinical_note'],
     };
 
     const ctrl = new AbortController();

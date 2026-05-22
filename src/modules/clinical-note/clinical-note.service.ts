@@ -2,11 +2,13 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { AuditService } from '@modules/audit';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import { RequestContextService } from '@modules/common/context/request-context';
 import { t } from '@common/utils';
 import {
@@ -35,10 +37,34 @@ const SOAP_FIELDS = ['subjective', 'objective', 'assessment', 'plan'] as const;
 
 @Injectable()
 export class ClinicalNoteService {
+  private readonly logger = new Logger(ClinicalNoteService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly queue: QueueProducerService,
   ) {}
+
+  private publishClinicalNoteEvent(
+    action: 'signed' | 'updated',
+    sourceId: string,
+  ): void {
+    const routingKey =
+      action === 'signed'
+        ? ROUTING_KEY.CLINICAL_NOTE_SIGNED
+        : ROUTING_KEY.CLINICAL_NOTE_UPDATED;
+    try {
+      this.queue.publish(routingKey, {
+        sourceType: 'clinical_note',
+        sourceId,
+        action,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to publish ${routingKey} for ${sourceId}: ${(err as Error).message}`,
+      );
+    }
+  }
 
   async findAll(query: ClinicalNoteQueryDto) {
     const prismaArgs = buildPrismaQuery(
@@ -251,6 +277,12 @@ export class ClinicalNoteService {
       resource: 'clinical_note',
       resourceId: id,
     });
+
+    if (signed.parentNoteId) {
+      this.publishClinicalNoteEvent('updated', signed.parentNoteId);
+    } else {
+      this.publishClinicalNoteEvent('signed', signed.id);
+    }
 
     return signed;
   }

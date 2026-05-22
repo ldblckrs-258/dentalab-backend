@@ -4,6 +4,7 @@ import {
   PatientClinicalNoteController,
   AppointmentClinicalNoteController,
 } from './clinical-note.controller';
+import { RagService } from '@modules/rag/rag.service';
 import { ClinicalNoteService } from './clinical-note.service';
 import type { CreateClinicalNoteDto } from './dto/create-clinical-note.dto';
 import type { UpdateClinicalNoteDto } from './dto/update-clinical-note.dto';
@@ -21,13 +22,22 @@ const mockService = {
   softDelete: jest.fn().mockResolvedValue({ id: 'note-1' }),
 };
 
+const mockRagService = {
+  getClinicalNoteRagStatus: jest
+    .fn()
+    .mockResolvedValue({ id: 'rag-1', status: 'completed' }),
+};
+
 describe('ClinicalNoteController', () => {
   let controller: ClinicalNoteController;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ClinicalNoteController],
-      providers: [{ provide: ClinicalNoteService, useValue: mockService }],
+      providers: [
+        { provide: ClinicalNoteService, useValue: mockService },
+        { provide: RagService, useValue: mockRagService },
+      ],
     }).compile();
 
     controller = module.get(ClinicalNoteController);

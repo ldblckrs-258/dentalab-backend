@@ -57,9 +57,14 @@ export class PermissionGuard implements CanActivate {
         requiredAll,
       );
       if (!hasAll) {
-        throw new ForbiddenException(
-          t('rbac.insufficient_permissions', 'Insufficient permissions'),
-        );
+        throw new ForbiddenException({
+          message: t(
+            'rbac.insufficient_permissions',
+            'Insufficient permissions',
+          ),
+          requiredPermissions: requiredAll,
+          mode: 'all',
+        });
       }
     }
 
@@ -69,9 +74,14 @@ export class PermissionGuard implements CanActivate {
         requiredAny,
       );
       if (!hasAny) {
-        throw new ForbiddenException(
-          t('rbac.insufficient_permissions', 'Insufficient permissions'),
-        );
+        throw new ForbiddenException({
+          message: t(
+            'rbac.insufficient_permissions',
+            'Insufficient permissions',
+          ),
+          requiredPermissions: requiredAny,
+          mode: 'any',
+        });
       }
     }
 

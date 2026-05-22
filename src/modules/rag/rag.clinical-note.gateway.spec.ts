@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { RagGateway } from './rag.gateway';
+import { ClinicalNoteRagGateway } from './rag.clinical-note.gateway';
 import {
   WsAuthService,
   WsMetricsService,
@@ -15,16 +15,16 @@ import type { RagStatusEvent } from './rag.events';
 const makeStatusEvent = (
   overrides: Partial<RagStatusEvent> = {},
 ): RagStatusEvent => ({
-  sourceType: 'internal_document',
-  sourceId: 'doc-1',
+  sourceType: 'clinical_note',
+  sourceId: 'note-1',
   ragDocumentId: 'rag-1',
   status: 'completed',
   occurredAt: '2024-01-01T00:00:00.000Z',
   ...overrides,
 });
 
-describe('RagGateway', () => {
-  let gateway: RagGateway;
+describe('ClinicalNoteRagGateway', () => {
+  let gateway: ClinicalNoteRagGateway;
   let wsAuth: any;
   let metrics: any;
   let wsRateLimit: any;
@@ -51,7 +51,7 @@ describe('RagGateway', () => {
 
     const module = await Test.createTestingModule({
       providers: [
-        RagGateway,
+        ClinicalNoteRagGateway,
         { provide: WsAuthService, useValue: wsAuth },
         { provide: WsMetricsService, useValue: metrics },
         { provide: WsRateLimitService, useValue: wsRateLimit },
@@ -60,7 +60,7 @@ describe('RagGateway', () => {
       ],
     }).compile();
 
-    gateway = module.get(RagGateway);
+    gateway = module.get(ClinicalNoteRagGateway);
     gateway['server'] = mockServer as unknown as Server;
   });
 
@@ -68,26 +68,26 @@ describe('RagGateway', () => {
     jest.restoreAllMocks();
   });
 
-  describe('onSubscribeDoc', () => {
-    it('joins room and returns ok (handshake perm is the only gate)', async () => {
+  describe('onSubscribeNote', () => {
+    it('joins scoped room for clinical_note', async () => {
       const client = createMockSocket({ data: { userId: 'user-1' } });
 
-      const result = await gateway.onSubscribeDoc(
+      const result = await gateway.onSubscribeNote(
         client as unknown as AuthenticatedSocket,
-        { docId: 'doc-1' },
+        { noteId: 'note-1' },
       );
 
       expect(result).toEqual({ ok: true });
-      expect(client.join).toHaveBeenCalledWith('internal_document:doc-1');
+      expect(client.join).toHaveBeenCalledWith('clinical_note:note-1');
     });
 
-    it('emits catch-up rag.status to subscriber when row exists', async () => {
+    it('emits catch-up rag.status when row exists', async () => {
       const client = createMockSocket({ data: { userId: 'user-1' } });
       const updatedAt = new Date('2024-02-02T03:04:05.000Z');
       prisma.baseClient.ragDocument.findFirst.mockResolvedValueOnce({
         id: 'rag-1',
-        sourceType: 'internal_document',
-        sourceId: 'doc-1',
+        sourceType: 'clinical_note',
+        sourceId: 'note-1',
         status: 'processing',
         errorMessage: null,
         totalParentChunks: null,
@@ -97,17 +97,17 @@ describe('RagGateway', () => {
         updatedAt,
       });
 
-      await gateway.onSubscribeDoc(client as unknown as AuthenticatedSocket, {
-        docId: 'doc-1',
+      await gateway.onSubscribeNote(client as unknown as AuthenticatedSocket, {
+        noteId: 'note-1',
       });
 
       expect(prisma.baseClient.ragDocument.findFirst).toHaveBeenCalledWith({
-        where: { sourceType: 'internal_document', sourceId: 'doc-1' },
+        where: { sourceType: 'clinical_note', sourceId: 'note-1' },
         orderBy: { createdAt: 'desc' },
       });
       expect(client.emit).toHaveBeenCalledWith('rag.status', {
-        sourceType: 'internal_document',
-        sourceId: 'doc-1',
+        sourceType: 'clinical_note',
+        sourceId: 'note-1',
         ragDocumentId: 'rag-1',
         status: 'processing',
         occurredAt: updatedAt.toISOString(),
@@ -118,8 +118,8 @@ describe('RagGateway', () => {
     it('skips catch-up when no row exists', async () => {
       const client = createMockSocket({ data: { userId: 'user-1' } });
 
-      await gateway.onSubscribeDoc(client as unknown as AuthenticatedSocket, {
-        docId: 'doc-1',
+      await gateway.onSubscribeNote(client as unknown as AuthenticatedSocket, {
+        noteId: 'note-1',
       });
 
       expect(client.emit).not.toHaveBeenCalled();
@@ -132,8 +132,8 @@ describe('RagGateway', () => {
       );
 
       await expect(
-        gateway.onSubscribeDoc(client as unknown as AuthenticatedSocket, {
-          docId: 'doc-1',
+        gateway.onSubscribeNote(client as unknown as AuthenticatedSocket, {
+          noteId: 'note-1',
         }),
       ).resolves.toEqual({ ok: true });
       expect(client.emit).not.toHaveBeenCalled();
@@ -141,27 +141,37 @@ describe('RagGateway', () => {
   });
 
   describe('emitStatus', () => {
-    it('broadcasts rag.status to correct doc room', () => {
-      const event = makeStatusEvent({ sourceId: 'doc-42' });
+    it('broadcasts rag.status to scoped clinical_note room', () => {
+      const event = makeStatusEvent({ sourceId: 'note-42' });
 
       gateway.emitStatus(event);
 
-      expect(mockServer.to).toHaveBeenCalledWith('internal_document:doc-42');
+      expect(mockServer.to).toHaveBeenCalledWith('clinical_note:note-42');
       expect(mockServer.emit).toHaveBeenCalledWith('rag.status', event);
     });
   });
 
-  describe('onUnsubscribeDoc', () => {
-    it('leaves doc room and returns ok', async () => {
+  describe('onUnsubscribeNote', () => {
+    it('leaves scoped room and returns ok', async () => {
       const client = createMockSocket({ data: { userId: 'user-1' } });
 
-      const result = await gateway.onUnsubscribeDoc(
+      const result = await gateway.onUnsubscribeNote(
         client as unknown as AuthenticatedSocket,
-        { docId: 'doc-1' },
+        { noteId: 'note-1' },
       );
 
       expect(result).toEqual({ ok: true });
-      expect(client.leave).toHaveBeenCalledWith('internal_document:doc-1');
+      expect(client.leave).toHaveBeenCalledWith('clinical_note:note-1');
+    });
+  });
+
+  describe('namespace permission', () => {
+    it('requires only clinical_notes:read at handshake', () => {
+      expect(gateway['requiredPermissions']).toEqual(['clinical_notes:read']);
+    });
+
+    it('uses /clinical-notes namespace', () => {
+      expect(gateway['namespace']).toBe('/clinical-notes');
     });
   });
 });

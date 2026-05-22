@@ -121,8 +121,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         exception instanceof Error ? exception.stack : undefined,
       );
     } else {
+      const suffix = this.formatPermissionLogSuffix(statusCode, details);
       this.logger.warn(
-        `${request.method} ${request.url} ${statusCode} - ${message}`,
+        `${request.method} ${request.url} ${statusCode} - ${message}${suffix}`,
       );
     }
 
@@ -326,6 +327,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         i18n?.t('exception.unexpected_error') ?? 'An unexpected error occurred',
       details: exception instanceof Error ? exception.message : undefined,
     };
+  }
+
+  private formatPermissionLogSuffix(
+    statusCode: number,
+    details: unknown,
+  ): string {
+    if (statusCode !== 403) return '';
+    if (!details || typeof details !== 'object') return '';
+    const d = details as { requiredPermissions?: unknown; mode?: unknown };
+    if (
+      !Array.isArray(d.requiredPermissions) ||
+      d.requiredPermissions.length === 0
+    ) {
+      return '';
+    }
+    const mode = typeof d.mode === 'string' ? d.mode : 'all';
+    return ` [required ${mode}: ${d.requiredPermissions.join(', ')}]`;
   }
 
   private isPrismaError(exception: unknown): boolean {

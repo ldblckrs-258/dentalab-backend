@@ -19,6 +19,7 @@ export const ROUTING_KEY = {
   DOCUMENT_DELETED: 'document.deleted',
   CLINICAL_NOTE_CREATED: 'clinical_note.created',
   CLINICAL_NOTE_UPDATED: 'clinical_note.updated',
+  CLINICAL_NOTE_SIGNED: 'clinical_note.signed',
   EMAIL_SEND_REMINDER: 'email.send_reminder',
   EMAIL_SEND_RESET_PASSWORD: 'email.send_reset_password',
   EMAIL_SEND_WELCOME: 'email.send_welcome',

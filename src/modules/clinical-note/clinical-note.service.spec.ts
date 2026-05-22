@@ -7,6 +7,7 @@ import {
 import { ClinicalNoteService } from './clinical-note.service';
 import { PrismaService } from '@modules/database';
 import { AuditService } from '@modules/audit';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import { RequestContextService } from '@modules/common/context/request-context';
 import { mockI18nContext } from '@common/test/i18n-mock';
 
@@ -36,6 +37,7 @@ describe('ClinicalNoteService', () => {
   let service: ClinicalNoteService;
   let prisma: any;
   let auditService: any;
+  let queue: { publish: jest.Mock };
 
   beforeEach(async () => {
     mockI18nContext();
@@ -64,12 +66,14 @@ describe('ClinicalNoteService', () => {
     };
 
     auditService = { emit: jest.fn() };
+    queue = { publish: jest.fn() };
 
     const module = await Test.createTestingModule({
       providers: [
         ClinicalNoteService,
         { provide: PrismaService, useValue: prisma },
         { provide: AuditService, useValue: auditService },
+        { provide: QueueProducerService, useValue: queue },
       ],
     }).compile();
 
@@ -244,6 +248,72 @@ describe('ClinicalNoteService', () => {
       });
 
       await expect(service.sign('note-1')).rejects.toThrow(ConflictException);
+    });
+
+    it('publishes clinical_note.signed with note id when signing a root note', async () => {
+      prisma.baseClient.clinicalNote.findFirst.mockResolvedValue(mockNote);
+      const signed = {
+        ...mockNote,
+        id: 'note-1',
+        parentNoteId: null,
+        status: 'signed',
+        signedAt: new Date(),
+      };
+      prisma.baseClient.clinicalNote.update.mockResolvedValue(signed);
+
+      await service.sign('note-1');
+
+      expect(queue.publish).toHaveBeenCalledWith(
+        ROUTING_KEY.CLINICAL_NOTE_SIGNED,
+        { sourceType: 'clinical_note', sourceId: 'note-1', action: 'signed' },
+      );
+    });
+
+    it('publishes clinical_note.updated with PARENT id when signing an addendum', async () => {
+      const draftAddendum = {
+        ...mockNote,
+        id: 'addendum-1',
+        parentNoteId: 'root-1',
+      };
+      prisma.baseClient.clinicalNote.findFirst.mockResolvedValue(draftAddendum);
+      const signed = {
+        ...draftAddendum,
+        status: 'signed',
+        signedAt: new Date(),
+      };
+      prisma.baseClient.clinicalNote.update.mockResolvedValue(signed);
+
+      await service.sign('addendum-1');
+
+      expect(queue.publish).toHaveBeenCalledWith(
+        ROUTING_KEY.CLINICAL_NOTE_UPDATED,
+        { sourceType: 'clinical_note', sourceId: 'root-1', action: 'updated' },
+      );
+    });
+
+    it('does not publish when sign throws on empty SOAP fields', async () => {
+      prisma.baseClient.clinicalNote.findFirst.mockResolvedValue({
+        ...mockNote,
+        subjective: '',
+        objective: '',
+        assessment: '',
+        plan: '',
+      });
+
+      await expect(service.sign('note-1')).rejects.toThrow(ConflictException);
+      expect(queue.publish).not.toHaveBeenCalled();
+    });
+
+    it('sign succeeds even when queue.publish throws', async () => {
+      prisma.baseClient.clinicalNote.findFirst.mockResolvedValue(mockNote);
+      const signed = { ...mockNote, status: 'signed', signedAt: new Date() };
+      prisma.baseClient.clinicalNote.update.mockResolvedValue(signed);
+      queue.publish.mockImplementation(() => {
+        throw new Error('rabbitmq down');
+      });
+
+      const result = await service.sign('note-1');
+      expect(result.status).toBe('signed');
     });
   });
 

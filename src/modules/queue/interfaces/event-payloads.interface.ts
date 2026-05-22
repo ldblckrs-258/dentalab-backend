@@ -1,7 +1,7 @@
 export interface DocumentEventPayload {
   sourceType: string;
   sourceId: string;
-  action: 'created' | 'updated' | 'deleted';
+  action: 'created' | 'updated' | 'deleted' | 'signed';
 }
 
 export interface ClinicalNoteCreatedPayload {

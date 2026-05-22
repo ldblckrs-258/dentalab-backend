@@ -21,7 +21,7 @@ export class ChatRagService {
       {
         query: rewrittenText,
         topK: topK ?? 5,
-        sourceTypes: ['internal_document'],
+        sourceTypes: ['internal_document', 'clinical_note'],
       },
       syntheticUser,
     );

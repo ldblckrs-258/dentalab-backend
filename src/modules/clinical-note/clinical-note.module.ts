@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '@modules/audit';
+import { RagModule } from '@modules/rag/rag.module';
 import {
   ClinicalNoteController,
   PatientClinicalNoteController,
@@ -8,7 +9,7 @@ import {
 import { ClinicalNoteService } from './clinical-note.service';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, RagModule],
   controllers: [
     ClinicalNoteController,
     PatientClinicalNoteController,

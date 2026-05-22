@@ -13,6 +13,7 @@ import {
   AuditMutation,
   RequirePermissions,
 } from '@common/decorators';
+import { RagService } from '@modules/rag/rag.service';
 import { ClinicalNoteService } from './clinical-note.service';
 import { CreateClinicalNoteDto } from './dto/create-clinical-note.dto';
 import { UpdateClinicalNoteDto } from './dto/update-clinical-note.dto';
@@ -22,12 +23,31 @@ import { ClinicalNoteQueryDto } from './dto/clinical-note-query.dto';
 
 @Controller('clinical-notes')
 export class ClinicalNoteController {
-  constructor(private readonly service: ClinicalNoteService) {}
+  constructor(
+    private readonly service: ClinicalNoteService,
+    private readonly ragService: RagService,
+  ) {}
 
   @Get()
   @RequirePermissions('clinical_notes:read')
   findAll(@Query() query: ClinicalNoteQueryDto) {
     return this.service.findAll(query);
+  }
+
+  @Get(':id/rag-status')
+  @RequirePermissions('clinical_notes:read')
+  getRagStatus(@Param('id') id: string) {
+    return this.ragService.getClinicalNoteRagStatus(id);
+  }
+
+  @Post(':id/rag-reindex')
+  @RequirePermissions('clinical_notes:sign')
+  @AuditMutation({
+    code: 'CLINICAL_NOTE_RAG_REINDEXED',
+    resource: 'clinical_note',
+  })
+  reindexRag(@Param('id') id: string) {
+    return this.ragService.reindexClinicalNote(id);
   }
 
   @Get(':id')

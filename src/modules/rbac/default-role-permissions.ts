@@ -40,6 +40,7 @@ function allActions(resource: string): string[] {
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   [SYSTEM_ROLE_CODE.DOCTOR]: [
+    perm('appointments', 'create'),
     perm('appointments', 'read'),
     perm('appointments', 'update'),
     perm('procedures', 'read'),
@@ -114,6 +115,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 
   [SYSTEM_ROLE_CODE.MANAGER]: [
     scopedPerm('users', 'read', 'non_admin'),
+    perm('appointments', 'create'),
     perm('appointments', 'read'),
     perm('patients', 'read'),
     ...allActions('appointment_types'),

@@ -56,6 +56,13 @@ export class CitationMapperService {
           .map((h) => h.sourceId),
       ),
     );
+    const clinicalNoteIds = Array.from(
+      new Set(
+        deduped
+          .filter((h) => h.sourceType === 'clinical_note')
+          .map((h) => h.sourceId),
+      ),
+    );
 
     const docs = internalIds.length
       ? await this.prisma.client.internalDocument.findMany({
@@ -65,14 +72,46 @@ export class CitationMapperService {
       : [];
     const titleMap = new Map(docs.map((d) => [d.id, d.title]));
 
+    const notes = clinicalNoteIds.length
+      ? await this.prisma.client.clinicalNote.findMany({
+          where: { id: { in: clinicalNoteIds } },
+          select: {
+            id: true,
+            signedAt: true,
+            patient: { select: { firstName: true, lastName: true } },
+          },
+        })
+      : [];
+    const noteMap = new Map(
+      notes.map((n) => {
+        const fn = n.patient?.firstName?.trim() ?? '';
+        const ln = n.patient?.lastName?.trim() ?? '';
+        const patientName = [fn, ln].filter(Boolean).join(' ') || null;
+        return [
+          n.id,
+          {
+            patientName,
+            signedAt: n.signedAt ? n.signedAt.toISOString() : null,
+          },
+        ];
+      }),
+    );
+
     const citations = deduped.map((h, i) => {
-      const title = titleMap.get(h.sourceId) ?? h.filename ?? 'Document';
+      const noteMeta = noteMap.get(h.sourceId);
+      const title =
+        titleMap.get(h.sourceId) ??
+        noteMeta?.patientName ??
+        h.filename ??
+        'Document';
       const slug = h.heading ? slugify(h.heading) : '';
       const linkTo =
         h.sourceType === 'internal_document'
           ? `/documents/${h.sourceId}${slug ? `?heading=${slug}` : ''}`
-          : `/${h.sourceType}/${h.sourceId}`;
-      return {
+          : h.sourceType === 'clinical_note'
+            ? `/clinical-notes/${h.sourceId}`
+            : `/${h.sourceType}/${h.sourceId}`;
+      const item: CitationItem = {
         index: i + 1,
         ragDocumentId: h.ragDocumentId,
         sourceType: h.sourceType,
@@ -85,6 +124,11 @@ export class CitationMapperService {
         score: h.score,
         linkTo,
       };
+      if (h.sourceType === 'clinical_note' && noteMeta) {
+        if (noteMeta.patientName) item.patientName = noteMeta.patientName;
+        if (noteMeta.signedAt) item.signedAt = noteMeta.signedAt;
+      }
+      return item;
     });
 
     return { citations, dedupedHits: deduped };
