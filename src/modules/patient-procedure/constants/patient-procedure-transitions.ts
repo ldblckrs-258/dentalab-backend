@@ -12,8 +12,8 @@ export const ALLOWED_PROCEDURE_TRANSITIONS: Record<
   PatientProcedureStatus,
   PatientProcedureStatus[]
 > = {
-  planned: ['scheduled', 'cancelled'],
-  scheduled: ['planned', 'in_progress', 'cancelled'],
+  planned: ['cancelled'],
+  scheduled: ['in_progress', 'cancelled'],
   in_progress: ['completed', 'failed'],
   completed: [],
   cancelled: [],

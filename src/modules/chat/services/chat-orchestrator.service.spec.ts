@@ -1,13 +1,13 @@
 /* eslint-disable @typescript-eslint/require-await, @typescript-eslint/unbound-method */
-import { Test } from '@nestjs/testing';
 import { AiResolverService } from '@modules/ai-config/services/ai-resolver.service';
+import { Test } from '@nestjs/testing';
+import type { SseWriter } from '../sse/sse-writer';
 import { ChatLlmService } from './chat-llm.service';
 import { ChatMessageService } from './chat-message.service';
 import { ChatOrchestratorService } from './chat-orchestrator.service';
 import { ChatRagService } from './chat-rag.service';
 import { ChatSessionService } from './chat-session.service';
 import { CitationMapperService } from './citation-mapper.service';
-import type { SseWriter } from '../sse/sse-writer';
 
 interface EmitCall {
   event: string;
@@ -64,6 +64,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     messages = {
       append: jest.fn().mockResolvedValue({ id: 'mid-x' }),
       lastN: jest.fn().mockResolvedValue([]),
+      countUserMessages: jest.fn().mockResolvedValue(0),
     } as unknown as jest.Mocked<ChatMessageService>;
 
     resolver = {
