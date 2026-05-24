@@ -24,12 +24,17 @@ export class QueueProducerService {
     routingKey: string,
     payload: EventPayload,
     options?: PublishOptions,
-  ): void {
-    this.publishToExchange(EXCHANGE_EVENTS, routingKey, payload, options);
+  ): boolean {
+    return this.publishToExchange(
+      EXCHANGE_EVENTS,
+      routingKey,
+      payload,
+      options,
+    );
   }
 
-  publishDocumentUpdated(documentId: string): void {
-    this.publish(ROUTING_KEY.DOCUMENT_UPDATED, {
+  publishDocumentUpdated(documentId: string): boolean {
+    return this.publish(ROUTING_KEY.DOCUMENT_UPDATED, {
       sourceType: 'internal_document',
       sourceId: documentId,
       action: 'updated',
@@ -41,12 +46,12 @@ export class QueueProducerService {
     routingKey: string,
     payload: unknown,
     options?: PublishOptions,
-  ): void {
+  ): boolean {
     if (!this.channel) {
       this.logger.warn(
         `Cannot publish to ${exchange}/${routingKey}: RabbitMQ channel unavailable`,
       );
-      return;
+      return false;
     }
 
     const message: QueueMessage = {
@@ -75,10 +80,12 @@ export class QueueProducerService {
       this.logger.debug(
         `Published message to ${exchange}/${routingKey}: ${message.messageId}`,
       );
+      return true;
     } catch (error) {
       this.logger.error(
         `Failed to publish to ${exchange}/${routingKey}: ${(error as Error).message}`,
       );
+      return false;
     }
   }
 }

@@ -68,6 +68,18 @@ export class ProcedureService {
     return buildPaginatedResponse(data, total, query);
   }
 
+  async findCategories(): Promise<string[]> {
+    const rows = await this.prisma.baseClient.procedure.findMany({
+      where: { category: { not: null } },
+      distinct: ['category'],
+      select: { category: true },
+      orderBy: { category: 'asc' },
+    });
+    return rows
+      .map((r) => r.category)
+      .filter((c): c is string => c !== null && c.length > 0);
+  }
+
   async findById(id: string) {
     const procedure = await this.prisma.baseClient.procedure.findUnique({
       where: { id },

@@ -67,7 +67,17 @@ const APPOINTMENT_INCLUDE = {
       user: { select: { id: true, fullName: true } },
     },
   },
-  _count: { select: { patientProcedures: true } },
+  patientProcedures: {
+    where: { deletedAt: null },
+    select: {
+      id: true,
+      status: true,
+      procedure: { select: { id: true, adaCode: true, name: true } },
+    },
+  },
+  _count: {
+    select: { patientProcedures: { where: { deletedAt: null } } },
+  },
 } as const;
 
 @Injectable()
@@ -575,13 +585,7 @@ export class AppointmentService {
   async findById(id: string) {
     const appt = await this.prisma.baseClient.appointment.findUnique({
       where: { id },
-      include: {
-        ...APPOINTMENT_INCLUDE,
-        patientProcedures: {
-          where: { deletedAt: null },
-          select: { id: true, status: true, procedureId: true },
-        },
-      },
+      include: APPOINTMENT_INCLUDE,
     });
 
     if (!appt)

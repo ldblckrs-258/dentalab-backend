@@ -3,8 +3,8 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
-  Logger,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
@@ -17,8 +17,6 @@ const RAG_REINDEX_RATE_LIMIT_TTL = 10;
 
 @Injectable()
 export class RagService {
-  private readonly logger = new Logger(RagService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly queue: QueueProducerService,
@@ -118,15 +116,16 @@ export class RagService {
       );
     }
 
-    try {
-      this.queue.publish(ROUTING_KEY.CLINICAL_NOTE_UPDATED, {
-        sourceType: 'clinical_note',
-        sourceId: targetId,
-        action: 'updated',
-      });
-    } catch (err) {
-      this.logger.warn(
-        `Failed to publish clinical-note reindex for ${targetId}: ${(err as Error).message}`,
+    const published = this.queue.publish(ROUTING_KEY.CLINICAL_NOTE_UPDATED, {
+      sourceType: 'clinical_note',
+      sourceId: targetId,
+      action: 'updated',
+    });
+
+    if (!published) {
+      await this.cache.del('rag:reindex:clinical_note', targetId);
+      throw new ServiceUnavailableException(
+        'Queue service is currently unavailable. Please retry later.',
       );
     }
 
@@ -153,11 +152,12 @@ export class RagService {
       );
     }
 
-    try {
-      this.queue.publishDocumentUpdated(documentId);
-    } catch (err) {
-      this.logger.warn(
-        `Failed to publish reindex for ${documentId}: ${(err as Error).message}`,
+    const published = this.queue.publishDocumentUpdated(documentId);
+
+    if (!published) {
+      await this.cache.del('rag:reindex', documentId);
+      throw new ServiceUnavailableException(
+        'Queue service is currently unavailable. Please retry later.',
       );
     }
 

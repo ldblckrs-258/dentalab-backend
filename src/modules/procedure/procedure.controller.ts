@@ -27,6 +27,12 @@ export class ProcedureController {
     return this.procedureService.findAll(query);
   }
 
+  @Get('categories')
+  @RequirePermissions('procedures:read')
+  async findCategories() {
+    return this.procedureService.findCategories();
+  }
+
   @Get(':id')
   @RequirePermissions('procedures:read')
   async findById(@Param('id') id: string) {
