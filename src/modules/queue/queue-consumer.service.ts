@@ -33,7 +33,7 @@ export class QueueConsumerService {
       try {
         const content: QueueMessage = JSON.parse(msg.content.toString());
         await handler(content);
-        this.channel.ack(msg);
+        this.safeAck(msg);
       } catch (error) {
         const retryCount =
           (msg.properties.headers?.['x-retry-count'] as number) ?? 0;
@@ -43,30 +43,76 @@ export class QueueConsumerService {
             `Message failed (retry ${retryCount + 1}/${MAX_RETRY_COUNT}): ${(error as Error).message}`,
           );
           // Republish with incremented retry count
-          this.channel.ack(msg);
-          this.channel.publish(
-            EXCHANGE_EVENTS,
-            msg.fields.routingKey,
-            msg.content,
-            {
-              ...msg.properties,
-              headers: {
-                ...msg.properties.headers,
-                'x-retry-count': retryCount + 1,
-                'x-last-error': (error as Error).message,
-              },
+          this.safeAck(msg);
+          this.safePublish(msg.fields.routingKey, msg.content, {
+            ...msg.properties,
+            headers: {
+              ...msg.properties.headers,
+              'x-retry-count': retryCount + 1,
+              'x-last-error': (error as Error).message,
             },
-          );
+          });
         } else {
           this.logger.error(
             `Message exhausted retries, routing to DLQ: ${(error as Error).message}`,
           );
           // nack without requeue → goes to DLQ via dead-letter-exchange
-          this.channel.nack(msg, false, false);
+          this.safeNack(msg);
         }
       }
     });
 
     this.logger.log(`Consuming from queue: ${queue}`);
+  }
+
+  /**
+   * Best-effort ack/nack/publish. Swallows `IllegalOperationError` thrown
+   * when the channel has been closed (e.g. during app shutdown) so a stray
+   * in-flight message does not crash the consumer process or fail tests.
+   */
+  private safeAck(msg: ConsumeMessage): void {
+    try {
+      this.channel?.ack(msg);
+    } catch (error) {
+      const message = (error as Error).message;
+      if (
+        !message.includes('Channel closed') &&
+        !message.includes('Channel closing')
+      ) {
+        this.logger.warn(`ack failed: ${message}`);
+      }
+    }
+  }
+
+  private safeNack(msg: ConsumeMessage): void {
+    try {
+      this.channel?.nack(msg, false, false);
+    } catch (error) {
+      const message = (error as Error).message;
+      if (
+        !message.includes('Channel closed') &&
+        !message.includes('Channel closing')
+      ) {
+        this.logger.warn(`nack failed: ${message}`);
+      }
+    }
+  }
+
+  private safePublish(
+    routingKey: string,
+    content: Buffer,
+    options: import('amqplib').Options.Publish,
+  ): void {
+    try {
+      this.channel?.publish(EXCHANGE_EVENTS, routingKey, content, options);
+    } catch (error) {
+      const message = (error as Error).message;
+      if (
+        !message.includes('Channel closed') &&
+        !message.includes('Channel closing')
+      ) {
+        this.logger.warn(`publish failed: ${message}`);
+      }
+    }
   }
 }

@@ -44,8 +44,16 @@ export interface EmailSendWelcomePayload {
 export interface InventoryLowStockPayload {
   itemId: string;
   itemName: string;
+  sku: string;
   currentQuantity: number;
   minQuantity: number;
+}
+
+export interface EmailSendLowStockPayload {
+  to: string;
+  name: string;
+  lang?: string;
+  item: InventoryLowStockPayload;
 }
 
 export type EventPayload =
@@ -55,4 +63,5 @@ export type EventPayload =
   | EmailSendReminderPayload
   | EmailSendResetPasswordPayload
   | EmailSendWelcomePayload
+  | EmailSendLowStockPayload
   | InventoryLowStockPayload;

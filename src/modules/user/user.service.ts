@@ -575,4 +575,32 @@ export class UserService {
       roles: userRoles.map((ur) => ur.role.name),
     });
   }
+
+  /**
+   * Find active users that hold any of the given role codes (e.g. ADMIN/MANAGER).
+   * De-duplicates by user id when a user has multiple matching roles.
+   */
+  async findByRoleCodes(codes: string[]): Promise<
+    Array<{
+      id: string;
+      email: string;
+      fullName: string;
+      preferredLanguage: string;
+    }>
+  > {
+    if (codes.length === 0) return [];
+    return this.prisma.baseClient.user.findMany({
+      where: {
+        isActive: true,
+        userRoles: { some: { role: { code: { in: codes } } } },
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        preferredLanguage: true,
+      },
+      distinct: ['id'],
+    });
+  }
 }

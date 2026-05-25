@@ -10,6 +10,9 @@
     },
     "appointment-reminder": {
       "subject": "Reminder: Your DentaLab appointment"
+    },
+    "low-stock-alert": {
+      "subject": "Low stock alert: {{item.itemName}}"
     }
   }
 }

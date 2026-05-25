@@ -5,6 +5,7 @@ export const SYSTEM_TEMPLATES = {
   PASSWORD_RESET: 'password-reset',
   WELCOME: 'welcome',
   REMINDER: 'appointment-reminder',
+  LOW_STOCK_ALERT: 'low-stock-alert',
 } as const;
 
 export const EMAIL_STATUS = {

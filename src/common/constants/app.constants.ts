@@ -10,8 +10,8 @@ export const MAX_PAGE_SIZE = 100;
 export const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
 // Rate limiting
-export const DEFAULT_RATE_LIMIT_WINDOW = 60; // 1 minute
-export const DEFAULT_RATE_LIMIT_MAX = 100;
+export const DEFAULT_RATE_LIMIT_WINDOW = 60;
+export const DEFAULT_RATE_LIMIT_MAX = 200;
 export const SUPPORTED_LANGUAGES = ['vi', 'en'] as const;
 export const DEFAULT_LANGUAGE = 'vi';
 

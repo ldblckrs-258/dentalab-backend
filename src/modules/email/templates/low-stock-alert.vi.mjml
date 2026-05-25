@@ -1,0 +1,26 @@
+<!-- Low-stock alert email content -->
+<mj-section padding="0 24px">
+  <mj-column
+    background-color="#ffffff"
+    border="1px solid #e4e4e7"
+    border-radius="16px"
+    padding="32px 28px"
+  >
+    <mj-text font-size="22px" font-weight="700" color="#b45309" padding="0 0 8px">
+      Cảnh báo tồn kho thấp
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 12px">
+      Xin chào {{name}},
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 8px">
+      Vật tư <strong>{{item.itemName}}</strong> (SKU: <code>{{item.sku}}</code>)
+      đã giảm còn <strong>{{item.currentQuantity}}</strong>, đạt hoặc thấp hơn ngưỡng cảnh báo (<strong>{{item.minQuantity}}</strong>).
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 8px">
+      Vui lòng kiểm tra và bổ sung tồn kho nếu cần.
+    </mj-text>
+    <mj-button href="{{dashboardUrl}}" padding="20px 0">
+      Xem chi tiết vật tư
+    </mj-button>
+  </mj-column>
+</mj-section>

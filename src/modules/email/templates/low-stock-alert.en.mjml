@@ -1,0 +1,27 @@
+<!-- Low-stock alert email content -->
+<mj-section padding="0 24px">
+  <mj-column
+    background-color="#ffffff"
+    border="1px solid #e4e4e7"
+    border-radius="16px"
+    padding="32px 28px"
+  >
+    <mj-text font-size="22px" font-weight="700" color="#b45309" padding="0 0 8px">
+      Low stock alert
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 12px">
+      Hi {{name}},
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 8px">
+      Inventory item <strong>{{item.itemName}}</strong> (SKU: <code>{{item.sku}}</code>)
+      has dropped to <strong>{{item.currentQuantity}}</strong>, at or below the configured
+      threshold (<strong>{{item.minQuantity}}</strong>).
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 8px">
+      Please review stock and arrange replenishment if necessary.
+    </mj-text>
+    <mj-button href="{{dashboardUrl}}" padding="20px 0">
+      Open inventory item
+    </mj-button>
+  </mj-column>
+</mj-section>

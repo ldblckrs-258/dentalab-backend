@@ -1,0 +1,25 @@
+{
+  "item_not_found": "Inventory item not found",
+  "item_archived": "Inventory item is archived",
+  "sku_duplicate": "SKU already exists",
+  "insufficient_stock": "Insufficient stock for this operation",
+  "reference_id_required": "referenceId is required when referenceType is provided",
+  "reference_not_found": "Referenced entity not found",
+  "invalid_reference_type": "Invalid reference type",
+  "low_stock_email_subject": "Low stock alert: {{itemName}}",
+  "import": {
+    "file_required": "CSV file is required",
+    "invalid_mime": "File must be a CSV (text/csv)",
+    "parse_error": "Could not parse the CSV file",
+    "empty_file": "CSV file has no rows",
+    "too_many_rows": "CSV file exceeds the 1000-row limit. Split the file and try again.",
+    "row_missing_sku": "sku is required",
+    "row_invalid_sku": "sku must be 1-64 chars of [A-Za-z0-9._-]",
+    "row_duplicate_sku": "sku appears more than once in the CSV",
+    "row_invalid_quantity": "quantity must be an integer between 1 and 1,000,000",
+    "row_invalid_min_quantity": "minQuantity must be a non-negative integer",
+    "row_invalid_cost": "costPerUnit must be a non-negative number",
+    "row_missing_name": "name is required for new items",
+    "row_invalid_name": "name must be at most 255 characters"
+  }
+}

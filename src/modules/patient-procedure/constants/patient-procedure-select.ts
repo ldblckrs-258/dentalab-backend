@@ -15,6 +15,9 @@ export const PATIENT_PROCEDURE_SELECT = {
   plannedAt: true,
   createdAt: true,
   updatedAt: true,
+  patient: {
+    select: { id: true, firstName: true, lastName: true },
+  },
   procedure: {
     select: { id: true, adaCode: true, name: true, category: true },
   },
@@ -49,5 +52,6 @@ export const PATIENT_PROCEDURE_METADATA_SELECT = {
   status: true,
   scheduledAt: true,
   createdAt: true,
+  patient: { select: { id: true, firstName: true, lastName: true } },
   procedure: { select: { id: true, name: true } },
 } as const;

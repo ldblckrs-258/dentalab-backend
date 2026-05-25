@@ -11,6 +11,7 @@ import type {
   EmailSendResetPasswordPayload,
   EmailSendWelcomePayload,
   EmailSendReminderPayload,
+  EmailSendLowStockPayload,
 } from '@modules/queue/interfaces';
 import { EmailService } from './email.service';
 import { SYSTEM_TEMPLATES } from './email.constants';
@@ -51,9 +52,39 @@ export class EmailConsumerService implements OnModuleInit {
           message.payload as EmailSendReminderPayload,
           message.messageId,
         );
+      case ROUTING_KEY.EMAIL_SEND_LOW_STOCK:
+        return this.handleLowStock(
+          message.payload as EmailSendLowStockPayload,
+          message.messageId,
+        );
       default:
         this.logger.warn(`Unknown email routing key: ${message.routingKey}`);
     }
+  }
+
+  private async handleLowStock(
+    payload: EmailSendLowStockPayload,
+    messageId: string,
+  ): Promise<void> {
+    const dashboardUrl = `${this.config.email.FRONTEND_URL}/inventory/${payload.item.itemId}`;
+    await this.emailService.sendTemplatedEmail({
+      to: payload.to,
+      templateName: SYSTEM_TEMPLATES.LOW_STOCK_ALERT,
+      lang: payload.lang ?? 'vi',
+      variables: {
+        name: payload.name,
+        item: payload.item,
+        dashboardUrl,
+        ...this.brandingVars(),
+      },
+      // `email_logs.entity_type` CHECK only allows
+      // appointment | password_reset | kiosk_session | patient | system.
+      // Low-stock alerts are operational notifications → bucket under 'system'.
+      entityType: 'system',
+      entityId: payload.item.itemId,
+      tags: [{ name: 'category', value: 'inventory' }],
+      idempotencyKey: `low-stock/${messageId}`,
+    });
   }
 
   private brandingVars() {

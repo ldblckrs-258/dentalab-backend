@@ -24,6 +24,7 @@ import { SchedulingModule } from '@modules/scheduling/scheduling.module';
 import { PatientProcedureModule } from '@modules/patient-procedure';
 import { AppointmentModule } from '@modules/appointment';
 import { DocumentModule } from '@modules/document';
+import { InventoryModule } from '@modules/inventory/inventory.module';
 import { ClinicalNoteModule } from '@modules/clinical-note';
 import { RagModule } from '@modules/rag/rag.module';
 import { AiConfigModule } from '@modules/ai-config/ai-config.module';
@@ -72,6 +73,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     PatientProcedureModule,
     AppointmentModule,
     DocumentModule,
+    InventoryModule,
     ClinicalNoteModule,
     RagModule,
     AiConfigModule,

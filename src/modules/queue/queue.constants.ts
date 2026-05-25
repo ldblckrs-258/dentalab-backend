@@ -23,6 +23,7 @@ export const ROUTING_KEY = {
   EMAIL_SEND_REMINDER: 'email.send_reminder',
   EMAIL_SEND_RESET_PASSWORD: 'email.send_reset_password',
   EMAIL_SEND_WELCOME: 'email.send_welcome',
+  EMAIL_SEND_LOW_STOCK: 'email.send.low_stock',
   INVENTORY_LOW_STOCK: 'inventory.low_stock',
   RAG_DOCUMENT_STATUS_CHANGED: 'rag.document.status_changed',
 } as const;

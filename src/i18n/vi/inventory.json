@@ -1,0 +1,25 @@
+{
+  "item_not_found": "Không tìm thấy vật tư",
+  "item_archived": "Vật tư đã bị lưu trữ",
+  "sku_duplicate": "Mã SKU đã tồn tại",
+  "insufficient_stock": "Tồn kho không đủ cho thao tác này",
+  "reference_id_required": "Cần cung cấp referenceId khi referenceType có giá trị",
+  "reference_not_found": "Không tìm thấy đối tượng liên kết",
+  "invalid_reference_type": "Loại liên kết không hợp lệ",
+  "low_stock_email_subject": "Cảnh báo tồn kho thấp: {{itemName}}",
+  "import": {
+    "file_required": "Vui lòng tải lên tệp CSV",
+    "invalid_mime": "Tệp phải có định dạng CSV (text/csv)",
+    "parse_error": "Không thể đọc nội dung tệp CSV",
+    "empty_file": "Tệp CSV không có dòng dữ liệu",
+    "too_many_rows": "Tệp CSV vượt giới hạn 1000 dòng. Vui lòng tách tệp và thử lại.",
+    "row_missing_sku": "Thiếu mã SKU",
+    "row_invalid_sku": "SKU phải có 1-64 ký tự thuộc [A-Za-z0-9._-]",
+    "row_duplicate_sku": "SKU xuất hiện nhiều lần trong tệp",
+    "row_invalid_quantity": "quantity phải là số nguyên từ 1 đến 1.000.000",
+    "row_invalid_min_quantity": "minQuantity phải là số nguyên không âm",
+    "row_invalid_cost": "costPerUnit phải là số không âm",
+    "row_missing_name": "Cần cung cấp name khi tạo vật tư mới",
+    "row_invalid_name": "name không được vượt quá 255 ký tự"
+  }
+}

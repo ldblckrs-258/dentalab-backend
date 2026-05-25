@@ -10,6 +10,9 @@
     },
     "appointment-reminder": {
       "subject": "Nhắc nhở: Lịch hẹn DentaLab của bạn"
+    },
+    "low-stock-alert": {
+      "subject": "Cảnh báo tồn kho thấp: {{item.itemName}}"
     }
   }
 }
