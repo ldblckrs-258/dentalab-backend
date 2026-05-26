@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@modules/database/prisma.service';
 import type { RagSearchResult } from '@modules/rag/dto/rag-search-result.dto';
+import { Injectable } from '@nestjs/common';
 import type { CitationItem } from '../types';
 
 const SOURCE_TYPE_LABEL: Record<string, string> = {
@@ -78,7 +78,7 @@ export class CitationMapperService {
           select: {
             id: true,
             signedAt: true,
-            patient: { select: { firstName: true, lastName: true } },
+            patient: { select: { id: true, firstName: true, lastName: true } },
           },
         })
       : [];
@@ -90,6 +90,7 @@ export class CitationMapperService {
         return [
           n.id,
           {
+            patientId: n.patient?.id ?? null,
             patientName,
             signedAt: n.signedAt ? n.signedAt.toISOString() : null,
           },
@@ -109,7 +110,9 @@ export class CitationMapperService {
         h.sourceType === 'internal_document'
           ? `/documents/${h.sourceId}${slug ? `?heading=${slug}` : ''}`
           : h.sourceType === 'clinical_note'
-            ? `/clinical-notes/${h.sourceId}`
+            ? noteMeta?.patientId
+              ? `/patients/${noteMeta.patientId}?noteId=${h.sourceId}`
+              : `/clinical-notes/${h.sourceId}`
             : `/${h.sourceType}/${h.sourceId}`;
       const item: CitationItem = {
         index: i + 1,

@@ -1,6 +1,6 @@
-import { buildChatMessages, buildRewritePrompt } from './chat-prompts';
 import type { RagSearchResult } from '@modules/rag/dto/rag-search-result.dto';
 import type { CitationItem } from '../types';
+import { buildChatMessages, buildRewritePrompt } from './chat-prompts';
 
 function makeHit(
   content: string,
@@ -167,8 +167,10 @@ describe('buildChatMessages — prompt injection hardening', () => {
 
   it('rewrite prompt embeds REWRITE_SYSTEM hardcoded base', () => {
     const prompt = buildRewritePrompt([], 'q');
-    expect(prompt).toMatch(/standalone, self-contained search query/);
-    expect(prompt).toMatch(/Keep under 30 words/);
+    expect(prompt).toMatch(/standalone search query/);
+    expect(prompt).toMatch(/medical \/ clinical documentation/);
+    expect(prompt).toMatch(/Preserve the original meaning/);
+    expect(prompt).toMatch(/lexical normalization/);
   });
 
   it('rewrite prompt appends rewrite-model user_instruction when present', () => {
