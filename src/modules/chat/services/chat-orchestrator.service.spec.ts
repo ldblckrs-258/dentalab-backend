@@ -1,13 +1,24 @@
 /* eslint-disable @typescript-eslint/require-await, @typescript-eslint/unbound-method */
 import { AiResolverService } from '@modules/ai-config/services/ai-resolver.service';
 import { Test } from '@nestjs/testing';
+import type { AuthenticatedUser } from '@common/interfaces';
 import type { SseWriter } from '../sse/sse-writer';
 import { ChatLlmService } from './chat-llm.service';
 import { ChatMessageService } from './chat-message.service';
 import { ChatOrchestratorService } from './chat-orchestrator.service';
 import { ChatRagService } from './chat-rag.service';
 import { ChatSessionService } from './chat-session.service';
+import { ChatScopeValidatorService } from './chat-scope-validator.service';
+import { ChatStreamRegistryService } from './chat-stream-registry.service';
 import { CitationMapperService } from './citation-mapper.service';
+
+const TEST_USER: AuthenticatedUser = {
+  id: 'u1',
+  email: 'u1@test',
+  fullName: 'Test User',
+  isActive: true,
+  roleCodes: ['STAFF'],
+};
 
 interface EmitCall {
   event: string;
@@ -48,6 +59,8 @@ describe('ChatOrchestratorService.runTurn', () => {
   let rag: jest.Mocked<ChatRagService>;
   let mapper: jest.Mocked<CitationMapperService>;
   let llm: jest.Mocked<ChatLlmService>;
+  let streamRegistry: jest.Mocked<ChatStreamRegistryService>;
+  let scopeValidator: jest.Mocked<ChatScopeValidatorService>;
 
   beforeEach(async () => {
     sessions = {
@@ -56,10 +69,25 @@ describe('ChatOrchestratorService.runTurn', () => {
         userId: 'u1',
         answerModelId: 'm1',
         title: null,
+        scopeType: null,
+        scopePatientId: null,
+        scopeRagDocumentIds: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       }),
     } as unknown as jest.Mocked<ChatSessionService>;
+
+    streamRegistry = {
+      acquire: jest.fn().mockResolvedValue(true),
+      refresh: jest.fn().mockResolvedValue(undefined),
+      release: jest.fn().mockResolvedValue(undefined),
+      isActive: jest.fn().mockResolvedValue(false),
+    } as unknown as jest.Mocked<ChatStreamRegistryService>;
+
+    scopeValidator = {
+      validateForWrite: jest.fn(),
+      materializeForTurn: jest.fn().mockResolvedValue(null),
+    } as unknown as jest.Mocked<ChatScopeValidatorService>;
 
     messages = {
       append: jest.fn().mockResolvedValue({ id: 'mid-x' }),
@@ -154,6 +182,8 @@ describe('ChatOrchestratorService.runTurn', () => {
         { provide: ChatRagService, useValue: rag },
         { provide: CitationMapperService, useValue: mapper },
         { provide: ChatLlmService, useValue: llm },
+        { provide: ChatStreamRegistryService, useValue: streamRegistry },
+        { provide: ChatScopeValidatorService, useValue: scopeValidator },
       ],
     }).compile();
 
@@ -165,7 +195,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     const ac = new AbortController();
     await orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer,
@@ -188,7 +218,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     const ac = new AbortController();
     await orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer,
@@ -207,7 +237,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     const ac = new AbortController();
     await orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer,
@@ -232,7 +262,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     const writer = makeWriter();
     await orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer,
@@ -260,7 +290,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     const ac = new AbortController();
     await orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer,
@@ -288,7 +318,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     const writer = makeWriter();
     await orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer,
@@ -313,7 +343,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     const writer = makeWriter();
     await orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer,
@@ -337,12 +367,15 @@ describe('ChatOrchestratorService.runTurn', () => {
         yield { type: 'text', text: 'x' };
       })(),
     );
+    streamRegistry.acquire
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
     const writer1 = makeWriter();
     const writer2 = makeWriter();
     const ac = new AbortController();
     const first = orch.runTurn({
       sessionId: 's1',
-      userId: 'u1',
+      user: TEST_USER,
       userMessage: 'q',
       clientSignal: ac.signal,
       writer: writer1,
@@ -351,7 +384,7 @@ describe('ChatOrchestratorService.runTurn', () => {
     await expect(
       orch.runTurn({
         sessionId: 's1',
-        userId: 'u1',
+        user: TEST_USER,
         userMessage: 'q2',
         clientSignal: ac.signal,
         writer: writer2,

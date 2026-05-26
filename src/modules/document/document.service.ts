@@ -190,6 +190,64 @@ export class DocumentService {
     };
   }
 
+  async checkAccessForMany(
+    documentIds: string[],
+    user: AuthenticatedUser & { permissions?: string[] },
+  ): Promise<{ allowed: string[]; denied: string[] }> {
+    if (documentIds.length === 0) return { allowed: [], denied: [] };
+    if (this.isManager(user)) {
+      return { allowed: [...documentIds], denied: [] };
+    }
+    const permissionIds = await this.resolveUserPermissionIds(user.id);
+    const restrictedRows = await this.prisma.baseClient.documentAccess.findMany(
+      {
+        where: {
+          sourceType: DOC_SOURCE_TYPE,
+          sourceId: { in: documentIds },
+        },
+        select: { sourceId: true, permissionId: true },
+      },
+    );
+    const restrictedIds = new Set(restrictedRows.map((r) => r.sourceId));
+    const allowedByAcl = new Set<string>();
+    if (permissionIds.length > 0) {
+      const permSet = new Set(permissionIds);
+      for (const row of restrictedRows) {
+        if (permSet.has(row.permissionId)) {
+          allowedByAcl.add(row.sourceId);
+        }
+      }
+    }
+    const allowed: string[] = [];
+    const denied: string[] = [];
+    for (const id of documentIds) {
+      if (!restrictedIds.has(id) || allowedByAcl.has(id)) {
+        allowed.push(id);
+      } else {
+        denied.push(id);
+      }
+    }
+    return { allowed, denied };
+  }
+
+  private async enrichWithRagDocumentIds<T extends { id: string }>(
+    docs: T[],
+  ): Promise<Array<T & { ragDocumentId: string | null }>> {
+    if (docs.length === 0) {
+      return docs as Array<T & { ragDocumentId: string | null }>;
+    }
+    const rows = await this.prisma.baseClient.ragDocument.findMany({
+      where: {
+        sourceType: DOC_SOURCE_TYPE,
+        sourceId: { in: docs.map((d) => d.id) },
+        status: 'completed',
+      },
+      select: { id: true, sourceId: true },
+    });
+    const map = new Map(rows.map((r) => [r.sourceId, r.id]));
+    return docs.map((d) => ({ ...d, ragDocumentId: map.get(d.id) ?? null }));
+  }
+
   private async enforceDocumentAccess(
     documentId: string,
     user: AuthenticatedUser & { permissions?: string[] },
@@ -258,7 +316,8 @@ export class DocumentService {
       this.prisma.baseClient.internalDocument.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    const enriched = await this.enrichWithRagDocumentIds(data);
+    return buildPaginatedResponse(enriched, total, query);
   }
 
   async findById(
@@ -287,7 +346,8 @@ export class DocumentService {
 
     await this.enforceDocumentAccess(id, user);
 
-    return doc;
+    const [enriched] = await this.enrichWithRagDocumentIds([doc]);
+    return enriched;
   }
 
   async create(dto: CreateDocumentDto, userId: string) {

@@ -3,6 +3,39 @@ export interface ChatSessionRow {
   userId: string;
   title: string | null;
   answerModelId: string | null;
+  scopeType: string | null;
+  scopePatientId: string | null;
+  scopeRagDocumentIds: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type ChatScopeResponse =
+  | null
+  | {
+      type: 'patient';
+      patientId: string;
+      patientName: string;
+      firstName: string | null;
+      lastName: string | null;
+      isDeleted?: boolean;
+    }
+  | {
+      type: 'documents';
+      documents: Array<{
+        ragDocumentId: string;
+        documentId: string;
+        title: string;
+        isDeleted?: boolean;
+      }>;
+    };
+
+export interface ChatSessionResponse {
+  id: string;
+  userId: string;
+  title: string | null;
+  answerModelId: string | null;
+  scope: ChatScopeResponse;
   createdAt: Date;
   updatedAt: Date;
 }

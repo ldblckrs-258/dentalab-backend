@@ -38,6 +38,7 @@ const RESOURCE_TO_MODEL: Record<string, string> = {
   inventory_item: 'inventoryItem',
   email: 'emailLog',
   kiosk_session: 'kioskSession',
+  chat_session: 'chatSession',
 };
 
 @Injectable()

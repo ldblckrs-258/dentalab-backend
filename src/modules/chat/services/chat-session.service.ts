@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database/prisma.service';
 import {
@@ -12,13 +13,26 @@ import {
 } from '@modules/pagination';
 import type { CreateSessionDto } from '../dto/create-session.dto';
 import type { UpdateSessionDto } from '../dto/update-session.dto';
-import type { ChatSessionRow } from '../types';
+import type {
+  ChatScopeResponse,
+  ChatSessionResponse,
+  ChatSessionRow,
+} from '../types';
+import { ChatStreamRegistryService } from './chat-stream-registry.service';
+import { ChatScopeValidatorService } from './chat-scope-validator.service';
+import { DocumentService } from '@modules/document/document.service';
+import type { AuthenticatedUser } from '@common/interfaces';
 
 const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt'];
 
 @Injectable()
 export class ChatSessionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly streamRegistry: ChatStreamRegistryService,
+    private readonly scopeValidator: ChatScopeValidatorService,
+    private readonly documentService: DocumentService,
+  ) {}
 
   async create(userId: string, dto: CreateSessionDto): Promise<ChatSessionRow> {
     let answerModelId = dto.answerModelId ?? null;
@@ -78,10 +92,10 @@ export class ChatSessionService {
 
   async update(
     sessionId: string,
-    userId: string,
+    user: AuthenticatedUser,
     dto: UpdateSessionDto,
   ): Promise<ChatSessionRow> {
-    await this.getOwnedOrThrow(sessionId, userId);
+    await this.getOwnedOrThrow(sessionId, user.id);
 
     if (dto.answerModelId !== undefined) {
       const model = await this.prisma.client.aiModel.findFirst({
@@ -99,6 +113,19 @@ export class ChatSessionService {
     if (dto.title !== undefined) data.title = dto.title;
     if (dto.answerModelId !== undefined) data.answerModelId = dto.answerModelId;
 
+    if (dto.scope !== undefined) {
+      if (await this.streamRegistry.isActive(sessionId)) {
+        throw new ConflictException('chat.scope.session_streaming');
+      }
+      const normalized = await this.scopeValidator.validateForWrite(
+        dto.scope,
+        user,
+      );
+      data.scopeType = normalized.type;
+      data.scopePatientId = normalized.patientId;
+      data.scopeRagDocumentIds = normalized.ragDocumentIds;
+    }
+
     return this.prisma.client.chatSession.update({
       where: { id: sessionId },
       data,
@@ -112,6 +139,119 @@ export class ChatSessionService {
       where: { id: sessionId, title: null },
       data: { title: trimmed },
     });
+  }
+
+  async enrichScope(
+    row: ChatSessionRow,
+    user: AuthenticatedUser,
+  ): Promise<ChatSessionResponse> {
+    const scope = await this.buildScopeResponse(
+      row.scopeType,
+      row.scopePatientId,
+      row.scopeRagDocumentIds,
+      user,
+    );
+    return {
+      id: row.id,
+      userId: row.userId,
+      title: row.title,
+      answerModelId: row.answerModelId,
+      scope,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  async enrichScopeMany(
+    rows: ChatSessionRow[],
+    user: AuthenticatedUser,
+  ): Promise<ChatSessionResponse[]> {
+    return Promise.all(rows.map((r) => this.enrichScope(r, user)));
+  }
+
+  private async buildScopeResponse(
+    scopeType: string | null,
+    scopePatientId: string | null,
+    scopeRagDocumentIds: string[],
+    user: AuthenticatedUser,
+  ): Promise<ChatScopeResponse> {
+    if (!scopeType) return null;
+    if (scopeType === 'patient' && scopePatientId) {
+      const patient = await this.prisma.client.patient.findFirst({
+        where: { id: scopePatientId },
+        select: { id: true, firstName: true, lastName: true, deletedAt: true },
+      });
+      if (!patient) {
+        return {
+          type: 'patient',
+          patientId: scopePatientId,
+          patientName: '[deleted]',
+          firstName: null,
+          lastName: null,
+          isDeleted: true,
+        };
+      }
+      return {
+        type: 'patient',
+        patientId: patient.id,
+        patientName: `${patient.firstName} ${patient.lastName}`.trim(),
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        isDeleted: patient.deletedAt !== null ? true : undefined,
+      };
+    }
+    if (scopeType === 'documents' && scopeRagDocumentIds.length > 0) {
+      const ragRows = await this.prisma.client.ragDocument.findMany({
+        where: { id: { in: scopeRagDocumentIds } },
+        select: { id: true, sourceId: true, sourceType: true },
+      });
+      const docIds = ragRows
+        .filter((r) => r.sourceType === 'internal_document')
+        .map((r) => r.sourceId);
+      const docs =
+        docIds.length > 0
+          ? await this.prisma.client.internalDocument.findMany({
+              where: { id: { in: docIds } },
+              select: { id: true, title: true, deletedAt: true },
+            })
+          : [];
+      const docMap = new Map(docs.map((d) => [d.id, d]));
+      const { allowed } =
+        docIds.length > 0
+          ? await this.documentService.checkAccessForMany(docIds, user)
+          : { allowed: [] };
+      const allowedSet = new Set(allowed);
+      return {
+        type: 'documents',
+        documents: scopeRagDocumentIds.map((ragId) => {
+          const rag = ragRows.find((r) => r.id === ragId);
+          if (!rag) {
+            return {
+              ragDocumentId: ragId,
+              documentId: '',
+              title: '[deleted]',
+              isDeleted: true,
+            };
+          }
+          const doc = docMap.get(rag.sourceId);
+          const hasAccess = allowedSet.has(rag.sourceId);
+          if (!doc || doc.deletedAt !== null || !hasAccess) {
+            return {
+              ragDocumentId: ragId,
+              documentId: rag.sourceId,
+              title: '[deleted]',
+              isDeleted: true,
+            };
+          }
+          return {
+            ragDocumentId: ragId,
+            documentId: rag.sourceId,
+            title: doc.title,
+          };
+        }),
+      };
+    }
+    return null;
   }
 
   async remove(sessionId: string, userId: string): Promise<{ id: string }> {

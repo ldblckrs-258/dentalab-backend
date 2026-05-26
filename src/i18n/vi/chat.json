@@ -1,0 +1,12 @@
+{
+  "scope": {
+    "invalid_combination": "Phạm vi phải là một bệnh nhân HOẶC tối đa 5 tài liệu, không thể đồng thời cả hai",
+    "limit_exceeded": "Mỗi phạm vi chat chỉ cho phép tối đa 5 tài liệu",
+    "patient_required": "patientId là bắt buộc khi scope.type là 'patient'",
+    "documents_required": "ragDocumentIds phải có từ 1 đến 5 phần tử khi scope.type là 'documents'",
+    "permission_denied": "Bạn không có quyền truy cập một hoặc nhiều tài nguyên trong phạm vi",
+    "session_streaming": "Không thể thay đổi phạm vi khi phiên đang gửi phản hồi",
+    "patient_not_found": "Không tìm thấy bệnh nhân",
+    "document_not_indexed": "Một hoặc nhiều tài liệu chưa được lập chỉ mục"
+  }
+}

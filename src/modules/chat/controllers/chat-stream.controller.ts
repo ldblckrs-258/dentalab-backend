@@ -17,6 +17,7 @@ import {
   RequirePermissions,
   SkipResponseWrap,
 } from '@common/decorators';
+import type { AuthenticatedUser } from '@common/interfaces';
 import { ChatOrchestratorService } from '../services/chat-orchestrator.service';
 import { SendMessageDto } from '../dto/send-message.dto';
 import { SseWriter } from '../sse/sse-writer';
@@ -34,7 +35,7 @@ export class ChatStreamController {
   async stream(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SendMessageDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Req() req: Request,
     @Res({ passthrough: false }) res: Response,
   ): Promise<void> {
@@ -46,7 +47,7 @@ export class ChatStreamController {
     try {
       await this.orch.runTurn({
         sessionId: id,
-        userId,
+        user,
         userMessage: dto.content,
         clientSignal: ac.signal,
         writer,

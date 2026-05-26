@@ -114,6 +114,9 @@ describe('DocumentService', () => {
         userPermissionOverride: {
           findMany: jest.fn().mockResolvedValue([]),
         },
+        ragDocument: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
         $transaction: jest.fn((cb) => {
           const tx = {
             documentVersion: {
@@ -319,6 +322,34 @@ describe('DocumentService', () => {
       expect(callArgs.where.OR[1]).toMatchObject({ id: { in: ['doc-1'] } });
       expect(result.data).toHaveLength(1);
     });
+
+    it('enriches ragDocumentId as null when no completed rag_document exists', async () => {
+      prisma.baseClient.internalDocument.findMany.mockResolvedValue([
+        makeDoc({ id: 'doc-no-rag' }),
+      ]);
+      prisma.baseClient.internalDocument.count.mockResolvedValue(1);
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
+      prisma.baseClient.ragDocument.findMany.mockResolvedValue([]);
+
+      const result = await service.findAll({ page: 1, limit: 10 }, managerUser);
+
+      expect(result.data[0].ragDocumentId).toBeNull();
+    });
+
+    it('enriches ragDocumentId as UUID string when completed rag_document exists', async () => {
+      prisma.baseClient.internalDocument.findMany.mockResolvedValue([
+        makeDoc({ id: 'doc-has-rag' }),
+      ]);
+      prisma.baseClient.internalDocument.count.mockResolvedValue(1);
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
+      prisma.baseClient.ragDocument.findMany.mockResolvedValue([
+        { id: 'rag-uuid-001', sourceId: 'doc-has-rag' },
+      ]);
+
+      const result = await service.findAll({ page: 1, limit: 10 }, managerUser);
+
+      expect(result.data[0].ragDocumentId).toBe('rag-uuid-001');
+    });
   });
 
   describe('findById', () => {
@@ -388,6 +419,30 @@ describe('DocumentService', () => {
       await expect(service.findById('doc-1', doctorUser)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('enriches ragDocumentId as null when no completed rag_document for that doc', async () => {
+      prisma.baseClient.internalDocument.findFirst.mockResolvedValue(
+        makeDoc({ id: 'doc-no-rag' }),
+      );
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
+      prisma.baseClient.ragDocument.findMany.mockResolvedValue([]);
+
+      const result = await service.findById('doc-no-rag', managerUser);
+      expect(result.ragDocumentId).toBeNull();
+    });
+
+    it('enriches ragDocumentId as UUID string when completed rag_document exists', async () => {
+      prisma.baseClient.internalDocument.findFirst.mockResolvedValue(
+        makeDoc({ id: 'doc-has-rag' }),
+      );
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
+      prisma.baseClient.ragDocument.findMany.mockResolvedValue([
+        { id: 'rag-uuid-002', sourceId: 'doc-has-rag' },
+      ]);
+
+      const result = await service.findById('doc-has-rag', managerUser);
+      expect(result.ragDocumentId).toBe('rag-uuid-002');
     });
   });
 

@@ -706,17 +706,21 @@ model ChildChunk {
 }
 
 model ChatSession {
-  id            String        @id @default(uuid()) @db.Uuid
-  userId        String        @map("user_id") @db.Uuid
-  title         String?
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
-  answerModelId String?       @map("answer_model_id") @db.Uuid
-  messages      ChatMessage[]
-  answerModel   AiModel?      @relation(fields: [answerModelId], references: [id])
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String        @id @default(uuid()) @db.Uuid
+  userId              String        @map("user_id") @db.Uuid
+  title               String?
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  answerModelId       String?       @map("answer_model_id") @db.Uuid
+  scopeType           String?       @map("scope_type")
+  scopePatientId      String?       @map("scope_patient_id") @db.Uuid
+  scopeRagDocumentIds String[]      @default([]) @map("scope_rag_document_ids")
+  messages            ChatMessage[]
+  answerModel         AiModel?      @relation(fields: [answerModelId], references: [id])
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([answerModelId])
+  @@index([scopePatientId], map: "chat_sessions_scope_patient_idx")
   @@map("chat_sessions")
 }
 

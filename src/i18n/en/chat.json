@@ -1,0 +1,12 @@
+{
+  "scope": {
+    "invalid_combination": "Scope must be either a patient OR up to 5 documents, not both",
+    "limit_exceeded": "At most 5 documents can be attached to a chat scope",
+    "patient_required": "patientId is required when scope.type is 'patient'",
+    "documents_required": "ragDocumentIds must contain 1 to 5 items when scope.type is 'documents'",
+    "permission_denied": "You do not have access to one or more of the requested scope resources",
+    "session_streaming": "Cannot change scope while the session is streaming a response",
+    "patient_not_found": "Patient not found",
+    "document_not_indexed": "One or more documents are not indexed yet"
+  }
+}

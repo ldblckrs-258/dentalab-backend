@@ -21,6 +21,16 @@ export interface ReasoningEventPayload {
   text: string;
 }
 
+export interface ScopeChangedEventPayload {
+  removed: {
+    documents?: Array<{
+      ragDocumentId: string;
+      reason: 'deleted' | 'permission_revoked' | 'not_indexed';
+    }>;
+    patient?: { reason: 'deleted' | 'permission_revoked' };
+  };
+}
+
 export interface DoneEventPayload {
   messageId: string;
   timing: {
@@ -38,6 +48,7 @@ export interface ErrorEventPayload {
 export type ChatStreamEvent =
   | 'session'
   | 'rewritten'
+  | 'scope_changed'
   | 'citations'
   | 'delta'
   | 'reasoning'

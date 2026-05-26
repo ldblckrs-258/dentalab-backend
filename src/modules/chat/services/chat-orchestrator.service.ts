@@ -1,6 +1,7 @@
 import { AiResolverService } from '@modules/ai-config/services/ai-resolver.service';
 import type { RagSearchResult } from '@modules/rag/dto/rag-search-result.dto';
 import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import type { AuthenticatedUser } from '@common/interfaces';
 import type { SseWriter } from '../sse/sse-writer';
 import { ChatLlmService } from './chat-llm.service';
 import { ChatMessageService } from './chat-message.service';
@@ -8,14 +9,21 @@ import { buildChatMessages, buildRewritePrompt } from './chat-prompts';
 import { ChatRagService } from './chat-rag.service';
 import { ChatSessionService } from './chat-session.service';
 import { CitationMapperService } from './citation-mapper.service';
+import { ChatStreamRegistryService } from './chat-stream-registry.service';
+import {
+  ChatScopeValidatorService,
+  type EffectiveScope,
+} from './chat-scope-validator.service';
 
 interface RunTurnArgs {
   sessionId: string;
-  userId: string;
+  user: AuthenticatedUser;
   userMessage: string;
   clientSignal: AbortSignal;
   writer: SseWriter;
 }
+
+const HEARTBEAT_INTERVAL_MS = 30_000;
 
 function isAbortError(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false;
@@ -26,7 +34,6 @@ function isAbortError(e: unknown): boolean {
 @Injectable()
 export class ChatOrchestratorService {
   private readonly logger = new Logger(ChatOrchestratorService.name);
-  private readonly inFlight = new Set<string>();
 
   constructor(
     private readonly sessions: ChatSessionService,
@@ -35,15 +42,42 @@ export class ChatOrchestratorService {
     private readonly rag: ChatRagService,
     private readonly mapper: CitationMapperService,
     private readonly llm: ChatLlmService,
+    private readonly streamRegistry: ChatStreamRegistryService,
+    private readonly scopeValidator: ChatScopeValidatorService,
   ) {}
 
-  async runTurn(args: RunTurnArgs): Promise<void> {
-    const { sessionId, userId, userMessage, clientSignal, writer } = args;
+  async isStreaming(sessionId: string): Promise<boolean> {
+    return this.streamRegistry.isActive(sessionId);
+  }
 
-    if (this.inFlight.has(sessionId)) {
+  async runTurn(args: RunTurnArgs): Promise<void> {
+    const { sessionId, user, userMessage, clientSignal, writer } = args;
+    const userId = user.id;
+
+    const acquired = await this.streamRegistry.acquire(sessionId);
+    if (!acquired) {
       throw new ConflictException('stream_already_active');
     }
-    this.inFlight.add(sessionId);
+
+    const hardCapMs = ChatStreamRegistryService.hardCapSeconds * 1000;
+    const startedAt = Date.now();
+    const turnAc = new AbortController();
+    const forwardClientAbort = () => turnAc.abort();
+    if (clientSignal.aborted) {
+      turnAc.abort();
+    } else {
+      clientSignal.addEventListener('abort', forwardClientAbort, {
+        once: true,
+      });
+    }
+    const turnSignal = turnAc.signal;
+    const heartbeat = setInterval(() => {
+      void this.streamRegistry.refresh(sessionId).catch(() => undefined);
+    }, HEARTBEAT_INTERVAL_MS);
+    const hardCap = setTimeout(() => {
+      this.logger.warn(`Stream ${sessionId} hit hard cap, forcing abort`);
+      turnAc.abort();
+    }, hardCapMs);
 
     try {
       const session = await this.sessions.getOwnedOrThrow(sessionId, userId);
@@ -79,7 +113,7 @@ export class ChatOrchestratorService {
             userMessage,
             rewrite.meta.userInstruction,
           ),
-          clientSignal,
+          turnSignal,
         );
       } catch (e) {
         if (clientSignal.aborted) {
@@ -106,9 +140,40 @@ export class ChatOrchestratorService {
         }
       }
 
+      let effectiveScope: EffectiveScope | null = null;
+      try {
+        effectiveScope = await this.scopeValidator.materializeForTurn(
+          {
+            scopeType: session.scopeType ?? null,
+            scopePatientId: session.scopePatientId ?? null,
+            scopeRagDocumentIds: session.scopeRagDocumentIds ?? [],
+          },
+          user,
+        );
+      } catch (e) {
+        this.logger.warn(`materializeForTurn failed: ${(e as Error).message}`);
+        effectiveScope = null;
+      }
+
+      if (effectiveScope?.removed) {
+        writer.emit('scope_changed', { removed: effectiveScope.removed });
+      }
+
       let ragHits: RagSearchResult[];
       try {
-        ragHits = await this.rag.query(rewritten, userId, answer.meta.ragTopK);
+        ragHits = await this.rag.query(
+          rewritten,
+          user,
+          answer.meta.ragTopK,
+          effectiveScope && !effectiveScope.removed
+            ? effectiveScope
+            : effectiveScope &&
+                (effectiveScope.patientId ||
+                  (effectiveScope.ragDocumentIds &&
+                    effectiveScope.ragDocumentIds.length > 0))
+              ? effectiveScope
+              : null,
+        );
       } catch (e) {
         this.logger.warn(`RAG query failed: ${(e as Error).message}`);
         writer.emit('error', { code: 'rag_unavailable' });
@@ -129,13 +194,12 @@ export class ChatOrchestratorService {
       let full = '';
       let fullReasoning = '';
       let firstChunkAt: number | null = null;
-      const startedAt = Date.now();
       try {
         for await (const part of this.llm.streamAnswer(
           answer.meta,
           answer.decryptedApiKey,
           chatMessages,
-          clientSignal,
+          turnSignal,
         )) {
           firstChunkAt ??= Date.now();
           if (part.type === 'reasoning') {
@@ -187,7 +251,9 @@ export class ChatOrchestratorService {
         },
       });
     } finally {
-      this.inFlight.delete(sessionId);
+      clearInterval(heartbeat);
+      clearTimeout(hardCap);
+      await this.streamRegistry.release(sessionId);
     }
   }
 }

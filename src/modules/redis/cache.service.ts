@@ -93,6 +93,23 @@ export class CacheService {
     }
   }
 
+  async expire(
+    domain: string,
+    identifier: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
+    try {
+      const key = this.buildKey(domain, identifier);
+      const result = await this.redis.expire(key, ttlSeconds);
+      return result === 1;
+    } catch (error) {
+      this.logger.warn(
+        `Cache expire failed for ${domain}:${identifier}: ${(error as Error).message}`,
+      );
+      return false;
+    }
+  }
+
   async setWithNX<T>(
     domain: string,
     identifier: string,

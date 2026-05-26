@@ -162,6 +162,8 @@ export const AUDIT_EVENTS = {
 
   RAG_DOCUMENT_INGESTED: { category: 'system', severity: 'info' },
   CHAT_SESSION_STARTED: { category: 'ops', severity: 'info' },
+  CHAT_SESSION_UPDATED: { category: 'ops', severity: 'notice' },
+  CHAT_SESSION_SCOPE_CHANGED: { category: 'ops', severity: 'notice' },
 
   AI_PROVIDER_CREATED: { category: 'system', severity: 'notice' },
   AI_PROVIDER_UPDATED: { category: 'system', severity: 'notice' },

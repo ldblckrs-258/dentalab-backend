@@ -1,12 +1,14 @@
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsIn,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -40,4 +42,15 @@ export class RagSearchDto {
   @ArrayMaxSize(8)
   @IsIn(ALLOWED_SOURCE_TYPES, { each: true })
   sourceTypes?: RagSourceType[];
+
+  @IsOptional()
+  @IsUUID('4')
+  patientId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @IsUUID('4', { each: true })
+  ragDocumentIds?: string[];
 }
