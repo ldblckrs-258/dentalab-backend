@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as Handlebars from 'handlebars';
 import mjml from 'mjml';
 import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '@common/constants';
+import { EMAIL_TEMPLATE_METADATA } from '../email-metadata.constants';
 
 const TEMPLATES_DIR = path.resolve(__dirname, '..', 'templates');
 const TEMPLATE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -36,8 +37,24 @@ export class TemplateService {
     }
 
     const compiled = this.compiledCache.get(cacheKey)!;
-    const subject = compiled.subject(variables);
-    const html = compiled.body(variables);
+
+    // Clinic contact metadata is available to every template; caller-provided
+    // variables win on key collision.
+    const merged = { ...EMAIL_TEMPLATE_METADATA, ...variables };
+
+    const subject = compiled.subject(merged);
+
+    // Handlebars must run on the raw MJML (conditionals/loops intact) BEFORE
+    // mjml2html: bare {{#if}} block tags sit between MJML components, and the
+    // MJML compiler drops non-component text nodes — running Handlebars first
+    // keeps the branch logic from being stripped.
+    const resolvedMjml = compiled.body(merged);
+    const { html, errors } = mjml(resolvedMjml, { validationLevel: 'soft' });
+    if (errors?.length) {
+      this.logger.warn(
+        `MJML warnings for ${safeName} (${safeLang}): ${JSON.stringify(errors)}`,
+      );
+    }
 
     return { html, subject };
   }
@@ -59,14 +76,7 @@ export class TemplateService {
 
     const baseSource = fs.readFileSync(basePath, 'utf-8');
     const contentSource = fs.readFileSync(contentPath, 'utf-8');
-    const fullMjml = baseSource.replace('{{{content}}}', contentSource);
-
-    const { html, errors } = mjml(fullMjml, { validationLevel: 'soft' });
-    if (errors?.length) {
-      this.logger.warn(
-        `MJML warnings for ${templateName} (${resolvedLang}): ${JSON.stringify(errors)}`,
-      );
-    }
+    const fullMjml = baseSource.replace('{{{content}}}', () => contentSource);
 
     const rawSubject = this.i18n.translate(
       `email.templates.${templateName}.subject`,
@@ -75,7 +85,7 @@ export class TemplateService {
 
     return {
       subject: Handlebars.compile(rawSubject),
-      body: Handlebars.compile(html),
+      body: Handlebars.compile(fullMjml),
     };
   }
 

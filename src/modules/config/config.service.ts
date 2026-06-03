@@ -9,6 +9,7 @@ import type { JwtConfig } from './schemas/jwt.schema';
 import type { AiConfig } from './schemas/ai.schema';
 import type { EmailConfig } from './schemas/email.schema';
 import type { WsConfig } from './schemas/ws.schema';
+import type { BookingConfig } from './schemas/booking.schema';
 
 @Injectable()
 export class AppConfigService {
@@ -48,6 +49,10 @@ export class AppConfigService {
 
   get ws(): WsConfig {
     return this.configService.get<WsConfig>('ws')!;
+  }
+
+  get booking(): BookingConfig {
+    return this.configService.get<BookingConfig>('booking')!;
   }
 
   get isDevelopment(): boolean {

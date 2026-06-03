@@ -10,8 +10,8 @@ import type {
   QueueMessage,
   EmailSendResetPasswordPayload,
   EmailSendWelcomePayload,
-  EmailSendReminderPayload,
   EmailSendLowStockPayload,
+  AppointmentEmailPayload,
 } from '@modules/queue/interfaces';
 import { EmailService } from './email.service';
 import { SYSTEM_TEMPLATES } from './email.constants';
@@ -47,19 +47,59 @@ export class EmailConsumerService implements OnModuleInit {
           message.payload as EmailSendWelcomePayload,
           message.messageId,
         );
-      case ROUTING_KEY.EMAIL_SEND_REMINDER:
-        return this.handleReminder(
-          message.payload as EmailSendReminderPayload,
-          message.messageId,
-        );
       case ROUTING_KEY.EMAIL_SEND_LOW_STOCK:
         return this.handleLowStock(
           message.payload as EmailSendLowStockPayload,
           message.messageId,
         );
+      case ROUTING_KEY.EMAIL_SEND_APPT_CREATED:
+        return this.handleAppointmentEmail(
+          message.payload as AppointmentEmailPayload,
+          SYSTEM_TEMPLATES.APPT_CREATED,
+        );
+      case ROUTING_KEY.EMAIL_SEND_APPT_CONFIRMED:
+        return this.handleAppointmentEmail(
+          message.payload as AppointmentEmailPayload,
+          SYSTEM_TEMPLATES.APPT_CONFIRMED,
+        );
+      case ROUTING_KEY.EMAIL_SEND_APPT_COMPLETED:
+        return this.handleAppointmentEmail(
+          message.payload as AppointmentEmailPayload,
+          SYSTEM_TEMPLATES.APPT_COMPLETED,
+        );
+      case ROUTING_KEY.EMAIL_SEND_APPT_CANCELLED:
+        return this.handleAppointmentEmail(
+          message.payload as AppointmentEmailPayload,
+          SYSTEM_TEMPLATES.APPT_CANCELLED,
+        );
+      case ROUTING_KEY.EMAIL_SEND_REMINDER:
+        return this.handleAppointmentEmail(
+          message.payload as AppointmentEmailPayload,
+          SYSTEM_TEMPLATES.REMINDER,
+        );
       default:
         this.logger.warn(`Unknown email routing key: ${message.routingKey}`);
     }
+  }
+
+  private async handleAppointmentEmail(
+    payload: AppointmentEmailPayload,
+    templateName: string,
+  ): Promise<void> {
+    await this.emailService.sendTemplatedEmail({
+      to: payload.to,
+      templateName,
+      lang: payload.lang ?? 'vi',
+      variables: {
+        ...payload.variables,
+        isUser: payload.recipientRole === 'provider',
+        ...this.brandingVars(),
+      },
+      entityType: 'appointment',
+      entityId: payload.appointmentId,
+      tags: [{ name: 'category', value: 'appointment' }],
+      idempotencyKey: `${templateName}/${payload.appointmentId}/${payload.recipientRole}`,
+    });
   }
 
   private async handleLowStock(
@@ -77,9 +117,6 @@ export class EmailConsumerService implements OnModuleInit {
         dashboardUrl,
         ...this.brandingVars(),
       },
-      // `email_logs.entity_type` CHECK only allows
-      // appointment | password_reset | kiosk_session | patient | system.
-      // Low-stock alerts are operational notifications → bucket under 'system'.
       entityType: 'system',
       entityId: payload.item.itemId,
       tags: [{ name: 'category', value: 'inventory' }],
@@ -147,22 +184,6 @@ export class EmailConsumerService implements OnModuleInit {
       entityId: payload.userId,
       tags: [{ name: 'category', value: 'auth' }],
       idempotencyKey: `welcome/${messageId}`,
-    });
-  }
-
-  private async handleReminder(
-    payload: EmailSendReminderPayload,
-    messageId: string,
-  ): Promise<void> {
-    await this.emailService.sendTemplatedEmail({
-      to: payload.patientEmail,
-      templateName: SYSTEM_TEMPLATES.REMINDER,
-      lang: payload.lang ?? 'vi',
-      variables: payload.variables,
-      entityType: 'appointment',
-      entityId: payload.appointmentId,
-      tags: [{ name: 'category', value: 'reminder' }],
-      idempotencyKey: `reminder/${messageId}`,
     });
   }
 }

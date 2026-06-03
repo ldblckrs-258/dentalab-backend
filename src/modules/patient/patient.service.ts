@@ -132,23 +132,11 @@ export class PatientService {
       }
 
       await Promise.all([
-        tx.kioskSession.updateMany({
-          where: { patientId: id, status: 'active' },
-          data: {
-            status: 'closed',
-            closedAt: now,
-            closedReason: 'Patient deleted (GDPR)',
-          },
-        }),
         tx.clinicalNote.updateMany({
           where: { patientId: id, deletedAt: null },
           data: { deletedAt: now },
         }),
         tx.patientFile.updateMany({
-          where: { patientId: id, deletedAt: null },
-          data: { deletedAt: now },
-        }),
-        tx.formSubmission.updateMany({
           where: { patientId: id, deletedAt: null },
           data: { deletedAt: now },
         }),

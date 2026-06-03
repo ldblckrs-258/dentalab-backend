@@ -13,6 +13,21 @@
     },
     "low-stock-alert": {
       "subject": "Cảnh báo tồn kho thấp: {{item.itemName}}"
+    },
+    "booking-otp": {
+      "subject": "Mã xác minh đặt lịch DentaLab của bạn"
+    },
+    "appointment-created": {
+      "subject": "Lịch hẹn tại DentaLab đã được đặt"
+    },
+    "appointment-confirmed": {
+      "subject": "Lịch hẹn DentaLab của bạn đã được xác nhận"
+    },
+    "appointment-completed": {
+      "subject": "Cảm ơn bạn đã đến khám tại DentaLab"
+    },
+    "appointment-cancelled": {
+      "subject": "Lịch hẹn DentaLab của bạn đã bị hủy"
     }
   }
 }

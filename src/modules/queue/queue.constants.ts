@@ -24,6 +24,10 @@ export const ROUTING_KEY = {
   EMAIL_SEND_RESET_PASSWORD: 'email.send_reset_password',
   EMAIL_SEND_WELCOME: 'email.send_welcome',
   EMAIL_SEND_LOW_STOCK: 'email.send.low_stock',
+  EMAIL_SEND_APPT_CREATED: 'email.send.appt_created',
+  EMAIL_SEND_APPT_CONFIRMED: 'email.send.appt_confirmed',
+  EMAIL_SEND_APPT_COMPLETED: 'email.send.appt_completed',
+  EMAIL_SEND_APPT_CANCELLED: 'email.send.appt_cancelled',
   INVENTORY_LOW_STOCK: 'inventory.low_stock',
   RAG_DOCUMENT_STATUS_CHANGED: 'rag.document.status_changed',
 } as const;

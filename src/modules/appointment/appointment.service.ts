@@ -3,13 +3,17 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import { ProviderAvailabilityService } from '@modules/scheduling/provider-availability.service';
 import { SchedulingGateway } from '@modules/scheduling/scheduling.gateway';
 import { RequestContextService } from '@modules/common/context/request-context';
 import { t } from '@common/utils';
+import { DEFAULT_TIMEZONE } from '@common/constants/app.constants';
 import { tryMapConflict } from './appointment-conflict.mapper';
+import { AppointmentEmailProducer } from './appointment-email.producer';
+import type { Appointment } from '@prisma/client';
 import type { CreateAppointmentDto } from './dto/create-appointment.dto';
 import type { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import type { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
@@ -30,7 +34,7 @@ const STATUS_TRANSITION_MATRIX: Record<string, TransitionableStatus[]> = {
   no_show: [],
 };
 
-const CLINIC_TIMEZONE = 'Asia/Saigon';
+const CLINIC_TIMEZONE = DEFAULT_TIMEZONE;
 
 const HHMM_FORMATTER = new Intl.DateTimeFormat('en-GB', {
   timeZone: CLINIC_TIMEZONE,
@@ -86,10 +90,14 @@ export class AppointmentService {
     private readonly prisma: PrismaService,
     private readonly availability: ProviderAvailabilityService,
     private readonly gateway: SchedulingGateway,
+    private readonly emailProducer: AppointmentEmailProducer,
   ) {}
 
   async create(dto: CreateAppointmentDto) {
-    const currentUserId = RequestContextService.getUserId()!;
+    const currentUserId = RequestContextService.getUserId();
+    if (!currentUserId) {
+      throw new UnauthorizedException();
+    }
 
     const type = await this.prisma.baseClient.appointmentType.findUnique({
       where: { id: dto.typeId },
@@ -129,28 +137,61 @@ export class AppointmentService {
 
     await this.validateAvailability(dto.providerId, startTime, endTime);
 
-    let created: Awaited<
-      ReturnType<typeof this.prisma.baseClient.appointment.create>
-    >;
+    const created = await this.createAppointmentCore(
+      {
+        patientId: dto.patientId,
+        providerId: dto.providerId,
+        typeId: dto.typeId,
+        startTime,
+        endTime,
+        status: 'scheduled',
+        bookingSource: 'staff',
+        notes: dto.notes,
+        chiefComplaint: dto.chiefComplaint,
+        procedureIds: dto.procedureIds,
+      },
+      currentUserId,
+    );
+
+    return this.findById(created.id);
+  }
+
+  async createAppointmentCore(
+    input: {
+      patientId: string;
+      providerId: string;
+      typeId: string;
+      startTime: Date;
+      endTime: Date;
+      status: string;
+      bookingSource: string;
+      notes?: string;
+      chiefComplaint?: string;
+      procedureIds?: string[];
+    },
+    createdById: string | null,
+  ): Promise<Appointment> {
+    let created: Appointment;
     try {
       created = await this.prisma.transaction(async (tx) => {
         const appt = await tx.appointment.create({
           data: {
-            patientId: dto.patientId,
-            providerId: dto.providerId,
-            typeId: dto.typeId,
-            createdBy: currentUserId,
-            startTime,
-            endTime,
-            status: 'scheduled',
-            notes: dto.notes,
-            chiefComplaint: dto.chiefComplaint,
+            patientId: input.patientId,
+            providerId: input.providerId,
+            typeId: input.typeId,
+            createdBy: createdById,
+            startTime: input.startTime,
+            endTime: input.endTime,
+            status: input.status,
+            bookingSource: input.bookingSource,
+            notes: input.notes,
+            chiefComplaint: input.chiefComplaint,
           },
         });
 
-        if (dto.procedureIds && dto.procedureIds.length > 0) {
+        if (input.procedureIds && input.procedureIds.length > 0) {
           const procedures = await tx.patientProcedure.findMany({
-            where: { id: { in: dto.procedureIds } },
+            where: { id: { in: input.procedureIds } },
             select: {
               id: true,
               patientId: true,
@@ -161,7 +202,9 @@ export class AppointmentService {
           });
 
           const foundIds = new Set(procedures.map((p) => p.id));
-          const missingIds = dto.procedureIds.filter((id) => !foundIds.has(id));
+          const missingIds = input.procedureIds.filter(
+            (id) => !foundIds.has(id),
+          );
           if (missingIds.length > 0) {
             throw new BadRequestException(
               t(
@@ -175,7 +218,7 @@ export class AppointmentService {
           const invalidIds = procedures
             .filter(
               (p) =>
-                p.patientId !== dto.patientId ||
+                p.patientId !== input.patientId ||
                 p.status !== 'planned' ||
                 p.appointmentId !== null ||
                 p.deletedAt !== null,
@@ -193,7 +236,7 @@ export class AppointmentService {
           }
 
           await tx.patientProcedure.updateMany({
-            where: { id: { in: dto.procedureIds } },
+            where: { id: { in: input.procedureIds } },
             data: { appointmentId: appt.id },
           });
         }
@@ -203,9 +246,9 @@ export class AppointmentService {
     } catch (err) {
       await tryMapConflict(err, {
         db: this.prisma.baseClient,
-        providerId: dto.providerId,
-        startTime,
-        endTime,
+        providerId: input.providerId,
+        startTime: input.startTime,
+        endTime: input.endTime,
       });
       throw err;
     }
@@ -217,7 +260,9 @@ export class AppointmentService {
       endTime: created.endTime.toISOString(),
     });
 
-    return this.findById(created.id);
+    void this.emailProducer.publishCreated(created.id);
+
+    return created;
   }
 
   async cancel(id: string, dto: CancelAppointmentDto) {
@@ -265,6 +310,8 @@ export class AppointmentService {
       providerId: updated.providerId,
     });
 
+    void this.emailProducer.publishCancelled(updated.id, dto.reason);
+
     return updated;
   }
 
@@ -308,6 +355,12 @@ export class AppointmentService {
       startTime: updated.startTime.toISOString(),
       endTime: updated.endTime.toISOString(),
     });
+
+    if (dto.status === 'confirmed') {
+      void this.emailProducer.publishConfirmed(updated.id);
+    } else if (dto.status === 'completed') {
+      void this.emailProducer.publishCompleted(updated.id);
+    }
 
     return this.findById(updated.id);
   }

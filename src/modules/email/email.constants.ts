@@ -6,6 +6,11 @@ export const SYSTEM_TEMPLATES = {
   WELCOME: 'welcome',
   REMINDER: 'appointment-reminder',
   LOW_STOCK_ALERT: 'low-stock-alert',
+  BOOKING_OTP: 'booking-otp',
+  APPT_CREATED: 'appointment-created',
+  APPT_CONFIRMED: 'appointment-confirmed',
+  APPT_COMPLETED: 'appointment-completed',
+  APPT_CANCELLED: 'appointment-cancelled',
 } as const;
 
 export const EMAIL_STATUS = {

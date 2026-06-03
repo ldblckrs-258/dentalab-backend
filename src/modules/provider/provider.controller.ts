@@ -13,11 +13,13 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { BulkUpdateProviderStatusDto } from './dto/bulk-update-provider-status.dto';
 import { CreateProviderDto } from './dto/create-provider.dto';
 import { ProviderQueryDto } from './dto/provider-query.dto';
+import { SetProviderAppointmentTypesDto } from './dto/set-provider-appointment-types.dto';
 import { UpdateProviderStatusDto } from './dto/update-provider-status.dto';
 import { UpdateProviderDto } from './dto/update-provider.dto';
 import { ProviderService } from './provider.service';
@@ -102,5 +104,20 @@ export class ProviderController {
   @AuditMutation({ code: 'PROVIDER_DELETED', resource: 'provider' })
   async delete(@Param('id') id: string) {
     return this.providerService.delete(id);
+  }
+
+  @Get(':id/appointment-types')
+  @RequirePermissions('providers:read')
+  async getAppointmentTypes(@Param('id') id: string) {
+    return this.providerService.getAppointmentTypes(id);
+  }
+
+  @Put(':id/appointment-types')
+  @RequirePermissions('providers:update')
+  async setAppointmentTypes(
+    @Param('id') id: string,
+    @Body() dto: SetProviderAppointmentTypesDto,
+  ) {
+    return this.providerService.setAppointmentTypes(id, dto);
   }
 }

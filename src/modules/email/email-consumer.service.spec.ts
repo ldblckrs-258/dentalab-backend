@@ -18,6 +18,27 @@ const mockConfig = {
   email: { FRONTEND_URL: 'http://localhost:3001' },
 };
 
+const APPT_ID = 'appt-uuid-001';
+const RECIPIENT_EMAIL = 'patient@test.com';
+
+const makeApptPayload = (
+  recipientRole: 'patient' | 'provider' = 'patient',
+) => ({
+  appointmentId: APPT_ID,
+  to: RECIPIENT_EMAIL,
+  recipientRole,
+  variables: {
+    patientName: 'Nguyễn Văn A',
+    providerName: 'BS. Trần B',
+    serviceName: 'Khám tổng quát',
+    appointmentDate: 'Chủ nhật, 15/06/2026',
+    appointmentTime: '10:00',
+    clinicName: 'DentaLab',
+    referenceId: APPT_ID,
+  },
+  lang: 'vi',
+});
+
 describe('EmailConsumerService', () => {
   let service: EmailConsumerService;
   let messageHandler: (message: any) => Promise<void>;
@@ -35,7 +56,6 @@ describe('EmailConsumerService', () => {
     service = module.get<EmailConsumerService>(EmailConsumerService);
     jest.clearAllMocks();
 
-    // Capture the message handler
     mockQueueConsumer.consume.mockImplementation((_queue, handler) => {
       messageHandler = handler;
       return Promise.resolve();
@@ -99,6 +119,144 @@ describe('EmailConsumerService', () => {
         }),
       }),
     );
+  });
+
+  describe('appointment lifecycle email cases', () => {
+    beforeEach(() => {
+      mockEmailService.sendTemplatedEmail.mockResolvedValue({});
+    });
+
+    it('APPT_CREATED → appointment-created template with appointment entityType', async () => {
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_APPT_CREATED,
+        messageId: 'msg-created',
+        payload: makeApptPayload('patient'),
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: SYSTEM_TEMPLATES.APPT_CREATED,
+          to: RECIPIENT_EMAIL,
+          entityType: 'appointment',
+          entityId: APPT_ID,
+          idempotencyKey: `${SYSTEM_TEMPLATES.APPT_CREATED}/${APPT_ID}/patient`,
+        }),
+      );
+    });
+
+    it('APPT_CONFIRMED → appointment-confirmed template', async () => {
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_APPT_CONFIRMED,
+        messageId: 'msg-confirmed',
+        payload: makeApptPayload('patient'),
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: SYSTEM_TEMPLATES.APPT_CONFIRMED,
+          entityType: 'appointment',
+          idempotencyKey: `${SYSTEM_TEMPLATES.APPT_CONFIRMED}/${APPT_ID}/patient`,
+        }),
+      );
+    });
+
+    it('APPT_COMPLETED → appointment-completed template', async () => {
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_APPT_COMPLETED,
+        messageId: 'msg-completed',
+        payload: makeApptPayload('provider'),
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: SYSTEM_TEMPLATES.APPT_COMPLETED,
+          entityType: 'appointment',
+          idempotencyKey: `${SYSTEM_TEMPLATES.APPT_COMPLETED}/${APPT_ID}/provider`,
+        }),
+      );
+    });
+
+    it('APPT_CANCELLED → appointment-cancelled template', async () => {
+      const payload = {
+        ...makeApptPayload('patient'),
+        variables: {
+          ...makeApptPayload('patient').variables,
+          cancellationReason: 'Patient request',
+        },
+      };
+
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_APPT_CANCELLED,
+        messageId: 'msg-cancelled',
+        payload,
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: SYSTEM_TEMPLATES.APPT_CANCELLED,
+          entityType: 'appointment',
+          variables: expect.objectContaining({
+            cancellationReason: 'Patient request',
+          }),
+        }),
+      );
+    });
+
+    it('EMAIL_SEND_REMINDER → appointment-reminder template', async () => {
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_REMINDER,
+        messageId: 'msg-reminder',
+        payload: makeApptPayload('patient'),
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          templateName: SYSTEM_TEMPLATES.REMINDER,
+          entityType: 'appointment',
+          idempotencyKey: `${SYSTEM_TEMPLATES.REMINDER}/${APPT_ID}/patient`,
+        }),
+      );
+    });
+
+    it('sets isUser=true in variables when recipientRole is provider', async () => {
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_APPT_CREATED,
+        messageId: 'msg-provider',
+        payload: makeApptPayload('provider'),
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variables: expect.objectContaining({ isUser: true }),
+        }),
+      );
+    });
+
+    it('sets isUser=false in variables when recipientRole is patient', async () => {
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_APPT_CREATED,
+        messageId: 'msg-patient',
+        payload: makeApptPayload('patient'),
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variables: expect.objectContaining({ isUser: false }),
+        }),
+      );
+    });
+
+    it('passes lang from payload to sendTemplatedEmail', async () => {
+      await messageHandler({
+        routingKey: ROUTING_KEY.EMAIL_SEND_APPT_CREATED,
+        messageId: 'msg-lang',
+        payload: { ...makeApptPayload('patient'), lang: 'en' },
+      });
+
+      expect(mockEmailService.sendTemplatedEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ lang: 'en' }),
+      );
+    });
   });
 
   it('should log warning for unknown routing key', async () => {

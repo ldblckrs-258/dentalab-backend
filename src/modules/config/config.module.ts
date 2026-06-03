@@ -10,6 +10,7 @@ import { jwtSchema } from './schemas/jwt.schema';
 import { aiSchema } from './schemas/ai.schema';
 import { emailSchema } from './schemas/email.schema';
 import { wsSchema } from './schemas/ws.schema';
+import { bookingSchema } from './schemas/booking.schema';
 import { maskSensitiveValues } from './config.utils';
 
 const logger = new Logger('ConfigModule');
@@ -44,6 +45,9 @@ const emailConfig = registerAs('email', () =>
   validateAndLoad(emailSchema, process.env),
 );
 const wsConfig = registerAs('ws', () => validateAndLoad(wsSchema, process.env));
+const bookingConfig = registerAs('booking', () =>
+  validateAndLoad(bookingSchema, process.env),
+);
 
 @Global()
 @Module({
@@ -61,6 +65,7 @@ const wsConfig = registerAs('ws', () => validateAndLoad(wsSchema, process.env));
         aiConfig,
         emailConfig,
         wsConfig,
+        bookingConfig,
       ],
     }),
   ],
@@ -82,6 +87,7 @@ export class AppConfigModule {
         ai: configService.ai,
         email: configService.email,
         ws: configService.ws,
+        booking: configService.booking,
       };
       logger.debug(
         `Config: ${JSON.stringify(maskSensitiveValues(allConfig as Record<string, unknown>), null, 2)}`,

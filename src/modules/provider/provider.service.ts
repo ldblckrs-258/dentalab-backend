@@ -11,6 +11,7 @@ import type { CreateProviderDto } from './dto/create-provider.dto';
 import type { UpdateProviderDto } from './dto/update-provider.dto';
 import type { UpdateProviderStatusDto } from './dto/update-provider-status.dto';
 import type { ProviderQueryDto } from './dto/provider-query.dto';
+import type { SetProviderAppointmentTypesDto } from './dto/set-provider-appointment-types.dto';
 
 const DOCTOR_ROLE_CODE = 'DOCTOR';
 
@@ -186,6 +187,39 @@ export class ProviderService {
       );
     }
     return this.prisma.baseClient.provider.delete({ where: { id } });
+  }
+
+  async getAppointmentTypes(id: string) {
+    await this.findProviderOrFail(id);
+    const rows = await this.prisma.baseClient.providerAppointmentType.findMany({
+      where: { providerId: id },
+      select: { appointmentTypeId: true },
+    });
+    return rows.map((r) => r.appointmentTypeId);
+  }
+
+  async setAppointmentTypes(id: string, dto: SetProviderAppointmentTypesDto) {
+    await this.findProviderOrFail(id);
+
+    const uniqueTypeIds = Array.from(new Set(dto.typeIds));
+
+    await this.prisma.transaction(async (tx) => {
+      await tx.providerAppointmentType.deleteMany({
+        where: { providerId: id },
+      });
+
+      if (uniqueTypeIds.length > 0) {
+        await tx.providerAppointmentType.createMany({
+          data: uniqueTypeIds.map((typeId) => ({
+            providerId: id,
+            appointmentTypeId: typeId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    return this.getAppointmentTypes(id);
   }
 
   private async findProviderOrFail(id: string) {

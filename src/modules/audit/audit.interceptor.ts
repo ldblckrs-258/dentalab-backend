@@ -33,11 +33,9 @@ const RESOURCE_TO_MODEL: Record<string, string> = {
   appointment_type: 'appointmentType',
   treatment_plan: 'treatmentPlan',
   clinical_note: 'clinicalNote',
-  form: 'form',
   internal_document: 'internalDocument',
   inventory_item: 'inventoryItem',
   email: 'emailLog',
-  kiosk_session: 'kioskSession',
   chat_session: 'chatSession',
 };
 

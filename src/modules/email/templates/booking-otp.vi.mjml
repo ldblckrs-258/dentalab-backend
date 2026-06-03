@@ -1,0 +1,34 @@
+<mj-section padding="0 24px">
+  <mj-column
+    background-color="#ffffff"
+    border="1px solid #e4e4e7"
+    border-radius="16px"
+    padding="32px 28px"
+  >
+    <mj-text font-size="22px" font-weight="700" color="#27272a" padding="0 0 8px">
+      Mã xác minh đặt lịch của bạn
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 16px">
+      Sử dụng mã bên dưới để xác minh địa chỉ email và tiếp tục đặt lịch hẹn.
+    </mj-text>
+    <mj-section padding="0 0 20px">
+      <mj-column>
+        <mj-text
+          align="center"
+          font-size="40px"
+          font-weight="700"
+          color="#6366f1"
+          letter-spacing="8px"
+          padding="20px 0"
+          background-color="#f4f4f5"
+          border-radius="12px"
+        >
+          {{code}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-text font-size="12px" color="#71717a" padding="0">
+      Mã này sẽ hết hạn sau {{expiresInMinutes}} phút. Nếu bạn không yêu cầu điều này, bạn có thể bỏ qua email này.
+    </mj-text>
+  </mj-column>
+</mj-section>

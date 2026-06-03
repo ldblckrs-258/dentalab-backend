@@ -29,8 +29,6 @@ export const SOFT_DELETE_AT_MODELS = [
   'Patient',
   'ClinicalNote',
   'PatientFile',
-  'Form',
-  'FormSubmission',
   'InternalDocument',
   'PatientProcedure',
 ];

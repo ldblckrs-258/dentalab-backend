@@ -6,15 +6,18 @@ import { PermissionGuard } from '@modules/rbac/guards/permission.guard';
 import { RedisIoAdapter, WsExceptionFilter } from '@modules/realtime';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
     rawBody: true,
   });
+
+  app.set('trust proxy', 1);
 
   const config = app.get(AppConfigService);
   const { PORT, NODE_ENV, API_PREFIX, CORS_ORIGINS, APP_NAME } = config.app;

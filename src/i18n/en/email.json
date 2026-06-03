@@ -13,6 +13,21 @@
     },
     "low-stock-alert": {
       "subject": "Low stock alert: {{item.itemName}}"
+    },
+    "booking-otp": {
+      "subject": "Your DentaLab booking verification code"
+    },
+    "appointment-created": {
+      "subject": "Your DentaLab appointment is booked"
+    },
+    "appointment-confirmed": {
+      "subject": "Your DentaLab appointment is confirmed"
+    },
+    "appointment-completed": {
+      "subject": "Thank you for your visit at DentaLab"
+    },
+    "appointment-cancelled": {
+      "subject": "Your DentaLab appointment has been cancelled"
     }
   }
 }

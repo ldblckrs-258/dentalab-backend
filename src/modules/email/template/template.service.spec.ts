@@ -6,10 +6,9 @@ import * as fs from 'fs';
 
 jest.mock('fs');
 jest.mock('mjml', () => {
-  const fn = jest.fn(() => ({
-    html: '<html><body>{{userName}}</body></html>',
-    errors: [],
-  }));
+  // Handlebars now runs before mjml2html, so the source reaching mjml is
+  // already interpolated — echo it back as the rendered html.
+  const fn = jest.fn((src: string) => ({ html: src, errors: [] }));
   return { __esModule: true, default: fn };
 });
 
@@ -36,7 +35,7 @@ describe('TemplateService', () => {
     beforeEach(() => {
       (fs.existsSync as jest.Mock).mockReturnValue(true);
       (fs.readFileSync as jest.Mock).mockReturnValue(
-        '<mjml>{{{content}}}</mjml>',
+        '<mjml>{{userName}}{{{content}}}</mjml>',
       );
       mockI18n.translate.mockReturnValue('Reset your DentaLab password');
     });
@@ -50,6 +49,28 @@ describe('TemplateService', () => {
 
       expect(result.html).toContain('John');
       expect(result.subject).toBe('Reset your DentaLab password');
+    });
+
+    it('renders only the matching branch of a Handlebars conditional', () => {
+      (fs.readFileSync as jest.Mock).mockReturnValue(
+        '<mjml>{{#if isUser}}PROVIDERBLOCK{{else}}PATIENTBLOCK{{/if}}{{{content}}}</mjml>',
+      );
+
+      const providerHtml = service.render(
+        'appointment-created',
+        { isUser: true },
+        'en',
+      ).html;
+      expect(providerHtml).toContain('PROVIDERBLOCK');
+      expect(providerHtml).not.toContain('PATIENTBLOCK');
+
+      const patientHtml = service.render(
+        'appointment-created',
+        { isUser: false },
+        'en',
+      ).html;
+      expect(patientHtml).toContain('PATIENTBLOCK');
+      expect(patientHtml).not.toContain('PROVIDERBLOCK');
     });
 
     it('should use default lang vi when lang not specified', () => {

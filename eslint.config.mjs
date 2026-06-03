@@ -16,6 +16,8 @@ export default tseslint.config(
       'node_modules/**',
       'coverage/**',
       'src/generated/**',
+      'src/coverage-doc/**',
+      'scripts/**',
     ],
   },
   eslint.configs.recommended,

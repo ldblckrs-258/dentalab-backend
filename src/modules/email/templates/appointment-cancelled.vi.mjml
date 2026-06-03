@@ -1,0 +1,56 @@
+<mj-section padding="0 24px">
+  <mj-column
+    background-color="#ffffff"
+    border="1px solid #e4e4e7"
+    border-radius="16px"
+    padding="32px 28px"
+  >
+    {{#if isUser}}
+    <mj-text font-size="22px" font-weight="700" color="#27272a" padding="0 0 8px">
+      Lịch hẹn đã bị hủy
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 20px">
+      Xin chào {{providerName}},<br />
+      Lịch hẹn với bệnh nhân {{patientName}} tại {{clinicName}} đã bị hủy.
+    </mj-text>
+    {{else}}
+    <mj-text font-size="22px" font-weight="700" color="#27272a" padding="0 0 8px">
+      Lịch hẹn của bạn đã bị hủy
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 20px">
+      Xin chào {{patientName}},<br />
+      Lịch hẹn của bạn tại {{clinicName}} đã bị hủy.
+    </mj-text>
+    {{/if}}
+    <mj-section padding="0 0 20px">
+      <mj-column
+        background-color="#f4f4f5"
+        border-radius="12px"
+        padding="20px"
+      >
+        <mj-text padding="0 0 8px">
+          <strong>Dịch vụ:</strong> {{serviceName}}
+        </mj-text>
+        <mj-text padding="0 0 8px">
+          <strong>Ngày đã đặt:</strong> {{appointmentDate}}
+        </mj-text>
+        <mj-text padding="0 0 8px">
+          <strong>Giờ đã đặt:</strong> {{appointmentTime}}
+        </mj-text>
+        {{#if cancellationReason}}
+        <mj-text padding="0 0 8px">
+          <strong>Lý do hủy:</strong> {{cancellationReason}}
+        </mj-text>
+        {{/if}}
+        <mj-text padding="0">
+          <strong>Mã đặt lịch:</strong> {{referenceId}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    {{#unless isUser}}
+    <mj-text font-size="12px" color="#71717a" padding="0">
+      Nếu bạn muốn đặt lại lịch hẹn, vui lòng gọi hotline {{hotline}}.
+    </mj-text>
+    {{/unless}}
+  </mj-column>
+</mj-section>

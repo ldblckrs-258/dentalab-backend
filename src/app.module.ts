@@ -1,5 +1,6 @@
 import * as path from 'path';
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { I18nModule, AcceptLanguageResolver } from 'nestjs-i18n';
 import { AppConfigModule } from '@modules/config';
 import { DatabaseModule } from '@modules/database';
@@ -15,7 +16,6 @@ import { UserModule } from '@modules/user';
 import { ProviderModule } from '@modules/provider';
 import { PatientModule } from '@modules/patient';
 import { EmailModule } from '@modules/email';
-import { KioskModule } from '@modules/kiosk';
 import { RealtimeModule } from '@modules/realtime';
 import { ProcedureModule } from '@modules/procedure/procedure.module';
 import { AppointmentTypeModule } from '@modules/appointment-type/appointment-type.module';
@@ -29,6 +29,7 @@ import { ClinicalNoteModule } from '@modules/clinical-note';
 import { RagModule } from '@modules/rag/rag.module';
 import { AiConfigModule } from '@modules/ai-config/ai-config.module';
 import { ChatModule } from '@modules/chat/chat.module';
+import { BookingModule } from '@modules/booking/booking.module';
 import { DEFAULT_LANGUAGE } from '@common/constants';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -38,6 +39,7 @@ const isDev = process.env.NODE_ENV !== 'production';
 @Module({
   imports: [
     AppConfigModule,
+    ScheduleModule.forRoot(),
     RealtimeModule,
     DatabaseModule,
     RedisModule,
@@ -65,7 +67,6 @@ const isDev = process.env.NODE_ENV !== 'production';
     UserModule,
     ProviderModule,
     PatientModule,
-    KioskModule,
     ProcedureModule,
     AppointmentTypeModule,
     TreatmentPlanModule,
@@ -78,6 +79,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     RagModule,
     AiConfigModule,
     ChatModule,
+    BookingModule,
     HealthModule,
   ],
   controllers: [AppController],

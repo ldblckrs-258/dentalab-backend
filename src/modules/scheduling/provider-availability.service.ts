@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
+import { subtractWindow } from '@common/utils/interval-math';
 
 export interface AvailabilityWindow {
   start: string;
@@ -123,11 +124,7 @@ export class ProviderAvailabilityService {
     );
 
     for (const override of customHoursOverrides) {
-      windows = this.subtractWindow(
-        windows,
-        override.startTime!,
-        override.endTime!,
-      );
+      windows = subtractWindow(windows, override.startTime!, override.endTime!);
       windows.push({
         start: override.startTime!,
         end: override.endTime!,
@@ -144,42 +141,5 @@ export class ProviderAvailabilityService {
       windows,
       hasApprovedDayOff: false,
     };
-  }
-
-  private subtractWindow(
-    windows: AvailabilityWindow[],
-    subStart: string,
-    subEnd: string,
-  ): AvailabilityWindow[] {
-    const result: AvailabilityWindow[] = [];
-
-    for (const w of windows) {
-      // No overlap
-      if (w.end <= subStart || w.start >= subEnd) {
-        result.push(w);
-        continue;
-      }
-
-      // Left portion (before override start)
-      if (w.start < subStart) {
-        result.push({
-          start: w.start,
-          end: subStart,
-          source: w.source,
-        });
-      }
-
-      // Right portion (after override end)
-      if (w.end > subEnd) {
-        result.push({
-          start: subEnd,
-          end: w.end,
-          source: w.source,
-        });
-      }
-      // If full overlap, neither portion is kept (entire window consumed)
-    }
-
-    return result;
   }
 }

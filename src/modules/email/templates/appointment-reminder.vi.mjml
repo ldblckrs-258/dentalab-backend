@@ -1,0 +1,54 @@
+<mj-section padding="0 24px">
+  <mj-column
+    background-color="#ffffff"
+    border="1px solid #e4e4e7"
+    border-radius="16px"
+    padding="32px 28px"
+  >
+    {{#if isUser}}
+    <mj-text font-size="22px" font-weight="700" color="#27272a" padding="0 0 8px">
+      Nhắc nhở: Lịch hẹn ngày mai
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 20px">
+      Xin chào {{providerName}},<br />
+      Bạn có lịch hẹn với bệnh nhân vào ngày mai tại {{clinicName}}.
+    </mj-text>
+    {{else}}
+    <mj-text font-size="22px" font-weight="700" color="#27272a" padding="0 0 8px">
+      Nhắc nhở: Lịch hẹn của bạn vào ngày mai
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 20px">
+      Xin chào {{patientName}},<br />
+      Đây là nhắc nhở về lịch hẹn của bạn tại {{clinicName}} vào ngày mai.
+    </mj-text>
+    {{/if}}
+    <mj-section padding="0 0 20px">
+      <mj-column
+        background-color="#f4f4f5"
+        border-radius="12px"
+        padding="20px"
+      >
+        <mj-text padding="0 0 8px">
+          <strong>Dịch vụ:</strong> {{serviceName}}
+        </mj-text>
+        <mj-text padding="0 0 8px">
+          <strong>Ngày khám:</strong> {{appointmentDate}}
+        </mj-text>
+        <mj-text padding="0 0 8px">
+          <strong>Giờ khám:</strong> {{appointmentTime}}
+        </mj-text>
+        {{#unless isUser}}
+        <mj-text padding="0 0 8px">
+          <strong>Bác sĩ:</strong> {{providerName}}
+        </mj-text>
+        {{/unless}}
+        <mj-text padding="0">
+          <strong>Mã đặt lịch:</strong> {{referenceId}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-text font-size="12px" color="#71717a" padding="0">
+      Vui lòng đến đúng giờ. Nếu cần thay đổi, hãy gọi hotline {{hotline}} ngay.
+    </mj-text>
+  </mj-column>
+</mj-section>

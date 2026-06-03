@@ -56,6 +56,20 @@ export interface EmailSendLowStockPayload {
   item: InventoryLowStockPayload;
 }
 
+export interface EmailSendApptCreatedPayload {
+  appointmentId: string;
+  patientEmail: string;
+  lang?: string;
+}
+
+export interface AppointmentEmailPayload {
+  appointmentId: string;
+  to: string;
+  recipientRole: 'patient' | 'provider';
+  variables: Record<string, string>;
+  lang?: string;
+}
+
 export type EventPayload =
   | DocumentEventPayload
   | ClinicalNoteCreatedPayload
@@ -64,4 +78,6 @@ export type EventPayload =
   | EmailSendResetPasswordPayload
   | EmailSendWelcomePayload
   | EmailSendLowStockPayload
+  | EmailSendApptCreatedPayload
+  | AppointmentEmailPayload
   | InventoryLowStockPayload;

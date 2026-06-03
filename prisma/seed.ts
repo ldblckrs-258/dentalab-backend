@@ -205,13 +205,6 @@ const PERMISSIONS: {
   { resource: 'patient_files', action: 'update' },
   { resource: 'patient_files', action: 'delete' },
   // Resources & Operations
-  { resource: 'forms', action: 'create' },
-  { resource: 'forms', action: 'read' },
-  { resource: 'forms', action: 'update' },
-  { resource: 'forms', action: 'delete' },
-  { resource: 'form_submissions', action: 'read' },
-  { resource: 'kiosk_sessions', action: 'create' },
-  { resource: 'kiosk_sessions', action: 'read' },
   { resource: 'internal_documents', action: 'create' },
   { resource: 'internal_documents', action: 'read' },
   { resource: 'internal_documents', action: 'update' },

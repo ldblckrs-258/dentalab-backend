@@ -1,0 +1,34 @@
+<mj-section padding="0 24px">
+  <mj-column
+    background-color="#ffffff"
+    border="1px solid #e4e4e7"
+    border-radius="16px"
+    padding="32px 28px"
+  >
+    <mj-text font-size="22px" font-weight="700" color="#27272a" padding="0 0 8px">
+      Your booking verification code
+    </mj-text>
+    <mj-text color="#52525b" padding="0 0 16px">
+      Use the code below to verify your email address and continue booking your appointment.
+    </mj-text>
+    <mj-section padding="0 0 20px">
+      <mj-column>
+        <mj-text
+          align="center"
+          font-size="40px"
+          font-weight="700"
+          color="#6366f1"
+          letter-spacing="8px"
+          padding="20px 0"
+          background-color="#f4f4f5"
+          border-radius="12px"
+        >
+          {{code}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    <mj-text font-size="12px" color="#71717a" padding="0">
+      This code expires in {{expiresInMinutes}} minutes. If you did not request this, you can safely ignore this email.
+    </mj-text>
+  </mj-column>
+</mj-section>

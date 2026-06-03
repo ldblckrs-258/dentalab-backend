@@ -30,10 +30,8 @@ describe('PatientService', () => {
             findFirst: jest.fn(),
             update: jest.fn(),
           },
-          kioskSession: { updateMany: jest.fn() },
           clinicalNote: { updateMany: jest.fn() },
           patientFile: { updateMany: jest.fn() },
-          formSubmission: { updateMany: jest.fn() },
         };
         // By default findFirst succeeds so the tx can proceed
         tx.patient.findFirst.mockResolvedValue({ id: 'patient-1' });

@@ -22,8 +22,6 @@ import type { AuditEventInput } from './audit.types';
 import type { AuditQueryDto } from './dto/audit-query.dto';
 
 const OPERATIONS_RESOURCES = [
-  'form',
-  'kiosk_session',
   'internal_document',
   'document_version',
   'inventory_item',

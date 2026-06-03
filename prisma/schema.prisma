@@ -26,11 +26,8 @@ model User {
   clinicalNotesSigned      ClinicalNote[]             @relation("ClinicalNoteSigner")
   createdCategories        DocumentCategory[]
   documentVersionChanges   DocumentVersion[]
-  createdForms             Form[]
   authoredDocuments        InternalDocument[]
   inventoryTransactions    InventoryTransaction[]
-  closedKioskSessions      KioskSession[]             @relation("KioskClosedByUser")
-  createdKioskSessions     KioskSession[]             @relation("KioskCreatedByUser")
   passwordResetTokens      PasswordResetToken[]
   uploadedFiles            PatientFile[]
   createdPatientProcedures PatientProcedure[]         @relation("PatientProcedureCreator")
@@ -175,21 +172,22 @@ model PasswordResetToken {
 }
 
 model Provider {
-  id                  String                     @id @default(uuid()) @db.Uuid
-  userId              String                     @unique @map("user_id") @db.Uuid
-  specialty           String?
-  licenseNumber       String?                    @map("license_number")
-  isActive            Boolean                    @default(true) @map("is_active")
-  createdAt           DateTime                   @default(now()) @map("created_at")
-  updatedAt           DateTime                   @updatedAt @map("updated_at")
-  appointments        Appointment[]
-  clinicalNotes       ClinicalNote[]
-  performedProcedures PatientProcedure[]         @relation("PerformedByProvider")
-  plannedProcedures   PatientProcedure[]         @relation("PlannedProvider")
-  scheduleOverrides   ProviderScheduleOverride[]
-  schedules           ProviderSchedule[]
-  user                User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  treatmentPlans      TreatmentPlan[]
+  id                      String                     @id @default(uuid()) @db.Uuid
+  userId                  String                     @unique @map("user_id") @db.Uuid
+  specialty               String?
+  licenseNumber           String?                    @map("license_number")
+  isActive                Boolean                    @default(true) @map("is_active")
+  createdAt               DateTime                   @default(now()) @map("created_at")
+  updatedAt               DateTime                   @updatedAt @map("updated_at")
+  appointments            Appointment[]
+  clinicalNotes           ClinicalNote[]
+  performedProcedures     PatientProcedure[]         @relation("PerformedByProvider")
+  plannedProcedures       PatientProcedure[]         @relation("PlannedProvider")
+  scheduleOverrides       ProviderScheduleOverride[]
+  schedules               ProviderSchedule[]
+  user                    User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  treatmentPlans          TreatmentPlan[]
+  providerAppointmentTypes ProviderAppointmentType[]
 
   @@map("providers")
 }
@@ -232,17 +230,18 @@ model ProviderScheduleOverride {
 }
 
 model AppointmentType {
-  id              String        @id @default(uuid()) @db.Uuid
-  name            String        @unique
-  durationMinutes Int           @map("duration_minutes")
-  color           String?
-  isActive        Boolean       @default(true) @map("is_active")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  createdBy       String?       @map("created_by") @db.Uuid
-  textColor       String?       @map("text_color")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-  updatedBy       String?       @map("updated_by") @db.Uuid
-  appointments    Appointment[]
+  id                      String                    @id @default(uuid()) @db.Uuid
+  name                    String                    @unique
+  durationMinutes         Int                       @map("duration_minutes")
+  color                   String?
+  isActive                Boolean                   @default(true) @map("is_active")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  createdBy               String?                   @map("created_by") @db.Uuid
+  textColor               String?                   @map("text_color")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  updatedBy               String?                   @map("updated_by") @db.Uuid
+  appointments            Appointment[]
+  providerAppointmentTypes ProviderAppointmentType[]
 
   @@map("appointment_types")
 }
@@ -290,7 +289,8 @@ model Appointment {
   patientId          String             @map("patient_id") @db.Uuid
   providerId         String             @map("provider_id") @db.Uuid
   typeId             String             @map("type_id") @db.Uuid
-  createdBy          String             @map("created_by") @db.Uuid
+  createdBy          String?            @map("created_by") @db.Uuid
+  bookingSource      String             @default("staff") @map("booking_source")
   startTime          DateTime           @map("start_time")
   endTime            DateTime           @map("end_time")
   status             String             @default("scheduled")
@@ -298,6 +298,7 @@ model Appointment {
   cancelledBy        String?            @map("cancelled_by") @db.Uuid
   cancelledAt        DateTime?          @map("cancelled_at")
   cancellationReason String?            @map("cancellation_reason")
+  reminderSentAt     DateTime?          @map("reminder_sent_at")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
   checkedInAt        DateTime?          @map("checked_in_at")
@@ -305,13 +306,11 @@ model Appointment {
   completedAt        DateTime?          @map("completed_at")
   startedAt          DateTime?          @map("started_at")
   cancelledByUser    User?              @relation("CancelledByUser", fields: [cancelledBy], references: [id])
-  createdByUser      User               @relation("CreatedByUser", fields: [createdBy], references: [id])
+  createdByUser      User?              @relation("CreatedByUser", fields: [createdBy], references: [id])
   patient            Patient            @relation(fields: [patientId], references: [id])
   provider           Provider           @relation(fields: [providerId], references: [id])
   appointmentType    AppointmentType    @relation(fields: [typeId], references: [id])
   clinicalNotes      ClinicalNote[]
-  formSubmissions    FormSubmission[]
-  kioskSessions      KioskSession[]
   patientProcedures  PatientProcedure[]
 
   @@index([providerId, startTime])
@@ -411,8 +410,6 @@ model Patient {
   deletedAt             DateTime?          @map("deleted_at")
   appointments          Appointment[]
   clinicalNotes         ClinicalNote[]
-  formSubmissions       FormSubmission[]
-  kioskSessions         KioskSession[]
   files                 PatientFile[]
   patientProcedures     PatientProcedure[]
   treatmentPlans        TreatmentPlan[]
@@ -438,79 +435,6 @@ model PatientFile {
   uploader    User      @relation(fields: [uploadedBy], references: [id])
 
   @@map("patient_files")
-}
-
-model Form {
-  id                String             @id @default(uuid()) @db.Uuid
-  createdBy         String             @map("created_by") @db.Uuid
-  title             String
-  description       String?
-  schema            Json
-  isPublished       Boolean            @default(false) @map("is_published")
-  isKioskEnabled    Boolean            @default(false) @map("is_kiosk_enabled")
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  deletedAt         DateTime?          @map("deleted_at")
-  submissions       FormSubmission[]
-  creator           User               @relation(fields: [createdBy], references: [id])
-  kioskSessionForms KioskSessionForm[]
-
-  @@map("forms")
-}
-
-model FormSubmission {
-  id             String        @id @default(uuid()) @db.Uuid
-  patientId      String        @map("patient_id") @db.Uuid
-  formId         String        @map("form_id") @db.Uuid
-  appointmentId  String?       @map("appointment_id") @db.Uuid
-  kioskSessionId String?       @map("kiosk_session_id") @db.Uuid
-  data           Json
-  submittedAt    DateTime      @default(now()) @map("submitted_at")
-  deletedAt      DateTime?     @map("deleted_at")
-  appointment    Appointment?  @relation(fields: [appointmentId], references: [id])
-  form           Form          @relation(fields: [formId], references: [id])
-  kioskSession   KioskSession? @relation(fields: [kioskSessionId], references: [id])
-  patient        Patient       @relation(fields: [patientId], references: [id])
-
-  @@map("form_submissions")
-}
-
-model KioskSession {
-  id                    String             @id @default(uuid()) @db.Uuid
-  patientId             String             @map("patient_id") @db.Uuid
-  appointmentId         String?            @map("appointment_id") @db.Uuid
-  createdBy             String             @map("created_by") @db.Uuid
-  tokenHash             String             @unique @map("token_hash")
-  expiresInMinutes      Int                @default(30) @map("expires_in_minutes")
-  expiresAt             DateTime           @map("expires_at")
-  status                String             @default("active")
-  deviceFingerprintHash String?            @map("device_fingerprint_hash")
-  initialIp             String?            @map("initial_ip")
-  closedBy              String?            @map("closed_by") @db.Uuid
-  closedReason          String?            @map("closed_reason")
-  createdAt             DateTime           @default(now()) @map("created_at")
-  closedAt              DateTime?          @map("closed_at")
-  formSubmissions       FormSubmission[]
-  sessionForms          KioskSessionForm[]
-  appointment           Appointment?       @relation(fields: [appointmentId], references: [id])
-  closer                User?              @relation("KioskClosedByUser", fields: [closedBy], references: [id])
-  creator               User               @relation("KioskCreatedByUser", fields: [createdBy], references: [id])
-  patient               Patient            @relation(fields: [patientId], references: [id])
-
-  @@index([tokenHash])
-  @@map("kiosk_sessions")
-}
-
-model KioskSessionForm {
-  id          String       @id @default(uuid()) @db.Uuid
-  sessionId   String       @map("session_id") @db.Uuid
-  formId      String       @map("form_id") @db.Uuid
-  status      String       @default("pending")
-  completedAt DateTime?    @map("completed_at")
-  form        Form         @relation(fields: [formId], references: [id])
-  session     KioskSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  @@map("kiosk_session_forms")
 }
 
 model InternalDocument {
@@ -777,4 +701,30 @@ model AiModel {
 
   @@index([providerId])
   @@map("ai_models")
+}
+
+model BookingVerification {
+  id         String    @id @default(uuid()) @db.Uuid
+  email      String
+  otpHash    String    @map("otp_hash")
+  expiresAt  DateTime  @map("expires_at")
+  attempts   Int       @default(0)
+  verifiedAt DateTime? @map("verified_at")
+  consumedAt DateTime? @map("consumed_at")
+  ipAddress  String?   @map("ip_address")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([email, createdAt(sort: Desc)])
+  @@map("booking_verifications")
+}
+
+model ProviderAppointmentType {
+  providerId        String          @map("provider_id") @db.Uuid
+  appointmentTypeId String          @map("appointment_type_id") @db.Uuid
+  provider          Provider        @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  appointmentType   AppointmentType @relation(fields: [appointmentTypeId], references: [id], onDelete: Cascade)
+
+  @@id([providerId, appointmentTypeId])
+  @@index([appointmentTypeId])
+  @@map("provider_appointment_types")
 }
