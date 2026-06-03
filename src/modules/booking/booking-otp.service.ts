@@ -13,6 +13,7 @@ const MAX_VERIFY_ATTEMPTS_REDIS = 10;
 const REDIS_ATTEMPT_WINDOW_SECONDS = 15 * 60;
 const MAX_ROW_ATTEMPTS = 5;
 const TICKET_EXPIRY = '15m';
+const TICKET_EXPIRY_MS = 15 * 60_000;
 
 export interface BookingTicketPayload {
   sub: string;
@@ -145,9 +146,14 @@ export class BookingOtpService {
       return null;
     }
 
+    // On verify, extend expiresAt to the ticket TTL so the DB row's expiry tracks
+    // the issued JWT (the guard enforces it as a second factor / revocation hook).
     await this.prisma.baseClient.bookingVerification.update({
       where: { id: row.id },
-      data: { verifiedAt: new Date() },
+      data: {
+        verifiedAt: new Date(),
+        expiresAt: new Date(Date.now() + TICKET_EXPIRY_MS),
+      },
     });
 
     const ticketPayload: Omit<BookingTicketPayload, 'sub'> = {

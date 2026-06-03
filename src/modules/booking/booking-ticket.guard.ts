@@ -52,7 +52,13 @@ export class BookingTicketGuard implements CanActivate {
     const verification =
       await this.prisma.baseClient.bookingVerification.findUnique({
         where: { id: payload.sub },
-        select: { id: true, email: true, verifiedAt: true, consumedAt: true },
+        select: {
+          id: true,
+          email: true,
+          verifiedAt: true,
+          consumedAt: true,
+          expiresAt: true,
+        },
       });
 
     if (!verification) {
@@ -65,6 +71,11 @@ export class BookingTicketGuard implements CanActivate {
     }
     if (verification.consumedAt) {
       throw new UnauthorizedException('Booking ticket already used');
+    }
+    // DB-level expiry guard (revocation + clock-skew defense) in addition to the
+    // JWT TTL. expiresAt is aligned to the ticket TTL at OTP-verify time.
+    if (verification.expiresAt.getTime() <= Date.now()) {
+      throw new UnauthorizedException('Booking ticket expired');
     }
 
     request.bookingTicket = {

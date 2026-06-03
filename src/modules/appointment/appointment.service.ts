@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -13,7 +14,7 @@ import { t } from '@common/utils';
 import { DEFAULT_TIMEZONE } from '@common/constants/app.constants';
 import { tryMapConflict } from './appointment-conflict.mapper';
 import { AppointmentEmailProducer } from './appointment-email.producer';
-import type { Appointment } from '@prisma/client';
+import type { Appointment, Prisma } from '@prisma/client';
 import type { CreateAppointmentDto } from './dto/create-appointment.dto';
 import type { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import type { RescheduleAppointmentDto } from './dto/reschedule-appointment.dto';
@@ -86,6 +87,8 @@ const APPOINTMENT_INCLUDE = {
 
 @Injectable()
 export class AppointmentService {
+  private readonly logger = new Logger(AppointmentService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly availability: ProviderAvailabilityService,
@@ -137,7 +140,7 @@ export class AppointmentService {
 
     await this.validateAvailability(dto.providerId, startTime, endTime);
 
-    const created = await this.createAppointmentCore(
+    const { appt, emit } = await this.createAppointmentCore(
       {
         patientId: dto.patientId,
         providerId: dto.providerId,
@@ -153,9 +156,24 @@ export class AppointmentService {
       currentUserId,
     );
 
-    return this.findById(created.id);
+    this.runEmit(emit);
+
+    return this.findById(appt.id);
   }
 
+  /**
+   * Insert an appointment (and optionally link procedures), then return the row
+   * plus a deferred `emit` that performs the gateway + email side-effects.
+   *
+   * When `tx` is provided, the inserts run on the caller's transaction and the
+   * raw exclusion violation (23P01) is allowed to propagate so the caller can map
+   * it AFTER its transaction rolls back — running tryMapConflict before rollback
+   * would re-query a not-yet-rolled-back state and rethrow raw. When `tx` is
+   * absent, this opens its own transaction and maps the conflict inline.
+   *
+   * The caller must invoke `emit()` only after the relevant transaction commits;
+   * no side-effect may fire on rollback.
+   */
   async createAppointmentCore(
     input: {
       patientId: string;
@@ -170,99 +188,117 @@ export class AppointmentService {
       procedureIds?: string[];
     },
     createdById: string | null,
-  ): Promise<Appointment> {
-    let created: Appointment;
-    try {
-      created = await this.prisma.transaction(async (tx) => {
-        const appt = await tx.appointment.create({
-          data: {
-            patientId: input.patientId,
-            providerId: input.providerId,
-            typeId: input.typeId,
-            createdBy: createdById,
-            startTime: input.startTime,
-            endTime: input.endTime,
-            status: input.status,
-            bookingSource: input.bookingSource,
-            notes: input.notes,
-            chiefComplaint: input.chiefComplaint,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ appt: Appointment; emit: () => void }> {
+    const insert = async (
+      client: Prisma.TransactionClient,
+    ): Promise<Appointment> => {
+      const appt = await client.appointment.create({
+        data: {
+          patientId: input.patientId,
+          providerId: input.providerId,
+          typeId: input.typeId,
+          createdBy: createdById,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          status: input.status,
+          bookingSource: input.bookingSource,
+          notes: input.notes,
+          chiefComplaint: input.chiefComplaint,
+        },
+      });
+
+      if (input.procedureIds && input.procedureIds.length > 0) {
+        const procedures = await client.patientProcedure.findMany({
+          where: { id: { in: input.procedureIds } },
+          select: {
+            id: true,
+            patientId: true,
+            status: true,
+            appointmentId: true,
+            deletedAt: true,
           },
         });
 
-        if (input.procedureIds && input.procedureIds.length > 0) {
-          const procedures = await tx.patientProcedure.findMany({
-            where: { id: { in: input.procedureIds } },
-            select: {
-              id: true,
-              patientId: true,
-              status: true,
-              appointmentId: true,
-              deletedAt: true,
-            },
-          });
-
-          const foundIds = new Set(procedures.map((p) => p.id));
-          const missingIds = input.procedureIds.filter(
-            (id) => !foundIds.has(id),
+        const foundIds = new Set(procedures.map((p) => p.id));
+        const missingIds = input.procedureIds.filter((id) => !foundIds.has(id));
+        if (missingIds.length > 0) {
+          throw new BadRequestException(
+            t(
+              'appointment.PROCEDURES_NOT_FOUND',
+              `Procedure(s) not found: ${missingIds.join(', ')}`,
+              { args: { ids: missingIds.join(', ') } },
+            ),
           );
-          if (missingIds.length > 0) {
-            throw new BadRequestException(
-              t(
-                'appointment.PROCEDURES_NOT_FOUND',
-                `Procedure(s) not found: ${missingIds.join(', ')}`,
-                { args: { ids: missingIds.join(', ') } },
-              ),
-            );
-          }
-
-          const invalidIds = procedures
-            .filter(
-              (p) =>
-                p.patientId !== input.patientId ||
-                p.status !== 'planned' ||
-                p.appointmentId !== null ||
-                p.deletedAt !== null,
-            )
-            .map((p) => p.id);
-
-          if (invalidIds.length > 0) {
-            throw new BadRequestException(
-              t(
-                'appointment.PROCEDURES_INVALID',
-                `Procedure(s) cannot be linked (wrong patient, not planned, already linked, or deleted): ${invalidIds.join(', ')}`,
-                { args: { ids: invalidIds.join(', ') } },
-              ),
-            );
-          }
-
-          await tx.patientProcedure.updateMany({
-            where: { id: { in: input.procedureIds } },
-            data: { appointmentId: appt.id },
-          });
         }
 
-        return appt;
-      });
-    } catch (err) {
-      await tryMapConflict(err, {
-        db: this.prisma.baseClient,
-        providerId: input.providerId,
-        startTime: input.startTime,
-        endTime: input.endTime,
-      });
-      throw err;
+        const invalidIds = procedures
+          .filter(
+            (p) =>
+              p.patientId !== input.patientId ||
+              p.status !== 'planned' ||
+              p.appointmentId !== null ||
+              p.deletedAt !== null,
+          )
+          .map((p) => p.id);
+
+        if (invalidIds.length > 0) {
+          throw new BadRequestException(
+            t(
+              'appointment.PROCEDURES_INVALID',
+              `Procedure(s) cannot be linked (wrong patient, not planned, already linked, or deleted): ${invalidIds.join(', ')}`,
+              { args: { ids: invalidIds.join(', ') } },
+            ),
+          );
+        }
+
+        await client.patientProcedure.updateMany({
+          where: { id: { in: input.procedureIds } },
+          data: { appointmentId: appt.id },
+        });
+      }
+
+      return appt;
+    };
+
+    let created: Appointment;
+    if (tx) {
+      // External transaction: propagate the raw 23P01 so the caller maps it
+      // after its own rollback.
+      created = await insert(tx);
+    } else {
+      try {
+        created = await this.prisma.transaction((client) => insert(client));
+      } catch (err) {
+        await tryMapConflict(err, {
+          db: this.prisma.baseClient,
+          providerId: input.providerId,
+          startTime: input.startTime,
+          endTime: input.endTime,
+        });
+        throw err;
+      }
     }
 
-    this.gateway.emitAppointmentCreated({
-      id: created.id,
-      providerId: created.providerId,
-      startTime: created.startTime.toISOString(),
-      endTime: created.endTime.toISOString(),
-    });
+    const emit = () => {
+      this.gateway.emitAppointmentCreated({
+        id: created.id,
+        providerId: created.providerId,
+        startTime: created.startTime.toISOString(),
+        endTime: created.endTime.toISOString(),
+      });
+      void this.emailProducer.publishCreated(created.id);
+    };
 
-    void this.emailProducer.publishCreated(created.id);
+    return { appt: created, emit };
+  }
 
-    return created;
+  private runEmit(emit: () => void): void {
+    try {
+      emit();
+    } catch (err) {
+      this.logger.error('post-commit appointment emit failed', err as Error);
+    }
   }
 
   async cancel(id: string, dto: CancelAppointmentDto) {

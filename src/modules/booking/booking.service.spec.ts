@@ -40,19 +40,40 @@ function makeCreatedAppt(id = 'appt-uuid') {
   };
 }
 
+// An error shaped like the Postgres exclusion violation tryMapConflict detects.
+function overlapError() {
+  const err = new Error(
+    'exclusion constraint appointments_no_overlap',
+  ) as Error & {
+    meta?: { constraint: string };
+  };
+  err.meta = { constraint: 'appointments_no_overlap' };
+  return err;
+}
+
 describe('BookingService', () => {
   let service: BookingService;
   let prisma: any;
+  let txMock: any;
   let slotService: { getBookableSlots: jest.Mock };
   let appointmentService: { createAppointmentCore: jest.Mock };
 
   beforeEach(async () => {
+    // The transaction client used INSIDE prisma.transaction(fn). Patient resolve,
+    // ticket consume, and the appointment insert all run on this client now.
+    txMock = {
+      patient: { findMany: jest.fn(), create: jest.fn() },
+      bookingVerification: { updateMany: jest.fn() },
+    };
+
     prisma = {
       baseClient: {
         appointmentType: { findUnique: jest.fn() },
-        patient: { findMany: jest.fn(), create: jest.fn() },
-        bookingVerification: { updateMany: jest.fn() },
+        // Used by tryMapConflict AFTER rollback to list conflicting ids.
+        appointment: { findMany: jest.fn().mockResolvedValue([]) },
       },
+      // Interactive transaction: invoke the callback with txMock, rethrow on error.
+      transaction: jest.fn((fn: (tx: any) => Promise<any>) => fn(txMock)),
     };
 
     slotService = { getBookableSlots: jest.fn() } as any;
@@ -80,6 +101,18 @@ describe('BookingService', () => {
     });
   }
 
+  // createAppointmentCore now returns { appt, emit } and is called with the tx.
+  function mockCoreResolves(id?: string) {
+    appointmentService.createAppointmentCore.mockResolvedValue({
+      appt: makeCreatedAppt(id),
+      emit: jest.fn(),
+    });
+  }
+
+  function ticketConsumes() {
+    txMock.bookingVerification.updateMany.mockResolvedValue({ count: 1 });
+  }
+
   const validDto = {
     typeId: TYPE_ID,
     providerId: PROVIDER_ID,
@@ -105,23 +138,39 @@ describe('BookingService', () => {
     );
   });
 
-  it('creates a new patient when no existing patient matches email', async () => {
+  it('resolves the patient INSIDE the transaction with soft-delete guards', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([]);
-    prisma.baseClient.patient.create.mockResolvedValue({
-      id: 'new-patient-uuid',
-    });
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(TICKET, validDto);
 
-    expect(prisma.baseClient.patient.create).toHaveBeenCalledWith(
+    expect(txMock.patient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          email: { equals: 'patient@example.com', mode: 'insensitive' },
+          deletedAt: null,
+          isActive: true,
+        }),
+      }),
+    );
+    // Never resolved on the (extension-less) baseClient.
+    expect(prisma.baseClient).not.toHaveProperty('patient');
+  });
+
+  it('creates a new patient ON THE TX when no existing patient matches email', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    txMock.patient.findMany.mockResolvedValue([]);
+    txMock.patient.create.mockResolvedValue({ id: 'new-patient-uuid' });
+    ticketConsumes();
+    mockCoreResolves();
+
+    await service.createBooking(TICKET, validDto);
+
+    expect(txMock.patient.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           email: 'patient@example.com',
@@ -130,62 +179,51 @@ describe('BookingService', () => {
         }),
       }),
     );
+    expect(appointmentService.createAppointmentCore).toHaveBeenCalledWith(
+      expect.objectContaining({ patientId: 'new-patient-uuid' }),
+      null,
+      txMock,
+    );
   });
 
   it('reuses existing patient when exactly one matches email', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([
+    txMock.patient.findMany.mockResolvedValue([
       { id: 'existing-patient-uuid' },
     ]);
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(TICKET, validDto);
 
-    expect(prisma.baseClient.patient.create).not.toHaveBeenCalled();
+    expect(txMock.patient.create).not.toHaveBeenCalled();
     expect(appointmentService.createAppointmentCore).toHaveBeenCalledWith(
       expect.objectContaining({ patientId: 'existing-patient-uuid' }),
       null,
+      txMock,
     );
   });
 
   it('creates new patient when more than one patient matches (ambiguous)', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'p1' },
-      { id: 'p2' },
-    ]);
-    prisma.baseClient.patient.create.mockResolvedValue({ id: 'new-p-uuid' });
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'p1' }, { id: 'p2' }]);
+    txMock.patient.create.mockResolvedValue({ id: 'new-p-uuid' });
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(TICKET, validDto);
 
-    expect(prisma.baseClient.patient.create).toHaveBeenCalled();
+    expect(txMock.patient.create).toHaveBeenCalled();
   });
 
-  it('calls createAppointmentCore with bookingSource=patient_portal and createdById=null', async () => {
+  it('calls createAppointmentCore with bookingSource=patient_portal, createdById=null, and the tx', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'patient-uuid' },
-    ]);
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(TICKET, validDto);
 
@@ -195,27 +233,20 @@ describe('BookingService', () => {
         status: 'scheduled',
       }),
       null,
+      txMock,
     );
   });
 
-  it('atomically consumes BookingVerification (guarded by consumedAt: null) before creating', async () => {
+  it('consumes BookingVerification on the tx guarded by consumedAt: null', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'patient-uuid' },
-    ]);
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(TICKET, validDto);
 
-    expect(
-      prisma.baseClient.bookingVerification.updateMany,
-    ).toHaveBeenCalledWith(
+    expect(txMock.bookingVerification.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'verif-uuid', consumedAt: null },
         data: expect.objectContaining({ consumedAt: expect.any(Date) }),
@@ -223,55 +254,92 @@ describe('BookingService', () => {
     );
   });
 
-  it('throws 409 when the ticket was already consumed (concurrent reuse)', async () => {
+  it('throws 409 and does NOT create an appointment when the ticket was already consumed', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'patient-uuid' },
-    ]);
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 0,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    txMock.bookingVerification.updateMany.mockResolvedValue({ count: 0 });
 
     await expect(service.createBooking(TICKET, validDto)).rejects.toThrow(
       ConflictException,
     );
     expect(appointmentService.createAppointmentCore).not.toHaveBeenCalled();
+    // The TICKET_ALREADY_USED 409 must pass through tryMapConflict unchanged —
+    // it must NOT be re-mapped as an appointment overlap (no conflict re-query).
+    expect(prisma.baseClient.appointment.findMany).not.toHaveBeenCalled();
   });
 
-  it('propagates ConflictException from createAppointmentCore (double-book)', async () => {
+  it('maps a raw slot-overlap (23P01) thrown from createAppointmentCore to a 409', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'patient-uuid' },
-    ]);
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
-    appointmentService.createAppointmentCore.mockRejectedValue(
-      new ConflictException({
-        code: 'APPOINTMENT_OVERLAP',
-        message: 'Conflict',
-      }),
-    );
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    // createAppointmentCore (mocked) rejects with the raw exclusion error,
+    // standing in for an external-tx propagation; booking's outer catch must map
+    // it to a 409 via tryMapConflict. (Real raw-propagation is covered in
+    // appointment.service.spec.ts.)
+    appointmentService.createAppointmentCore.mockRejectedValue(overlapError());
 
     await expect(service.createBooking(TICKET, validDto)).rejects.toThrow(
       ConflictException,
     );
+    // tryMapConflict re-queries conflicts via baseClient AFTER rollback.
+    expect(prisma.baseClient.appointment.findMany).toHaveBeenCalled();
+  });
+
+  it('rethrows a non-overlap error unchanged (no false 409)', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    appointmentService.createAppointmentCore.mockRejectedValue(
+      new Error('db connection lost'),
+    );
+
+    await expect(service.createBooking(TICKET, validDto)).rejects.toThrow(
+      'db connection lost',
+    );
+  });
+
+  it('fires the post-commit emit exactly once on success', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    const emit = jest.fn();
+    appointmentService.createAppointmentCore.mockResolvedValue({
+      appt: makeCreatedAppt(),
+      emit,
+    });
+
+    await service.createBooking(TICKET, validDto);
+
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+
+  it('still succeeds when the post-commit emit throws', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    appointmentService.createAppointmentCore.mockResolvedValue({
+      appt: makeCreatedAppt('abcd1234-5678-90ab-cdef-000000000000'),
+      emit: () => {
+        throw new Error('gateway down');
+      },
+    });
+
+    const result = await service.createBooking(TICKET, validDto);
+
+    expect(result.appointmentId).toBe('abcd1234-5678-90ab-cdef-000000000000');
   });
 
   it('returns appointmentId, reference and startTime on success', async () => {
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'patient-uuid' },
-    ]);
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt('abcd1234-5678-90ab-cdef-000000000000'),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    mockCoreResolves('abcd1234-5678-90ab-cdef-000000000000');
 
     const result = await service.createBooking(TICKET, validDto);
 
@@ -285,15 +353,9 @@ describe('BookingService', () => {
     slotService.getBookableSlots.mockResolvedValue(
       makeSlotResult([PROVIDER_ID, 'other-provider']),
     );
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'patient-uuid' },
-    ]);
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(TICKET, {
       ...validDto,
@@ -303,6 +365,7 @@ describe('BookingService', () => {
     expect(appointmentService.createAppointmentCore).toHaveBeenCalledWith(
       expect.objectContaining({ providerId: PROVIDER_ID }),
       null,
+      txMock,
     );
   });
 
@@ -311,15 +374,9 @@ describe('BookingService', () => {
     slotService.getBookableSlots.mockResolvedValue(
       makeSlotResult(['first-provider', 'second-provider']),
     );
-    prisma.baseClient.patient.findMany.mockResolvedValue([
-      { id: 'patient-uuid' },
-    ]);
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(TICKET, {
       ...validDto,
@@ -329,6 +386,7 @@ describe('BookingService', () => {
     expect(appointmentService.createAppointmentCore).toHaveBeenCalledWith(
       expect.objectContaining({ providerId: 'first-provider' }),
       null,
+      txMock,
     );
   });
 
@@ -336,18 +394,14 @@ describe('BookingService', () => {
     const upperTicket = { ...TICKET, email: 'PATIENT@EXAMPLE.COM' };
     setupType();
     slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
-    prisma.baseClient.patient.findMany.mockResolvedValue([]);
-    prisma.baseClient.patient.create.mockResolvedValue({ id: 'new-p' });
-    appointmentService.createAppointmentCore.mockResolvedValue(
-      makeCreatedAppt(),
-    );
-    prisma.baseClient.bookingVerification.updateMany.mockResolvedValue({
-      count: 1,
-    });
+    txMock.patient.findMany.mockResolvedValue([]);
+    txMock.patient.create.mockResolvedValue({ id: 'new-p' });
+    ticketConsumes();
+    mockCoreResolves();
 
     await service.createBooking(upperTicket, validDto);
 
-    expect(prisma.baseClient.patient.create).toHaveBeenCalledWith(
+    expect(txMock.patient.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ email: 'patient@example.com' }),
       }),

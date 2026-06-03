@@ -319,6 +319,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
     }
 
+    // Raw Postgres exclusion-constraint violation (e.g. appointments_no_overlap)
+    // that reached the filter unmapped — surface as a 409, never a 500. Service
+    // code maps these to richer conflicts; this is a safety net for any caller
+    // that lets the raw error through.
+    if (this.isExclusionViolation(exception)) {
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        errorCode: ErrorCode.COMMON_CONFLICT,
+        message: 'Resource conflicts with an existing record',
+        details: this.isProduction ? undefined : (exception as any).meta,
+      };
+    }
+
     // Unknown errors
     return {
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -354,6 +367,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       typeof (exception as any).code === 'string' &&
       (exception as any).code.startsWith('P')
     );
+  }
+
+  // Postgres exclusion-constraint violation (SQLSTATE 23P01), possibly wrapped by
+  // Prisma in a `cause`. Detect via code, wrapped cause, or constraint name.
+  private isExclusionViolation(exception: unknown): boolean {
+    if (exception === null || typeof exception !== 'object') return false;
+    const e = exception as Record<string, unknown>;
+    const PG_EXCLUSION_VIOLATION = '23P01';
+    if (e['code'] === PG_EXCLUSION_VIOLATION) return true;
+    const cause = e['cause'] as Record<string, unknown> | undefined;
+    if (cause?.['code'] === PG_EXCLUSION_VIOLATION) return true;
+    const meta = e['meta'] as Record<string, unknown> | undefined;
+    const constraint = meta?.['constraint'];
+    if (typeof constraint === 'string' && constraint.includes('_no_overlap')) {
+      return true;
+    }
+    const msg = typeof e['message'] === 'string' ? e['message'] : '';
+    return msg.includes('exclusion constraint') || msg.includes('_no_overlap');
   }
 
   private httpStatusToErrorCode(status: number): string {

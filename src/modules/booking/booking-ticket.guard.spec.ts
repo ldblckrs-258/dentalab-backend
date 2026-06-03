@@ -25,6 +25,7 @@ function makeVerification(overrides: Record<string, unknown> = {}) {
     email: 'user@example.com',
     verifiedAt: new Date(),
     consumedAt: null,
+    expiresAt: new Date(Date.now() + 15 * 60_000),
     ...overrides,
   };
 }
@@ -116,6 +117,19 @@ describe('BookingTicketGuard', () => {
     });
     prisma.baseClient.bookingVerification.findUnique.mockResolvedValue(
       makeVerification({ consumedAt: new Date() }),
+    );
+    const ctx = makeContext('Bearer token');
+    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('throws when expiresAt has passed (ticket expired)', async () => {
+    jwt.verify.mockReturnValue({
+      sub: 'vid',
+      email: 'u@e.com',
+      aud: 'booking',
+    });
+    prisma.baseClient.bookingVerification.findUnique.mockResolvedValue(
+      makeVerification({ expiresAt: new Date(Date.now() - 1000) }),
     );
     const ctx = makeContext('Bearer token');
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
