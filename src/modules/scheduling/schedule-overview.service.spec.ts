@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { ScheduleOverviewService } from './schedule-overview.service';
 import { PrismaService } from '@modules/database';
 import { AppConfigService } from '@modules/config';
+import { StorageService } from '@modules/storage';
 
 const mockProvider = {
   id: 'provider-1',
@@ -68,6 +69,10 @@ describe('ScheduleOverviewService', () => {
         ScheduleOverviewService,
         { provide: PrismaService, useValue: prisma },
         { provide: AppConfigService, useValue: config },
+        {
+          provide: StorageService,
+          useValue: { resolveAvatarUrl: (v: string | null) => v },
+        },
       ],
     }).compile();
 

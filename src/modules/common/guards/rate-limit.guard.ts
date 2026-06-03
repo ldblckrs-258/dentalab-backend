@@ -31,6 +31,8 @@ export class RateLimitGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
+    if (options?.skip) return true;
+
     const limit = options?.limit ?? DEFAULT_RATE_LIMIT_MAX;
     const windowSeconds = options?.windowSeconds ?? DEFAULT_RATE_LIMIT_WINDOW;
 

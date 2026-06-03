@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import { AppConfigService } from '@modules/config';
+import { StorageService } from '@modules/storage';
 import { ScheduleOverviewQueryDto } from './dto/schedule-overview-query.dto';
 import type { ScheduleOverviewResponse } from './dto/schedule-overview-response.dto';
 
@@ -9,6 +10,7 @@ export class ScheduleOverviewService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: AppConfigService,
+    private readonly storage: StorageService,
   ) {}
 
   async getScheduleOverview(
@@ -123,7 +125,7 @@ export class ScheduleOverviewService {
         id: p.id,
         userId: p.userId,
         fullName: p.user.fullName,
-        avatarUrl: p.user.avatarUrl,
+        avatarUrl: this.storage.resolveAvatarUrl(p.user.avatarUrl),
         specialty: p.specialty,
       })),
       schedules,

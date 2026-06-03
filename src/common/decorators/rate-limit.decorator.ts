@@ -2,9 +2,10 @@ import { SetMetadata } from '@nestjs/common';
 import { RATE_LIMIT_KEY } from '@common/constants';
 
 export interface RateLimitOptions {
-  limit: number;
-  windowSeconds: number;
+  limit?: number;
+  windowSeconds?: number;
   keyExtractor?: 'ip' | 'ip+body:email';
+  skip?: boolean;
 }
 
 export const RateLimit = (options: RateLimitOptions) =>

@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { ProviderService } from './provider.service';
 import { PrismaService } from '@modules/database';
+import { StorageService } from '@modules/storage';
 
 const PROVIDER_ID = 'prov-uuid';
 const TYPE_A = 'type-a-uuid';
@@ -35,6 +36,10 @@ describe('ProviderService — appointment-type assignment', () => {
       providers: [
         ProviderService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: StorageService,
+          useValue: { resolveAvatarUrl: (v: string | null) => v },
+        },
       ],
     }).compile();
 

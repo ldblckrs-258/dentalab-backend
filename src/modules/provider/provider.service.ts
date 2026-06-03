@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import type { BulkUpdateProviderStatusDto } from './dto/bulk-update-provider-status.dto';
 import { PrismaService } from '@modules/database';
+import { StorageService } from '@modules/storage';
 import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
 import { t } from '@common/utils';
 import type { CreateProviderDto } from './dto/create-provider.dto';
@@ -41,7 +42,22 @@ const PROVIDER_WITH_USER_SELECT = {
 
 @Injectable()
 export class ProviderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
+  ) {}
+
+  private resolveAvatar<T extends { user: { avatarUrl: string | null } }>(
+    provider: T,
+  ): T {
+    return {
+      ...provider,
+      user: {
+        ...provider.user,
+        avatarUrl: this.storage.resolveAvatarUrl(provider.user.avatarUrl),
+      },
+    };
+  }
 
   async findAll(query: ProviderQueryDto) {
     const prismaArgs = buildPrismaQuery(query, ['createdAt', 'specialty'], {
@@ -76,7 +92,11 @@ export class ProviderService {
       this.prisma.baseClient.provider.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    return buildPaginatedResponse(
+      data.map((p) => this.resolveAvatar(p)),
+      total,
+      query,
+    );
   }
 
   async findById(id: string) {
@@ -89,7 +109,7 @@ export class ProviderService {
         t('provider.not_found', 'Provider not found'),
       );
     }
-    return provider;
+    return this.resolveAvatar(provider);
   }
 
   async create(dto: CreateProviderDto) {
@@ -128,13 +148,13 @@ export class ProviderService {
       select: PROVIDER_WITH_USER_SELECT,
     });
 
-    return provider;
+    return this.resolveAvatar(provider);
   }
 
   async update(id: string, dto: UpdateProviderDto) {
     await this.findProviderOrFail(id);
 
-    return this.prisma.baseClient.provider.update({
+    const provider = await this.prisma.baseClient.provider.update({
       where: { id },
       data: {
         specialty: dto.specialty,
@@ -142,6 +162,8 @@ export class ProviderService {
       },
       select: PROVIDER_WITH_USER_SELECT,
     });
+
+    return this.resolveAvatar(provider);
   }
 
   async updateStatus(id: string, dto: UpdateProviderStatusDto) {

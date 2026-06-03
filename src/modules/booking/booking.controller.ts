@@ -15,6 +15,7 @@ import { BookingService } from './booking.service';
 import { BookingSlotService } from './booking-slot.service';
 import { BookingTicketGuard } from './booking-ticket.guard';
 import { PrismaService } from '@modules/database';
+import { StorageService } from '@modules/storage';
 import { RequestOtpDto } from './dto/request-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { CreateBookingDto } from './dto/create-booking.dto';
@@ -31,6 +32,7 @@ export class BookingController {
     private readonly bookingService: BookingService,
     private readonly slotService: BookingSlotService,
     private readonly prisma: PrismaService,
+    private readonly storage: StorageService,
   ) {}
 
   @Get('appointment-types')
@@ -63,7 +65,7 @@ export class BookingController {
         select: {
           id: true,
           specialty: true,
-          user: { select: { fullName: true } },
+          user: { select: { fullName: true, avatarUrl: true } },
         },
         orderBy: { createdAt: 'asc' },
       })
@@ -71,6 +73,7 @@ export class BookingController {
         rows.map((r) => ({
           id: r.id,
           displayName: r.user.fullName,
+          avatarUrl: this.storage.resolveAvatarUrl(r.user.avatarUrl),
           specialty: r.specialty,
         })),
       );

@@ -91,6 +91,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @RateLimit({ skip: true })
   async getProfile(@CurrentUser('id') userId: string) {
     return this.authService.getProfile(userId);
   }

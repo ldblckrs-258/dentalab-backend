@@ -7,6 +7,9 @@ import { SchedulingGateway } from '@modules/scheduling/scheduling.gateway';
 import { AppointmentEmailProducer } from './appointment-email.producer';
 import { RequestContextService } from '@modules/common/context/request-context';
 
+type ExternalTx = Parameters<AppointmentService['createAppointmentCore']>[2];
+type CreateApptArg = Parameters<AppointmentService['create']>[0];
+
 const PROVIDER_ID = 'provider-uuid';
 const START = new Date('2026-06-04T02:00:00.000Z');
 const END = new Date('2026-06-04T02:30:00.000Z');
@@ -106,7 +109,7 @@ describe('AppointmentService', () => {
       const { appt, emit } = await service.createAppointmentCore(
         coreInput,
         null,
-        externalTx as any,
+        externalTx as unknown as ExternalTx,
       );
 
       expect(externalTx.appointment.create).toHaveBeenCalled();
@@ -128,7 +131,11 @@ describe('AppointmentService', () => {
       };
 
       await expect(
-        service.createAppointmentCore(coreInput, null, externalTx as any),
+        service.createAppointmentCore(
+          coreInput,
+          null,
+          externalTx as unknown as ExternalTx,
+        ),
       ).rejects.toMatchObject({
         meta: { constraint: 'appointments_no_overlap' },
       });
@@ -174,7 +181,7 @@ describe('AppointmentService', () => {
         providerId: PROVIDER_ID,
         typeId: 'type-uuid',
         startTime: START.toISOString(),
-      } as any);
+      } as unknown as CreateApptArg);
 
       // findById return shape, NOT { appt, emit }.
       expect(result).not.toHaveProperty('emit');
@@ -197,7 +204,7 @@ describe('AppointmentService', () => {
         providerId: PROVIDER_ID,
         typeId: 'type-uuid',
         startTime: START.toISOString(),
-      } as any);
+      } as unknown as CreateApptArg);
 
       // The committed appointment is still returned despite the emit failure.
       expect(prisma.baseClient.appointment.findUnique).toHaveBeenCalled();
