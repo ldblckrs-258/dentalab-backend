@@ -54,8 +54,10 @@ export class StorageService {
     this.privateBucket = config.storage.S3_BUCKET;
     this.publicBucket =
       config.storage.S3_PUBLIC_BUCKET || config.storage.S3_BUCKET;
-    const base = config.storage.S3_PUBLIC_URL || config.storage.S3_ENDPOINT;
-    this.publicBaseUrl = `${base.replace(/\/+$/, '')}/${this.publicBucket}`;
+    const publicUrl = config.storage.S3_PUBLIC_URL?.replace(/\/+$/, '');
+    this.publicBaseUrl = publicUrl
+      ? publicUrl
+      : `${config.storage.S3_ENDPOINT.replace(/\/+$/, '')}/${this.publicBucket}`;
   }
 
   private bucketForKey(key: string): string {
