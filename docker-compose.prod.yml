@@ -70,13 +70,12 @@ services:
     restart: unless-stopped
     env_file: /opt/dentalab/secrets/worker.env
     networks: [dentalab-net]
-    mem_limit: 8g
+    mem_limit: 2g
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       backend: { condition: service_healthy }
     volumes:
-      - /opt/dentalab/models/onnx:/app/models/onnx:ro
       - hf_cache:/app/.hf_cache
     healthcheck:
       test:
