@@ -1,0 +1,114 @@
+name: dentalab
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    env_file: /opt/dentalab/secrets/postgres.env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [dentalab-net]
+    mem_limit: 2g
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    networks: [dentalab-net]
+    mem_limit: 512m
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    env_file: /opt/dentalab/secrets/rabbitmq.env
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    networks: [dentalab-net]
+    mem_limit: 512m
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: /opt/dentalab/secrets/backend.env
+    networks: [dentalab-net]
+    mem_limit: 1g
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test:
+        ['CMD', 'node', '-e', "require('http').get('http://localhost:3000/health/ready',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  worker:
+    build:
+      context: ../dentalab-worker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: /opt/dentalab/secrets/worker.env
+    networks: [dentalab-net]
+    mem_limit: 8g
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      backend: { condition: service_healthy }
+    volumes:
+      - /opt/dentalab/models/onnx:/app/models/onnx:ro
+      - hf_cache:/app/.hf_cache
+    healthcheck:
+      test:
+        ['CMD', 'python', '-c', "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 20s
+      timeout: 15s
+      retries: 10
+      start_period: 180s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /opt/dentalab/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [dentalab-net]
+    mem_limit: 256m
+    depends_on:
+      backend: { condition: service_healthy }
+
+networks:
+  dentalab-net:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitdata:
+  hf_cache:
+  caddy_data:
+  caddy_config:
