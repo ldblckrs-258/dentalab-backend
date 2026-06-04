@@ -37,10 +37,13 @@ export interface StorageFile {
   contentType: string;
 }
 
+const PUBLIC_KEY_PREFIXES = ['avatars/'];
+
 @Injectable()
 export class StorageService {
   private readonly logger = new Logger(StorageService.name);
-  private readonly bucket: string;
+  private readonly privateBucket: string;
+  private readonly publicBucket: string;
 
   private readonly publicBaseUrl: string;
 
@@ -48,9 +51,17 @@ export class StorageService {
     @Inject(S3_CLIENT) private readonly s3: S3Client,
     private readonly config: AppConfigService,
   ) {
-    this.bucket = config.storage.S3_BUCKET;
+    this.privateBucket = config.storage.S3_BUCKET;
+    this.publicBucket =
+      config.storage.S3_PUBLIC_BUCKET || config.storage.S3_BUCKET;
     const base = config.storage.S3_PUBLIC_URL || config.storage.S3_ENDPOINT;
-    this.publicBaseUrl = `${base.replace(/\/+$/, '')}/${this.bucket}`;
+    this.publicBaseUrl = `${base.replace(/\/+$/, '')}/${this.publicBucket}`;
+  }
+
+  private bucketForKey(key: string): string {
+    return PUBLIC_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))
+      ? this.publicBucket
+      : this.privateBucket;
   }
 
   async upload(file: Buffer, options: UploadOptions): Promise<StorageFile> {
@@ -67,7 +78,7 @@ export class StorageService {
 
     await this.s3.send(
       new PutObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketForKey(key),
         Key: key,
         Body: file,
         ContentType: options.contentType,
@@ -99,7 +110,7 @@ export class StorageService {
     const sseEnabled = this.config.storage.S3_SSE_ENABLED;
 
     const command = new PutObjectCommand({
-      Bucket: this.bucket,
+      Bucket: this.bucketForKey(key),
       Key: key,
       ContentType: contentType,
       ...(sseEnabled ? { ServerSideEncryption: 'AES256' as const } : {}),
@@ -129,7 +140,7 @@ export class StorageService {
     }
 
     const command = new GetObjectCommand({
-      Bucket: this.bucket,
+      Bucket: this.bucketForKey(key),
       Key: key,
       ResponseContentDisposition: contentDisposition,
     });
@@ -144,7 +155,7 @@ export class StorageService {
   async delete(key: string): Promise<void> {
     await this.s3.send(
       new DeleteObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketForKey(key),
         Key: key,
       }),
     );
@@ -155,7 +166,7 @@ export class StorageService {
     try {
       await this.s3.send(
         new HeadObjectCommand({
-          Bucket: this.bucket,
+          Bucket: this.bucketForKey(key),
           Key: key,
         }),
       );

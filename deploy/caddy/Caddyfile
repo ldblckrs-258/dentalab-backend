@@ -1,0 +1,11 @@
+api.dentalab.health.vn {
+	encode zstd gzip
+
+	# Caddy auto-upgrades WebSocket connections; socket.io (wss) works transparently.
+	reverse_proxy backend:3000
+
+	log {
+		output stdout
+		format console
+	}
+}
