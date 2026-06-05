@@ -1,41 +1,44 @@
 #!/usr/bin/env bash
-# Manual deploy: snapshot DB to R2, pull both repos, rebuild, restart.
-# Run from your machine: gcloud compute ssh dentalab-vm --zone=asia-southeast1-a --command='/opt/dentalab/app/dentalab-backend/deploy/scripts/deploy.sh'
+# Redeploy DentaLab to the GCP VM. RUN FROM YOUR LOCAL MACHINE (needs gcloud + rsync).
+#   ./dentalab-backend/deploy/scripts/deploy.sh
+#
+# The VM is NOT a git checkout — code is shipped by rsync (no GitHub creds needed).
+# Steps: sync local source -> VM, snapshot DB -> R2, rebuild + restart containers.
 set -euo pipefail
 
-APP_DIR=/opt/dentalab/app
-COMPOSE_FILE="$APP_DIR/dentalab-backend/docker-compose.prod.yml"
-SECRETS_FILE="${SECRETS_FILE:-/opt/dentalab/secrets/backend.env}"
-BACKUP_BUCKET="${BACKUP_BUCKET:-dentalab-private}"
-AWSCLI_IMAGE="${AWSCLI_IMAGE:-amazon/aws-cli:2.17.0}"
+VM="${VM:-dentalab-vm}"
+ZONE="${ZONE:-asia-southeast1-a}"
+REMOTE_APP=/opt/dentalab/app
+COMPOSE="$REMOTE_APP/dentalab-backend/docker-compose.prod.yml"
 
-read_secret() { sudo sed -n "s/^$1=//p" "$SECRETS_FILE" | tr -d '\r'; }
-export AWS_ACCESS_KEY_ID="$(read_secret S3_ACCESS_KEY)"
-export AWS_SECRET_ACCESS_KEY="$(read_secret S3_SECRET_KEY)"
-R2_ENDPOINT="${R2_ENDPOINT:-$(read_secret S3_ENDPOINT)}"
-: "${AWS_ACCESS_KEY_ID:?missing S3_ACCESS_KEY in $SECRETS_FILE}"
-: "${R2_ENDPOINT:?missing S3_ENDPOINT in $SECRETS_FILE}"
+# DentaLab/ root (3 levels up from this script) holds both repos.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOCAL_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-echo "[deploy] 1/4 Pre-deploy DB snapshot -> R2"
-TS=$(date +%Y%m%d-%H%M%S)
-docker compose -f "$COMPOSE_FILE" exec -T postgres \
-  pg_dump -U dentalab dentalab \
-  | gzip \
-  | docker run --rm -i \
-      -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY \
-      "$AWSCLI_IMAGE" \
-      s3 cp - "s3://${BACKUP_BUCKET}/backups/db-${TS}.sql.gz" --endpoint-url "$R2_ENDPOINT"
-echo "[deploy]     snapshot: s3://${BACKUP_BUCKET}/backups/db-${TS}.sql.gz"
+ssh_vm() { gcloud compute ssh "$VM" --zone="$ZONE" --command="$1"; }
 
-echo "[deploy] 2/4 git pull (both repos)"
-git -C "$APP_DIR/dentalab-backend" pull --ff-only
-git -C "$APP_DIR/dentalab-worker" pull --ff-only
+echo "[1/5] prepare VM (ssh alias, rsync, ownership)"
+gcloud compute config-ssh --quiet >/dev/null
+SSH_ALIAS="$VM.$ZONE.$(gcloud config get-value project 2>/dev/null)"
+ssh_vm 'command -v rsync >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq rsync; }; sudo chown -R "$USER" /opt/dentalab/app'
 
-echo "[deploy] 3/4 build + restart"
-docker compose -f "$COMPOSE_FILE" up -d --build
+echo "[2/5] rsync source -> VM"
+EXCLUDES=(--exclude '.git' --exclude 'node_modules' --exclude 'dist'
+  --exclude '.env' --exclude '.env.local' --exclude '__pycache__' --exclude '.venv'
+  --exclude '.hf_cache' --exclude 'models/onnx' --exclude '*.onnx' --exclude '*.onnx.data'
+  --exclude '.DS_Store' --exclude '._*')
+for repo in dentalab-backend dentalab-worker; do
+  echo "  -> $repo"
+  rsync -az --delete "${EXCLUDES[@]}" -e ssh \
+    "$LOCAL_ROOT/$repo/" "$SSH_ALIAS:$REMOTE_APP/$repo/"
+done
 
-echo "[deploy] 4/4 prune dangling images"
-docker image prune -f
+echo "[3/5] pre-deploy DB snapshot -> R2"
+ssh_vm "$REMOTE_APP/dentalab-backend/deploy/scripts/snapshot-db.sh" || echo "  (snapshot failed; continuing)"
 
-echo "[deploy] done. Status:"
-docker compose -f "$COMPOSE_FILE" ps
+echo "[4/5] build + restart on VM"
+ssh_vm "docker compose -f $COMPOSE up -d --build && docker image prune -f"
+
+echo "[5/5] status"
+ssh_vm "docker compose -f $COMPOSE ps"
+echo "[deploy] done."
