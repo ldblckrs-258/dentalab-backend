@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Manual deploy: snapshot DB to R2, pull both repos, rebuild, restart.
-# Run from your machine: ssh dentalab-vm '/opt/dentalab/app/dentalab-backend/deploy/scripts/deploy.sh'
+# Run from your machine: gcloud compute ssh dentalab-vm --zone=asia-southeast1-a --command='/opt/dentalab/app/dentalab-backend/deploy/scripts/deploy.sh'
 set -euo pipefail
 
 APP_DIR=/opt/dentalab/app
