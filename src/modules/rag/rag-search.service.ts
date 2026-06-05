@@ -8,6 +8,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { extractPageRange } from './dto/rag-search-result.dto';
 import type {
   RagSearchResponse,
   RagSearchResult,
@@ -147,6 +148,7 @@ export class RagSearchService {
       heading: r.heading ?? null,
       headingLevel: r.heading_level ?? 0,
       breadcrumbs: r.breadcrumbs ?? [],
+      ...extractPageRange(r.metadata),
     };
   }
 

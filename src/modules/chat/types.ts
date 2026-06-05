@@ -73,6 +73,8 @@ export interface CitationItem {
   snippet: string;
   score: number;
   linkTo: string;
+  pageStart?: number;
+  pageEnd?: number;
   patientName?: string;
   signedAt?: string;
 }

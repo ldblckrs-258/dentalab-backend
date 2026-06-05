@@ -127,6 +127,10 @@ export class CitationMapperService {
         score: h.score,
         linkTo,
       };
+      if (typeof h.pageStart === 'number') {
+        item.pageStart = h.pageStart;
+        item.pageEnd = typeof h.pageEnd === 'number' ? h.pageEnd : h.pageStart;
+      }
       if (h.sourceType === 'clinical_note' && noteMeta) {
         if (noteMeta.patientName) item.patientName = noteMeta.patientName;
         if (noteMeta.signedAt) item.signedAt = noteMeta.signedAt;

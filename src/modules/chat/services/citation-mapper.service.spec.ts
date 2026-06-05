@@ -145,6 +145,31 @@ describe('CitationMapperService', () => {
     expect(findMany).not.toHaveBeenCalled();
   });
 
+  it('stamps pageStart/pageEnd when hit carries a page range', async () => {
+    const { citations: out } = await service.toCitations([
+      makeHit({ sourceId: 'doc-1', pageStart: 3, pageEnd: 4 }),
+    ]);
+    expect(out[0].pageStart).toBe(3);
+    expect(out[0].pageEnd).toBe(4);
+    expect(out[0].title).toBe('Gingivitis SOP');
+  });
+
+  it('defaults pageEnd to pageStart when only start present', async () => {
+    const { citations: out } = await service.toCitations([
+      makeHit({ sourceId: 'doc-1', pageStart: 2, pageEnd: undefined }),
+    ]);
+    expect(out[0].pageStart).toBe(2);
+    expect(out[0].pageEnd).toBe(2);
+  });
+
+  it('omits page fields when hit has no page', async () => {
+    const { citations: out } = await service.toCitations([
+      makeHit({ sourceId: 'doc-1' }),
+    ]);
+    expect(out[0].pageStart).toBeUndefined();
+    expect(out[0].pageEnd).toBeUndefined();
+  });
+
   it('returns dedupedHits aligned 1:1 with citations after dedup', async () => {
     const { citations, dedupedHits } = await service.toCitations([
       makeHit({ childChunkId: 'c-a', parentChunkId: 'p1' }),
