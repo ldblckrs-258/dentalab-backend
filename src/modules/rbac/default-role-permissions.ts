@@ -142,6 +142,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat', 'use'),
     perm('rag_internal_docs', 'read'),
     perm('email_logs', 'read'),
+    perm('financial_reports', 'read'),
     perm('audit_logs', 'read'),
     scopedPerm('audit_logs', 'read', 'operations'),
   ],

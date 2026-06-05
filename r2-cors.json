@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://app.dentalab.health.vn",
+          "http://localhost:3081"
+        ],
+        "methods": ["GET", "HEAD"],
+        "headers": ["*"]
+      },
+      "exposeHeaders": ["Content-Length", "Content-Type", "Content-Disposition"],
+      "maxAgeSeconds": 3600
+    }
+  ]
+}

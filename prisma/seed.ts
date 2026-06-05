@@ -268,6 +268,13 @@ const PERMISSIONS: {
     description: 'CRUD AI provider + model',
   },
 
+  // Financial reporting (dashboard revenue + pipeline)
+  {
+    resource: 'financial_reports',
+    action: 'read',
+    description: 'Xem báo cáo doanh thu & pipeline trên bảng điều khiển',
+  },
+
   // Scoped: Admin user management
   {
     resource: 'users',

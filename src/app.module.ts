@@ -30,6 +30,7 @@ import { RagModule } from '@modules/rag/rag.module';
 import { AiConfigModule } from '@modules/ai-config/ai-config.module';
 import { ChatModule } from '@modules/chat/chat.module';
 import { BookingModule } from '@modules/booking/booking.module';
+import { DashboardModule } from '@modules/dashboard/dashboard.module';
 import { DEFAULT_LANGUAGE } from '@common/constants';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -80,6 +81,7 @@ const isDev = process.env.NODE_ENV !== 'production';
     AiConfigModule,
     ChatModule,
     BookingModule,
+    DashboardModule,
     HealthModule,
   ],
   controllers: [AppController],

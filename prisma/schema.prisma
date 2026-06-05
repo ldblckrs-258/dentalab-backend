@@ -358,6 +358,7 @@ model PatientProcedure {
   @@index([treatmentPlanId])
   @@index([appointmentId])
   @@index([status, scheduledAt])
+  @@index([feeFinalizedAt])
   @@map("patient_procedures")
 }
 

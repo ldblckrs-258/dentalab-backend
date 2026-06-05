@@ -22,31 +22,37 @@
       Đây là nhắc nhở về lịch hẹn của bạn tại {{clinicName}} vào ngày mai.
     </mj-text>
     {{/if}}
-    <mj-section padding="0 0 20px">
-      <mj-column
-        background-color="#f4f4f5"
-        border-radius="12px"
-        padding="20px"
+    <mj-text padding="0 0 20px">
+      <table
+        role="presentation"
+        width="100%"
+        cellpadding="0"
+        cellspacing="0"
+        style="border-collapse: separate; background-color: #f4f4f5; border-radius: 12px"
       >
-        <mj-text padding="0 0 8px">
-          <strong>Dịch vụ:</strong> {{serviceName}}
-        </mj-text>
-        <mj-text padding="0 0 8px">
-          <strong>Ngày khám:</strong> {{appointmentDate}}
-        </mj-text>
-        <mj-text padding="0 0 8px">
-          <strong>Giờ khám:</strong> {{appointmentTime}}
-        </mj-text>
-        {{#unless isUser}}
-        <mj-text padding="0 0 8px">
-          <strong>Bác sĩ:</strong> {{providerName}}
-        </mj-text>
-        {{/unless}}
-        <mj-text padding="0">
-          <strong>Mã đặt lịch:</strong> {{referenceId}}
-        </mj-text>
-      </mj-column>
-    </mj-section>
+        <tr>
+          <td
+            style="padding: 20px; font-family: Inter, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #27272a"
+          >
+            <p style="margin: 0 0 8px">
+              <strong>Dịch vụ:</strong> {{serviceName}}
+            </p>
+            <p style="margin: 0 0 8px">
+              <strong>Ngày khám:</strong> {{appointmentDate}}
+            </p>
+            <p style="margin: 0 0 8px">
+              <strong>Giờ khám:</strong> {{appointmentTime}}
+            </p>
+            {{#unless isUser}}
+            <p style="margin: 0 0 8px">
+              <strong>Bác sĩ:</strong> {{providerName}}
+            </p>
+            {{/unless}}
+            <p style="margin: 0"><strong>Mã đặt lịch:</strong> {{referenceId}}</p>
+          </td>
+        </tr>
+      </table>
+    </mj-text>
     <mj-text font-size="12px" color="#71717a" padding="0">
       Vui lòng đến đúng giờ. Nếu cần thay đổi, hãy gọi hotline {{hotline}} ngay.
     </mj-text>
