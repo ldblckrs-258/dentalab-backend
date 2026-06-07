@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
 import { AppointmentService } from '@modules/appointment';
-import { tryMapConflict } from '@modules/appointment/appointment-conflict.mapper';
+import {
+  isOperatoryConstraint,
+  tryMapConflict,
+} from '@modules/appointment/appointment-conflict.mapper';
 import { BookingSlotService } from './booking-slot.service';
 import { t } from '@common/utils';
 import type { CreateBookingDto } from './dto/create-booking.dto';
@@ -74,92 +77,116 @@ export class BookingService {
         ? dto.providerId
         : matchedSlot.providerIds[0];
 
-    // Resolve patient, consume the single-use ticket, and create the appointment
-    // in ONE transaction. A slot-overlap (23P01) at insert time rolls the whole
-    // unit back, so the ticket stays unconsumed (retryable) and no orphan patient
-    // row is left behind.
-    let result: { appt: { id: string; startTime: Date }; emit: () => void };
-    try {
-      result = await this.prisma.transaction(async (tx) => {
-        // The transaction client is unextended, so the soft-delete filter is NOT
-        // auto-applied — carry deletedAt/isActive explicitly.
-        const existingPatients = await tx.patient.findMany({
-          where: {
-            email: { equals: emailLower, mode: 'insensitive' },
-            deletedAt: null,
-            isActive: true,
-          },
-          select: { id: true },
-        });
+    // Auto-assign the highest-priority free operatory. Each attempt runs in its
+    // OWN transaction: a 23P01 aborts a Postgres transaction, so retrying inside
+    // one transaction is impossible. On an operatory conflict we open a fresh
+    // transaction for the next operatory; the single-use ticket is consumed only
+    // by the committing attempt (a failed attempt rolls the consume back).
+    const freeOperatoryIds = await this.slotService.getFreeOperatoryIds(
+      startTime,
+      endTime,
+    );
 
-        let patientId: string;
-        if (existingPatients.length === 1) {
-          patientId = existingPatients[0].id;
-        } else {
-          if (existingPatients.length > 1) {
-            this.logger.warn(
-              `Ambiguous patient email on portal booking: ${emailLower} matches ${existingPatients.length} records — creating new patient`,
-            );
-          }
-          const newPatient = await tx.patient.create({
-            data: {
-              firstName: dto.patient.firstName,
-              lastName: dto.patient.lastName,
-              phone: dto.patient.phone,
-              email: emailLower,
-              gender: dto.patient.gender,
-              address: dto.patient.address,
-              dateOfBirth: dto.patient.dateOfBirth
-                ? new Date(dto.patient.dateOfBirth)
-                : undefined,
+    let result: {
+      appt: { id: string; startTime: Date };
+      emit: () => void;
+    } | null = null;
+
+    for (const operatoryId of freeOperatoryIds) {
+      try {
+        result = await this.prisma.transaction(async (tx) => {
+          // Unextended tx client: carry deletedAt/isActive explicitly.
+          const existingPatients = await tx.patient.findMany({
+            where: {
+              email: { equals: emailLower, mode: 'insensitive' },
+              deletedAt: null,
+              isActive: true,
             },
             select: { id: true },
           });
-          patientId = newPatient.id;
-        }
 
-        // Atomically consume the single-use ticket. Concurrent requests with the
-        // same ticket race here; only the one that flips consumedAt (count === 1)
-        // proceeds — the rest get a 409.
-        const consumed = await tx.bookingVerification.updateMany({
-          where: { id: ticket.verificationId, consumedAt: null },
-          data: { consumedAt: new Date() },
-        });
-        if (consumed.count === 0) {
-          throw new ConflictException(
-            t(
-              'booking.TICKET_ALREADY_USED',
-              'This booking session has already been used',
-            ),
+          let patientId: string;
+          if (existingPatients.length === 1) {
+            patientId = existingPatients[0].id;
+          } else {
+            if (existingPatients.length > 1) {
+              this.logger.warn(
+                `Ambiguous patient email on portal booking: ${emailLower} matches ${existingPatients.length} records — creating new patient`,
+              );
+            }
+            const newPatient = await tx.patient.create({
+              data: {
+                firstName: dto.patient.firstName,
+                lastName: dto.patient.lastName,
+                phone: dto.patient.phone,
+                email: emailLower,
+                gender: dto.patient.gender,
+                address: dto.patient.address,
+                dateOfBirth: dto.patient.dateOfBirth
+                  ? new Date(dto.patient.dateOfBirth)
+                  : undefined,
+              },
+              select: { id: true },
+            });
+            patientId = newPatient.id;
+          }
+
+          const consumed = await tx.bookingVerification.updateMany({
+            where: { id: ticket.verificationId, consumedAt: null },
+            data: { consumedAt: new Date() },
+          });
+          if (consumed.count === 0) {
+            throw new ConflictException(
+              t(
+                'booking.TICKET_ALREADY_USED',
+                'This booking session has already been used',
+              ),
+            );
+          }
+
+          return this.appointmentService.createAppointmentCore(
+            {
+              patientId,
+              providerId: chosenProviderId,
+              typeId: dto.typeId,
+              operatoryId,
+              startTime,
+              endTime,
+              status: 'scheduled',
+              bookingSource: 'patient_portal',
+              chiefComplaint: dto.chiefComplaint,
+            },
+            null,
+            tx,
           );
+        });
+        break;
+      } catch (err) {
+        // Operatory taken between free-list computation and insert: the tx is
+        // rolled back (ticket freed) — try the next free operatory.
+        if (isOperatoryConstraint(err)) {
+          continue;
         }
+        // Provider overlap → 409; any other error (incl. TICKET_ALREADY_USED) rethrows.
+        await tryMapConflict(err, {
+          db: this.prisma.baseClient,
+          providerId: chosenProviderId,
+          operatoryId,
+          startTime,
+          endTime,
+        });
+        throw err;
+      }
+    }
 
-        // Raw 23P01 propagates out of the transaction; mapped below after rollback.
-        return this.appointmentService.createAppointmentCore(
-          {
-            patientId,
-            providerId: chosenProviderId,
-            typeId: dto.typeId,
-            startTime,
-            endTime,
-            status: 'scheduled',
-            bookingSource: 'patient_portal',
-            chiefComplaint: dto.chiefComplaint,
-          },
-          null,
-          tx,
-        );
-      });
-    } catch (err) {
-      // After rollback: map slot-overlap to a 409 using baseClient (not the tx
-      // client). Non-overlap errors (incl. TICKET_ALREADY_USED) rethrow unchanged.
-      await tryMapConflict(err, {
-        db: this.prisma.baseClient,
-        providerId: chosenProviderId,
-        startTime,
-        endTime,
-      });
-      throw err;
+    if (!result) {
+      // No operatory configured, or all free ones were taken in the race.
+      throw new ConflictException(
+        t(
+          'booking.SLOT_UNAVAILABLE',
+          'This time slot is no longer available; please choose another',
+        ),
+      );
     }
 
     // Side-effects only after commit; a failure here must not fail the booking.

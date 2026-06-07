@@ -1,22 +1,30 @@
 import { ConflictException } from '@nestjs/common';
 import type { PrismaClient } from '@prisma/client';
 import { t } from '@common/utils';
+import { NON_CONFLICTING_APPOINTMENT_STATUSES } from '@common/constants/app.constants';
 
-const OVERLAP_CONSTRAINT = 'appointments_no_overlap';
-const PG_EXCLUSION_VIOLATION = '23P01';
+const PROVIDER_OVERLAP_CONSTRAINT = 'appointments_no_overlap';
+const OPERATORY_OVERLAP_CONSTRAINT = 'appointments_operatory_no_overlap';
+const ACTIVE_STATUS = { notIn: NON_CONFLICTING_APPOINTMENT_STATUSES };
 
-function isOverlapError(err: unknown): boolean {
-  if (err === null || typeof err !== 'object') return false;
+function constraintText(err: unknown): string {
+  if (err === null || typeof err !== 'object') return '';
   const e = err as Record<string, unknown>;
   const meta = e['meta'] as Record<string, unknown> | undefined;
-  if (meta?.['constraint'] === OVERLAP_CONSTRAINT) return true;
-  const msg: string = typeof e['message'] === 'string' ? e['message'] : '';
-  if (msg.includes(OVERLAP_CONSTRAINT)) return true;
+  const metaConstraint =
+    typeof meta?.['constraint'] === 'string' ? meta['constraint'] : '';
+  const msg = typeof e['message'] === 'string' ? e['message'] : '';
   const raw = e['cause'] as Record<string, unknown> | undefined;
-  if ((raw?.['code'] as string) === PG_EXCLUSION_VIOLATION) return true;
-  if ((raw?.['message'] as string | undefined)?.includes(OVERLAP_CONSTRAINT))
-    return true;
-  return false;
+  const rawMsg = typeof raw?.['message'] === 'string' ? raw['message'] : '';
+  return `${metaConstraint}\n${msg}\n${rawMsg}`;
+}
+
+export function isOperatoryConstraint(err: unknown): boolean {
+  return constraintText(err).includes(OPERATORY_OVERLAP_CONSTRAINT);
+}
+
+export function isProviderConstraint(err: unknown): boolean {
+  return constraintText(err).includes(PROVIDER_OVERLAP_CONSTRAINT);
 }
 
 export async function tryMapConflict(
@@ -26,29 +34,59 @@ export async function tryMapConflict(
     providerId: string;
     startTime: Date;
     endTime: Date;
+    operatoryId?: string | null;
     excludeId?: string;
   },
 ): Promise<never> {
-  if (!isOverlapError(err)) throw err;
+  // Operatory constraint is checked first: its name is more specific and a
+  // single insert can only violate one exclusion at a time.
+  if (isOperatoryConstraint(err)) {
+    const conflicting = context.operatoryId
+      ? await context.db.appointment.findMany({
+          where: {
+            operatoryId: context.operatoryId,
+            status: ACTIVE_STATUS,
+            ...(context.excludeId && { id: { not: context.excludeId } }),
+            startTime: { lt: context.endTime },
+            endTime: { gt: context.startTime },
+          },
+          select: { id: true },
+          take: 5,
+        })
+      : [];
 
-  const conflicting = await context.db.appointment.findMany({
-    where: {
-      providerId: context.providerId,
-      status: { not: 'cancelled' },
-      ...(context.excludeId && { id: { not: context.excludeId } }),
-      startTime: { lt: context.endTime },
-      endTime: { gt: context.startTime },
-    },
-    select: { id: true },
-    take: 5,
-  });
+    throw new ConflictException({
+      code: 'OPERATORY_OVERLAP',
+      message: t(
+        'appointment.OPERATORY_CONFLICT',
+        'Selected operatory is already booked for this time',
+      ),
+      conflictingAppointmentIds: conflicting.map((a) => a.id),
+    });
+  }
 
-  throw new ConflictException({
-    code: 'APPOINTMENT_OVERLAP',
-    message: t(
-      'appointment.SLOT_CONFLICT',
-      'Slot conflicts with an existing appointment',
-    ),
-    conflictingAppointmentIds: conflicting.map((a) => a.id),
-  });
+  if (isProviderConstraint(err)) {
+    const conflicting = await context.db.appointment.findMany({
+      where: {
+        providerId: context.providerId,
+        status: ACTIVE_STATUS,
+        ...(context.excludeId && { id: { not: context.excludeId } }),
+        startTime: { lt: context.endTime },
+        endTime: { gt: context.startTime },
+      },
+      select: { id: true },
+      take: 5,
+    });
+
+    throw new ConflictException({
+      code: 'APPOINTMENT_OVERLAP',
+      message: t(
+        'appointment.SLOT_CONFLICT',
+        'Slot conflicts with an existing appointment',
+      ),
+      conflictingAppointmentIds: conflicting.map((a) => a.id),
+    });
+  }
+
+  throw err;
 }

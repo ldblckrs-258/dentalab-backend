@@ -3,7 +3,11 @@ import { PrismaService } from '@modules/database';
 import { ProviderAvailabilityService } from '@modules/scheduling/provider-availability.service';
 import { subtractWindow, sliceWindow } from '@common/utils/interval-math';
 import type { TimeWindow } from '@common/utils/interval-math';
-import { DEFAULT_TIMEZONE } from '@common/constants/app.constants';
+import { operatoryOccupancyWhere } from '@common/utils';
+import {
+  DEFAULT_TIMEZONE,
+  NON_CONFLICTING_APPOINTMENT_STATUSES,
+} from '@common/constants/app.constants';
 
 export const SLOT_TIMEZONE = DEFAULT_TIMEZONE;
 const VN_OFFSET_MINUTES = 7 * 60;
@@ -17,6 +21,7 @@ export interface BookableSlot {
 export interface BookableSlotsResult {
   date: string;
   slots: BookableSlot[];
+  noOperatoriesConfigured?: boolean;
 }
 
 export interface GetBookableSlotsParams {
@@ -132,7 +137,54 @@ export class BookingSlotService {
       a.start.localeCompare(b.start),
     );
 
-    return { date, slots };
+    const activeOperatoryCount = await this.prisma.baseClient.operatory.count({
+      where: { isActive: true },
+    });
+    if (activeOperatoryCount === 0) {
+      return { date, slots: [], noOperatoriesConfigured: true };
+    }
+
+    const dayStart = new Date(`${date}T00:00:00.000Z`);
+    const dayEnd = new Date(`${date}T23:59:59.999Z`);
+    const occupied = await this.prisma.baseClient.appointment.findMany({
+      where: operatoryOccupancyWhere(dayStart, dayEnd),
+      select: { operatoryId: true, startTime: true, endTime: true },
+    });
+
+    const capacitySlots = slots.filter((slot) => {
+      const slotStart = new Date(slot.start).getTime();
+      const slotEnd = new Date(slot.end).getTime();
+      const busy = new Set<string>();
+      for (const appt of occupied) {
+        if (
+          appt.operatoryId &&
+          appt.startTime.getTime() < slotEnd &&
+          appt.endTime.getTime() > slotStart
+        ) {
+          busy.add(appt.operatoryId);
+        }
+      }
+      return busy.size < activeOperatoryCount;
+    });
+
+    return { date, slots: capacitySlots };
+  }
+
+  async getFreeOperatoryIds(start: Date, end: Date): Promise<string[]> {
+    const operatories = await this.prisma.baseClient.operatory.findMany({
+      where: { isActive: true },
+      orderBy: { displayOrder: 'asc' },
+      select: { id: true },
+    });
+    if (operatories.length === 0) return [];
+
+    const occupied = await this.prisma.baseClient.appointment.findMany({
+      where: operatoryOccupancyWhere(start, end),
+      select: { operatoryId: true },
+    });
+    const busy = new Set(occupied.map((a) => a.operatoryId));
+
+    return operatories.filter((o) => !busy.has(o.id)).map((o) => o.id);
   }
 
   private async getSlotsForProvider(
@@ -159,7 +211,7 @@ export class BookingSlotService {
         // boundary so their slots aren't shown as available.
         startTime: { lt: dayEnd },
         endTime: { gt: dayStart },
-        status: { notIn: ['cancelled', 'no_show'] },
+        status: { notIn: NON_CONFLICTING_APPOINTMENT_STATUSES },
       },
       select: { startTime: true, endTime: true },
     });

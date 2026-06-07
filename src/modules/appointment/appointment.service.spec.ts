@@ -33,6 +33,14 @@ function overlapError() {
   return err;
 }
 
+function operatoryOverlapError() {
+  const err = new Error(
+    'exclusion constraint appointments_operatory_no_overlap',
+  ) as Error & { meta?: { constraint: string } };
+  err.meta = { constraint: 'appointments_operatory_no_overlap' };
+  return err;
+}
+
 const coreInput = {
   patientId: 'patient-uuid',
   providerId: PROVIDER_ID,
@@ -75,6 +83,9 @@ describe('AppointmentService', () => {
         },
         provider: {
           findFirst: jest.fn().mockResolvedValue({ id: PROVIDER_ID }),
+        },
+        operatory: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'operatory-uuid' }),
         },
       },
       transaction: jest.fn((fn: (tx: any) => Promise<any>) => fn(ownTxMock)),
@@ -166,6 +177,19 @@ describe('AppointmentService', () => {
       ).rejects.toBeInstanceOf(ConflictException);
       expect(prisma.baseClient.appointment.findMany).toHaveBeenCalled();
     });
+
+    it('without a tx: maps an operatory overlap to OPERATORY_OVERLAP', async () => {
+      ownTxMock.appointment.create.mockRejectedValue(operatoryOverlapError());
+
+      await expect(
+        service.createAppointmentCore(
+          { ...coreInput, operatoryId: 'operatory-uuid' },
+          'user-1',
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'OPERATORY_OVERLAP' },
+      });
+    });
   });
 
   describe('create (staff path)', () => {
@@ -180,6 +204,7 @@ describe('AppointmentService', () => {
         patientId: 'patient-uuid',
         providerId: PROVIDER_ID,
         typeId: 'type-uuid',
+        operatoryId: 'operatory-uuid',
         startTime: START.toISOString(),
       } as unknown as CreateApptArg);
 
@@ -203,12 +228,54 @@ describe('AppointmentService', () => {
         patientId: 'patient-uuid',
         providerId: PROVIDER_ID,
         typeId: 'type-uuid',
+        operatoryId: 'operatory-uuid',
         startTime: START.toISOString(),
       } as unknown as CreateApptArg);
 
       // The committed appointment is still returned despite the emit failure.
       expect(prisma.baseClient.appointment.findUnique).toHaveBeenCalled();
       expect(result).not.toHaveProperty('emit');
+    });
+
+    it('rejects when the operatory is not found or inactive', async () => {
+      jest.spyOn(RequestContextService, 'getUserId').mockReturnValue('user-1');
+      availability.getAvailability.mockResolvedValue({
+        hasApprovedDayOff: false,
+        windows: [{ start: '00:00', end: '23:59' }],
+      });
+      prisma.baseClient.operatory.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          patientId: 'patient-uuid',
+          providerId: PROVIDER_ID,
+          typeId: 'type-uuid',
+          operatoryId: 'missing-operatory',
+          startTime: START.toISOString(),
+        } as unknown as CreateApptArg),
+      ).rejects.toThrow();
+    });
+
+    it('passes operatoryId through to createAppointmentCore', async () => {
+      jest.spyOn(RequestContextService, 'getUserId').mockReturnValue('user-1');
+      availability.getAvailability.mockResolvedValue({
+        hasApprovedDayOff: false,
+        windows: [{ start: '00:00', end: '23:59' }],
+      });
+      const coreSpy = jest.spyOn(service, 'createAppointmentCore');
+
+      await service.create({
+        patientId: 'patient-uuid',
+        providerId: PROVIDER_ID,
+        typeId: 'type-uuid',
+        operatoryId: 'operatory-uuid',
+        startTime: START.toISOString(),
+      } as unknown as CreateApptArg);
+
+      expect(coreSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ operatoryId: 'operatory-uuid' }),
+        'user-1',
+      );
     });
   });
 });

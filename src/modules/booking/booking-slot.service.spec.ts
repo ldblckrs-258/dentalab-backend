@@ -51,6 +51,10 @@ describe('BookingSlotService', () => {
         appointment: {
           findMany: jest.fn(),
         },
+        operatory: {
+          count: jest.fn().mockResolvedValue(3),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
       },
     };
 
@@ -375,6 +379,110 @@ describe('BookingSlotService', () => {
 
       expect(result.slots).toHaveLength(1);
       expect(result.slots[0].providerIds).toEqual([PROVIDER_A]);
+    });
+  });
+
+  describe('operatory capacity', () => {
+    it('drops a slot when all operatories are occupied at that time', async () => {
+      const date = makeTomorrow();
+      setupType(TYPE_30MIN, 30);
+      setupJunction([PROVIDER_A]);
+      setupWindow(PROVIDER_A, '09:00', '09:30');
+      // Single operatory, occupied during the 02:00-02:30Z slot.
+      prisma.baseClient.operatory.count.mockResolvedValue(1);
+      prisma.baseClient.appointment.findMany.mockImplementation((args: any) => {
+        if (args?.where?.operatoryId) {
+          return Promise.resolve([
+            {
+              operatoryId: 'op-1',
+              startTime: new Date(`${date}T02:00:00.000Z`),
+              endTime: new Date(`${date}T02:30:00.000Z`),
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await service.getBookableSlots({
+        typeId: TYPE_30MIN,
+        date,
+      });
+
+      expect(result.slots).toEqual([]);
+    });
+
+    it('keeps a slot while a free operatory remains (occupied < N)', async () => {
+      const date = makeTomorrow();
+      setupType(TYPE_30MIN, 30);
+      setupJunction([PROVIDER_A]);
+      setupWindow(PROVIDER_A, '09:00', '09:30');
+      prisma.baseClient.operatory.count.mockResolvedValue(2);
+      prisma.baseClient.appointment.findMany.mockImplementation((args: any) => {
+        if (args?.where?.operatoryId) {
+          return Promise.resolve([
+            {
+              operatoryId: 'op-1',
+              startTime: new Date(`${date}T02:00:00.000Z`),
+              endTime: new Date(`${date}T02:30:00.000Z`),
+            },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await service.getBookableSlots({
+        typeId: TYPE_30MIN,
+        date,
+      });
+
+      expect(result.slots).toHaveLength(1);
+    });
+
+    it('returns empty slots and noOperatoriesConfigured when N=0', async () => {
+      setupType(TYPE_30MIN, 30);
+      setupJunction([PROVIDER_A]);
+      setupNoBookings();
+      setupWindow(PROVIDER_A, '09:00', '10:00');
+      prisma.baseClient.operatory.count.mockResolvedValue(0);
+
+      const result = await service.getBookableSlots({
+        typeId: TYPE_30MIN,
+        date: makeTomorrow(),
+      });
+
+      expect(result.slots).toEqual([]);
+      expect(result.noOperatoriesConfigured).toBe(true);
+    });
+  });
+
+  describe('getFreeOperatoryIds', () => {
+    it('returns active operatory ids (by displayOrder) minus occupied ones', async () => {
+      prisma.baseClient.operatory.findMany.mockResolvedValue([
+        { id: 'op-1' },
+        { id: 'op-2' },
+        { id: 'op-3' },
+      ]);
+      prisma.baseClient.appointment.findMany.mockResolvedValue([
+        { operatoryId: 'op-2' },
+      ]);
+
+      const free = await service.getFreeOperatoryIds(
+        new Date('2026-06-07T02:00:00.000Z'),
+        new Date('2026-06-07T02:30:00.000Z'),
+      );
+
+      expect(free).toEqual(['op-1', 'op-3']);
+    });
+
+    it('returns empty array when no active operatories exist', async () => {
+      prisma.baseClient.operatory.findMany.mockResolvedValue([]);
+
+      const free = await service.getFreeOperatoryIds(
+        new Date('2026-06-07T02:00:00.000Z'),
+        new Date('2026-06-07T02:30:00.000Z'),
+      );
+
+      expect(free).toEqual([]);
     });
   });
 });

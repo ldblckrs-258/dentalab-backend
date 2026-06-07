@@ -1,0 +1,7 @@
+{
+  "not_found": "Không tìm thấy phòng/ghế điều trị",
+  "duplicate_code": "Đã tồn tại phòng/ghế điều trị với mã này",
+  "already_inactive": "Phòng/ghế điều trị này đã bị vô hiệu",
+  "has_future_appointments": "Phòng/ghế điều trị đang có lịch hẹn sắp tới; hãy chuyển hoặc hủy các lịch hẹn đó trước khi vô hiệu",
+  "reorder_must_be_complete": "Thứ tự sắp xếp phải chứa đúng một lần mỗi phòng/ghế điều trị"
+}

@@ -9,6 +9,11 @@ export const MAX_PAGE_SIZE = 100;
 // Timezone
 export const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
+// Appointment statuses that release a time slot — an appointment in one of
+// these states no longer occupies its provider/operatory. Must mirror the
+// `appointments_*_no_overlap` gist exclusion predicates exactly.
+export const NON_CONFLICTING_APPOINTMENT_STATUSES = ['cancelled', 'no_show'];
+
 // Rate limiting
 export const DEFAULT_RATE_LIMIT_WINDOW = 60;
 export const DEFAULT_RATE_LIMIT_MAX = 200;
@@ -21,6 +26,7 @@ export const SOFT_DELETE_MODELS = [
   'Provider',
   'Procedure',
   'AppointmentType',
+  'Operatory',
   'UserPermissionOverride',
 ];
 

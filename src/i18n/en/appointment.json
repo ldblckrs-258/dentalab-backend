@@ -12,5 +12,7 @@
   "STATUS_TRANSITION_INVALID": "Cannot transition appointment from {from} to {to}",
   "PROVIDER_OFF": "Provider is off on this date",
   "OUTSIDE_HOURS": "Slot is outside provider working hours",
-  "SLOT_CONFLICT": "Slot conflicts with an existing appointment"
+  "SLOT_CONFLICT": "Slot conflicts with an existing appointment",
+  "OPERATORY_CONFLICT": "Selected operatory is already booked for this time",
+  "OPERATORY_NOT_FOUND": "Operatory not found or inactive"
 }

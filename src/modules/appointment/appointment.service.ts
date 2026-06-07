@@ -65,6 +65,9 @@ const APPOINTMENT_INCLUDE = {
       durationMinutes: true,
     },
   },
+  operatory: {
+    select: { id: true, name: true, code: true, color: true },
+  },
   patient: { select: { id: true, firstName: true, lastName: true } },
   provider: {
     select: {
@@ -119,13 +122,17 @@ export class AppointmentService {
     const startTime = new Date(dto.startTime);
     const endTime = new Date(startTime.getTime() + durationMs);
 
-    const [patient, provider] = await Promise.all([
+    const [patient, provider, operatory] = await Promise.all([
       this.prisma.baseClient.patient.findFirst({
         where: { id: dto.patientId, deletedAt: null },
         select: { id: true },
       }),
       this.prisma.baseClient.provider.findFirst({
         where: { id: dto.providerId, isActive: true },
+        select: { id: true },
+      }),
+      this.prisma.baseClient.operatory.findFirst({
+        where: { id: dto.operatoryId, isActive: true },
         select: { id: true },
       }),
     ]);
@@ -137,6 +144,10 @@ export class AppointmentService {
       throw new NotFoundException(
         t('appointment.PROVIDER_NOT_FOUND', 'Provider not found or inactive'),
       );
+    if (!operatory)
+      throw new NotFoundException(
+        t('appointment.OPERATORY_NOT_FOUND', 'Operatory not found or inactive'),
+      );
 
     await this.validateAvailability(dto.providerId, startTime, endTime);
 
@@ -145,6 +156,7 @@ export class AppointmentService {
         patientId: dto.patientId,
         providerId: dto.providerId,
         typeId: dto.typeId,
+        operatoryId: dto.operatoryId,
         startTime,
         endTime,
         status: 'scheduled',
@@ -179,6 +191,7 @@ export class AppointmentService {
       patientId: string;
       providerId: string;
       typeId: string;
+      operatoryId?: string | null;
       startTime: Date;
       endTime: Date;
       status: string;
@@ -198,6 +211,7 @@ export class AppointmentService {
           patientId: input.patientId,
           providerId: input.providerId,
           typeId: input.typeId,
+          operatoryId: input.operatoryId ?? null,
           createdBy: createdById,
           startTime: input.startTime,
           endTime: input.endTime,
@@ -273,6 +287,7 @@ export class AppointmentService {
         await tryMapConflict(err, {
           db: this.prisma.baseClient,
           providerId: input.providerId,
+          operatoryId: input.operatoryId,
           startTime: input.startTime,
           endTime: input.endTime,
         });
@@ -432,7 +447,11 @@ export class AppointmentService {
         throw new BadRequestException('Appointment type is inactive');
     }
 
+    await this.assertOperatoryAssignable(dto.operatoryId, appt.operatoryId);
+
     const targetProviderId = dto.providerId ?? appt.providerId;
+    const targetOperatoryId =
+      dto.operatoryId !== undefined ? dto.operatoryId : appt.operatoryId;
     const existingDurationMs =
       appt.endTime.getTime() - appt.startTime.getTime();
     const targetDurationMs = dto.durationMinutes
@@ -461,6 +480,7 @@ export class AppointmentService {
     const data: {
       typeId?: string;
       providerId?: string;
+      operatoryId?: string | null;
       startTime?: Date;
       endTime?: Date;
       notes?: string | null;
@@ -468,6 +488,7 @@ export class AppointmentService {
     } = {};
     if (dto.typeId !== undefined) data.typeId = dto.typeId;
     if (dto.providerId !== undefined) data.providerId = dto.providerId;
+    if (dto.operatoryId !== undefined) data.operatoryId = dto.operatoryId;
     if (timeChanged) {
       data.startTime = targetStartTime;
       data.endTime = targetEndTime;
@@ -552,6 +573,7 @@ export class AppointmentService {
       await tryMapConflict(err, {
         db: this.prisma.baseClient,
         providerId: targetProviderId,
+        operatoryId: targetOperatoryId,
         startTime: targetStartTime,
         endTime: targetEndTime,
         excludeId: id,
@@ -594,6 +616,8 @@ export class AppointmentService {
     }
 
     const targetProviderId = dto.providerId ?? appt.providerId;
+    const targetOperatoryId =
+      dto.operatoryId !== undefined ? dto.operatoryId : appt.operatoryId;
     const existingDurationMs =
       appt.endTime.getTime() - appt.startTime.getTime();
     const durationMs = dto.durationMinutes
@@ -603,6 +627,8 @@ export class AppointmentService {
     const startTime = new Date(dto.startTime);
     const endTime = new Date(startTime.getTime() + durationMs);
 
+    await this.assertOperatoryAssignable(dto.operatoryId, appt.operatoryId);
+
     await this.validateAvailability(targetProviderId, startTime, endTime);
 
     let updated: typeof appt;
@@ -610,13 +636,19 @@ export class AppointmentService {
       updated = await this.prisma.transaction(async (tx) => {
         return tx.appointment.update({
           where: { id },
-          data: { startTime, endTime, providerId: targetProviderId },
+          data: {
+            startTime,
+            endTime,
+            providerId: targetProviderId,
+            operatoryId: targetOperatoryId,
+          },
         });
       });
     } catch (err) {
       await tryMapConflict(err, {
         db: this.prisma.baseClient,
         providerId: targetProviderId,
+        operatoryId: targetOperatoryId,
         startTime,
         endTime,
         excludeId: id,
@@ -635,6 +667,27 @@ export class AppointmentService {
     });
 
     return updated;
+  }
+
+  private async assertOperatoryAssignable(
+    operatoryId: string | undefined,
+    currentOperatoryId: string | null,
+  ): Promise<void> {
+    // Same-id resubmit is always valid: deactivation is blocked while future
+    // appointments exist, so an assigned room can never be retired out from
+    // under an appointment that still references it.
+    if (operatoryId === undefined || operatoryId === currentOperatoryId) {
+      return;
+    }
+    const operatory = await this.prisma.baseClient.operatory.findFirst({
+      where: { id: operatoryId, isActive: true },
+      select: { id: true },
+    });
+    if (!operatory) {
+      throw new NotFoundException(
+        t('appointment.OPERATORY_NOT_FOUND', 'Operatory not found or inactive'),
+      );
+    }
   }
 
   async findAll(query: ListAppointmentsQueryDto) {

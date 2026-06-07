@@ -1,0 +1,7 @@
+{
+  "not_found": "Operatory not found",
+  "duplicate_code": "An operatory with this code already exists",
+  "already_inactive": "Operatory is already inactive",
+  "has_future_appointments": "Operatory has upcoming appointments; reassign or cancel them before deactivating",
+  "reorder_must_be_complete": "Reorder must include every operatory id exactly once"
+}

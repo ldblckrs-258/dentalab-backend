@@ -21,6 +21,10 @@ export class UpdateAppointmentDto {
   providerId?: string;
 
   @IsOptional()
+  @IsUUID()
+  operatoryId?: string;
+
+  @IsOptional()
   @IsISO8601()
   startTime?: string;
 

@@ -51,11 +51,23 @@ function overlapError() {
   return err;
 }
 
+// Operatory exclusion violation: drives the auto-assign retry-next-operatory path.
+function operatoryOverlapError() {
+  const err = new Error(
+    'exclusion constraint appointments_operatory_no_overlap',
+  ) as Error & { meta?: { constraint: string } };
+  err.meta = { constraint: 'appointments_operatory_no_overlap' };
+  return err;
+}
+
 describe('BookingService', () => {
   let service: BookingService;
   let prisma: any;
   let txMock: any;
-  let slotService: { getBookableSlots: jest.Mock };
+  let slotService: {
+    getBookableSlots: jest.Mock;
+    getFreeOperatoryIds: jest.Mock;
+  };
   let appointmentService: { createAppointmentCore: jest.Mock };
 
   beforeEach(async () => {
@@ -76,7 +88,10 @@ describe('BookingService', () => {
       transaction: jest.fn((fn: (tx: any) => Promise<any>) => fn(txMock)),
     };
 
-    slotService = { getBookableSlots: jest.fn() } as any;
+    slotService = {
+      getBookableSlots: jest.fn(),
+      getFreeOperatoryIds: jest.fn().mockResolvedValue(['op-1']),
+    } as any;
     appointmentService = { createAppointmentCore: jest.fn() } as any;
 
     const module = await Test.createTestingModule({
@@ -406,5 +421,79 @@ describe('BookingService', () => {
         data: expect.objectContaining({ email: 'patient@example.com' }),
       }),
     );
+  });
+
+  it('auto-assigns the highest-priority (first) free operatory', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    slotService.getFreeOperatoryIds.mockResolvedValue(['op-A', 'op-B']);
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    mockCoreResolves();
+
+    await service.createBooking(TICKET, validDto);
+
+    expect(appointmentService.createAppointmentCore).toHaveBeenCalledTimes(1);
+    expect(appointmentService.createAppointmentCore).toHaveBeenCalledWith(
+      expect.objectContaining({ operatoryId: 'op-A' }),
+      null,
+      txMock,
+    );
+  });
+
+  it('retries the next free operatory in a fresh tx on an operatory conflict', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    slotService.getFreeOperatoryIds.mockResolvedValue(['op-A', 'op-B']);
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    appointmentService.createAppointmentCore
+      .mockRejectedValueOnce(operatoryOverlapError())
+      .mockResolvedValueOnce({ appt: makeCreatedAppt(), emit: jest.fn() });
+
+    await service.createBooking(TICKET, validDto);
+
+    expect(appointmentService.createAppointmentCore).toHaveBeenCalledTimes(2);
+    expect(appointmentService.createAppointmentCore).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ operatoryId: 'op-A' }),
+      null,
+      txMock,
+    );
+    expect(appointmentService.createAppointmentCore).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ operatoryId: 'op-B' }),
+      null,
+      txMock,
+    );
+    // Each attempt is its own transaction.
+    expect(prisma.transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws 409 SLOT_UNAVAILABLE when no operatory is free (e.g. none configured)', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    slotService.getFreeOperatoryIds.mockResolvedValue([]);
+
+    await expect(service.createBooking(TICKET, validDto)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(appointmentService.createAppointmentCore).not.toHaveBeenCalled();
+  });
+
+  it('throws 409 SLOT_UNAVAILABLE when every free operatory is taken in the race', async () => {
+    setupType();
+    slotService.getBookableSlots.mockResolvedValue(makeSlotResult());
+    slotService.getFreeOperatoryIds.mockResolvedValue(['op-A', 'op-B']);
+    txMock.patient.findMany.mockResolvedValue([{ id: 'patient-uuid' }]);
+    ticketConsumes();
+    appointmentService.createAppointmentCore.mockRejectedValue(
+      operatoryOverlapError(),
+    );
+
+    await expect(service.createBooking(TICKET, validDto)).rejects.toThrow(
+      ConflictException,
+    );
+    expect(appointmentService.createAppointmentCore).toHaveBeenCalledTimes(2);
   });
 });

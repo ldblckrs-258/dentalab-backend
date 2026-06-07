@@ -20,4 +20,8 @@ export class RescheduleAppointmentDto {
   @IsUUID()
   @IsOptional()
   providerId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  operatoryId?: string;
 }

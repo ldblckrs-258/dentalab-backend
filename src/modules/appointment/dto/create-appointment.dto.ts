@@ -20,6 +20,9 @@ export class CreateAppointmentDto {
   @IsUUID()
   typeId: string;
 
+  @IsUUID()
+  operatoryId: string;
+
   @IsISO8601()
   startTime: string;
 

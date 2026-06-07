@@ -108,6 +108,10 @@ const PERMISSIONS: {
   { resource: 'appointment_types', action: 'read' },
   { resource: 'appointment_types', action: 'update' },
   { resource: 'appointment_types', action: 'delete' },
+  { resource: 'operatories', action: 'create' },
+  { resource: 'operatories', action: 'read' },
+  { resource: 'operatories', action: 'update' },
+  { resource: 'operatories', action: 'delete' },
   { resource: 'treatment_plans', action: 'create' },
   { resource: 'treatment_plans', action: 'read' },
   {

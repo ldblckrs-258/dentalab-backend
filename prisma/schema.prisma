@@ -289,6 +289,7 @@ model Appointment {
   patientId          String             @map("patient_id") @db.Uuid
   providerId         String             @map("provider_id") @db.Uuid
   typeId             String             @map("type_id") @db.Uuid
+  operatoryId        String?            @map("operatory_id") @db.Uuid
   createdBy          String?            @map("created_by") @db.Uuid
   bookingSource      String             @default("staff") @map("booking_source")
   startTime          DateTime           @map("start_time")
@@ -310,12 +311,29 @@ model Appointment {
   patient            Patient            @relation(fields: [patientId], references: [id])
   provider           Provider           @relation(fields: [providerId], references: [id])
   appointmentType    AppointmentType    @relation(fields: [typeId], references: [id])
+  operatory          Operatory?         @relation(fields: [operatoryId], references: [id])
   clinicalNotes      ClinicalNote[]
   patientProcedures  PatientProcedure[]
 
   @@index([providerId, startTime])
   @@index([patientId])
+  @@index([operatoryId, startTime])
   @@map("appointments")
+}
+
+model Operatory {
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String
+  code         String        @unique
+  color        String
+  isActive     Boolean       @default(true) @map("is_active")
+  displayOrder Int           @map("display_order")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  appointments Appointment[]
+
+  @@index([isActive, displayOrder])
+  @@map("operatories")
 }
 
 /// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.

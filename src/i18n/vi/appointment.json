@@ -12,5 +12,7 @@
   "STATUS_TRANSITION_INVALID": "Không thể chuyển lịch hẹn từ {from} sang {to}",
   "PROVIDER_OFF": "Bác sĩ nghỉ trong ngày này",
   "OUTSIDE_HOURS": "Khung giờ nằm ngoài giờ làm việc của bác sĩ",
-  "SLOT_CONFLICT": "Khung giờ trùng với lịch hẹn khác"
+  "SLOT_CONFLICT": "Khung giờ trùng với lịch hẹn khác",
+  "OPERATORY_CONFLICT": "Phòng/ghế điều trị đã được đặt cho khung giờ này",
+  "OPERATORY_NOT_FOUND": "Không tìm thấy phòng/ghế điều trị hoặc đã ngừng hoạt động"
 }
