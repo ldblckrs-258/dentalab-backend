@@ -24,6 +24,14 @@ import type {
   TransitionStatusDto,
   TransitionableStatus,
 } from './dto/transition-status.dto';
+import { AppointmentHistoryService } from './appointment-history.service';
+import {
+  buildCreatedChanges,
+  buildRescheduleChanges,
+  buildStatusChange,
+  buildUpdateChanges,
+} from './appointment-history.builders';
+import type { AppointmentHistorySource } from './appointment-history.types';
 
 const STATUS_TRANSITION_MATRIX: Record<string, TransitionableStatus[]> = {
   scheduled: ['confirmed', 'checked_in', 'in_progress', 'completed', 'no_show'],
@@ -97,6 +105,7 @@ export class AppointmentService {
     private readonly availability: ProviderAvailabilityService,
     private readonly gateway: SchedulingGateway,
     private readonly emailProducer: AppointmentEmailProducer,
+    private readonly history: AppointmentHistoryService,
   ) {}
 
   async create(dto: CreateAppointmentDto) {
@@ -275,14 +284,36 @@ export class AppointmentService {
       return appt;
     };
 
+    const source: AppointmentHistorySource =
+      input.bookingSource === 'patient_portal' ? 'patient_portal' : 'staff';
+    const labels = await this.history.resolveLabels({
+      providerIds: [input.providerId],
+      operatoryIds: [input.operatoryId],
+      typeIds: [input.typeId],
+    });
+    const insertAndRecord = async (
+      client: Prisma.TransactionClient,
+    ): Promise<Appointment> => {
+      const appt = await insert(client);
+      await this.history.record(client, {
+        appointmentId: appt.id,
+        action: 'created',
+        changes: buildCreatedChanges(appt, labels),
+        source,
+      });
+      return appt;
+    };
+
     let created: Appointment;
     if (tx) {
       // External transaction: propagate the raw 23P01 so the caller maps it
       // after its own rollback.
-      created = await insert(tx);
+      created = await insertAndRecord(tx);
     } else {
       try {
-        created = await this.prisma.transaction((client) => insert(client));
+        created = await this.prisma.transaction((client) =>
+          insertAndRecord(client),
+        );
       } catch (err) {
         await tryMapConflict(err, {
           db: this.prisma.baseClient,
@@ -353,6 +384,13 @@ export class AppointmentService {
         data: { appointmentId: null },
       });
 
+      await this.history.record(tx, {
+        appointmentId: id,
+        action: 'cancelled',
+        changes: buildStatusChange(appt.status, 'cancelled'),
+        reason: dto.reason,
+      });
+
       return result;
     });
 
@@ -367,37 +405,50 @@ export class AppointmentService {
   }
 
   async transitionStatus(id: string, dto: TransitionStatusDto) {
-    const appt = await this.prisma.baseClient.appointment.findUnique({
-      where: { id },
-    });
-    if (!appt)
-      throw new NotFoundException(
-        t('appointment.NOT_FOUND', 'Appointment not found'),
-      );
+    const updated = await this.prisma.transaction(async (tx) => {
+      // Lock the row so concurrent transitions can't read a stale status or
+      // clobber each other's appended note.
+      await tx.$queryRaw`SELECT id FROM appointments WHERE id = ${id}::uuid FOR UPDATE`;
 
-    const allowed = STATUS_TRANSITION_MATRIX[appt.status] ?? [];
-    if (!allowed.includes(dto.status)) {
-      throw new BadRequestException(
-        t(
-          'appointment.STATUS_TRANSITION_INVALID',
-          `Cannot transition appointment from ${appt.status} to ${dto.status}`,
-          { args: { from: appt.status, to: dto.status } },
-        ),
-      );
-    }
+      const appt = await tx.appointment.findUnique({ where: { id } });
+      if (!appt)
+        throw new NotFoundException(
+          t('appointment.NOT_FOUND', 'Appointment not found'),
+        );
 
-    const data: {
-      status: TransitionableStatus;
-      notes?: string;
-    } = { status: dto.status };
-    if (dto.note?.trim()) {
-      const stamped = `[${dto.status}] ${dto.note.trim()}`;
-      data.notes = appt.notes ? `${appt.notes}\n${stamped}` : stamped;
-    }
+      const allowed = STATUS_TRANSITION_MATRIX[appt.status] ?? [];
+      if (!allowed.includes(dto.status)) {
+        throw new BadRequestException(
+          t(
+            'appointment.STATUS_TRANSITION_INVALID',
+            `Cannot transition appointment from ${appt.status} to ${dto.status}`,
+            { args: { from: appt.status, to: dto.status } },
+          ),
+        );
+      }
 
-    const updated = await this.prisma.baseClient.appointment.update({
-      where: { id },
-      data,
+      const data: {
+        status: TransitionableStatus;
+        notes?: string;
+      } = { status: dto.status };
+      if (dto.note?.trim()) {
+        const stamped = `[${dto.status}] ${dto.note.trim()}`;
+        data.notes = appt.notes ? `${appt.notes}\n${stamped}` : stamped;
+      }
+
+      const next = await tx.appointment.update({
+        where: { id },
+        data,
+      });
+
+      await this.history.record(tx, {
+        appointmentId: id,
+        action: 'status_changed',
+        changes: buildStatusChange(appt.status, dto.status),
+        reason: dto.note?.trim() || undefined,
+      });
+
+      return next;
     });
 
     this.gateway.emitAppointmentUpdated({
@@ -497,6 +548,37 @@ export class AppointmentService {
     if (dto.chiefComplaint !== undefined)
       data.chiefComplaint = dto.chiefComplaint || null;
 
+    // Resolve history labels + the procedure delta BEFORE the transaction so the
+    // tx body stays thin (keeps the GIST exclusion window small).
+    const fkLabels = await this.history.resolveLabels({
+      typeIds: [appt.typeId, dto.typeId],
+      providerIds: [appt.providerId, targetProviderId],
+      operatoryIds: [appt.operatoryId, targetOperatoryId],
+    });
+
+    let procAdded: { id: string; label: string }[] = [];
+    let procRemoved: { id: string; label: string }[] = [];
+    if (dto.procedureIds !== undefined) {
+      const desired = new Set(dto.procedureIds);
+      const currentLinked =
+        await this.prisma.baseClient.patientProcedure.findMany({
+          where: { appointmentId: id, deletedAt: null },
+          select: { id: true },
+        });
+      const currentIds = new Set(currentLinked.map((p) => p.id));
+      const addedIds = [...desired].filter((pid) => !currentIds.has(pid));
+      const removedIds = [...currentIds].filter((pid) => !desired.has(pid));
+      const procLabels = await this.history.resolveLabels({
+        procedureIds: [...addedIds, ...removedIds],
+      });
+      const toEntry = (pid: string) => ({
+        id: pid,
+        label: procLabels.procedures.get(pid) ?? '',
+      });
+      procAdded = addedIds.map(toEntry);
+      procRemoved = removedIds.map(toEntry);
+    }
+
     let updated: typeof appt;
     try {
       updated = await this.prisma.transaction(async (tx) => {
@@ -567,6 +649,15 @@ export class AppointmentService {
           }
         }
 
+        await this.history.record(tx, {
+          appointmentId: id,
+          action: 'updated',
+          changes: buildUpdateChanges(appt, next, fkLabels, {
+            added: procAdded,
+            removed: procRemoved,
+          }),
+        });
+
         return next;
       });
     } catch (err) {
@@ -631,10 +722,15 @@ export class AppointmentService {
 
     await this.validateAvailability(targetProviderId, startTime, endTime);
 
+    const labels = await this.history.resolveLabels({
+      providerIds: [appt.providerId, targetProviderId],
+      operatoryIds: [appt.operatoryId, targetOperatoryId],
+    });
+
     let updated: typeof appt;
     try {
       updated = await this.prisma.transaction(async (tx) => {
-        return tx.appointment.update({
+        const next = await tx.appointment.update({
           where: { id },
           data: {
             startTime,
@@ -643,6 +739,12 @@ export class AppointmentService {
             operatoryId: targetOperatoryId,
           },
         });
+        await this.history.record(tx, {
+          appointmentId: id,
+          action: 'rescheduled',
+          changes: buildRescheduleChanges(appt, next, labels),
+        });
+        return next;
       });
     } catch (err) {
       await tryMapConflict(err, {
@@ -735,6 +837,10 @@ export class AppointmentService {
         t('appointment.NOT_FOUND', 'Appointment not found'),
       );
     return appt;
+  }
+
+  getHistory(id: string) {
+    return this.history.list(id);
   }
 
   private async validateAvailability(

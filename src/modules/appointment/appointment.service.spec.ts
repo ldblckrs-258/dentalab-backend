@@ -1,11 +1,21 @@
 import { Test } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
 import { AppointmentService } from './appointment.service';
+import { AppointmentHistoryService } from './appointment-history.service';
 import { PrismaService } from '@modules/database';
 import { ProviderAvailabilityService } from '@modules/scheduling/provider-availability.service';
 import { SchedulingGateway } from '@modules/scheduling/scheduling.gateway';
 import { AppointmentEmailProducer } from './appointment-email.producer';
 import { RequestContextService } from '@modules/common/context/request-context';
+
+function emptyLabelMaps() {
+  return {
+    providers: new Map<string, string>(),
+    operatories: new Map<string, string>(),
+    types: new Map<string, string>(),
+    procedures: new Map<string, string>(),
+  };
+}
 
 type ExternalTx = Parameters<AppointmentService['createAppointmentCore']>[2];
 type CreateApptArg = Parameters<AppointmentService['create']>[0];
@@ -58,11 +68,14 @@ describe('AppointmentService', () => {
   let availability: { getAvailability: jest.Mock };
   let gateway: { emitAppointmentCreated: jest.Mock };
   let emailProducer: { publishCreated: jest.Mock };
+  let history: { record: jest.Mock; resolveLabels: jest.Mock };
 
   beforeEach(async () => {
     ownTxMock = {
       appointment: { create: jest.fn().mockResolvedValue(makeAppt()) },
       patientProcedure: { findMany: jest.fn(), updateMany: jest.fn() },
+      appointmentHistory: { create: jest.fn() },
+      $queryRaw: jest.fn(),
     };
 
     prisma = {
@@ -94,6 +107,10 @@ describe('AppointmentService', () => {
     availability = { getAvailability: jest.fn() } as any;
     gateway = { emitAppointmentCreated: jest.fn() } as any;
     emailProducer = { publishCreated: jest.fn() } as any;
+    history = {
+      record: jest.fn().mockResolvedValue(undefined),
+      resolveLabels: jest.fn().mockResolvedValue(emptyLabelMaps()),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -102,6 +119,7 @@ describe('AppointmentService', () => {
         { provide: ProviderAvailabilityService, useValue: availability },
         { provide: SchedulingGateway, useValue: gateway },
         { provide: AppointmentEmailProducer, useValue: emailProducer },
+        { provide: AppointmentHistoryService, useValue: history },
       ],
     }).compile();
 
@@ -189,6 +207,35 @@ describe('AppointmentService', () => {
       ).rejects.toMatchObject({
         response: { code: 'OPERATORY_OVERLAP' },
       });
+    });
+
+    it('records a created history entry on the same tx, source=staff', async () => {
+      await service.createAppointmentCore(coreInput, 'user-1');
+      expect(history.record).toHaveBeenCalledWith(
+        ownTxMock,
+        expect.objectContaining({ action: 'created', source: 'staff' }),
+      );
+    });
+
+    it('records source=patient_portal for a portal booking on the external tx', async () => {
+      const externalTx = {
+        appointment: { create: jest.fn().mockResolvedValue(makeAppt()) },
+        patientProcedure: { findMany: jest.fn(), updateMany: jest.fn() },
+        appointmentHistory: { create: jest.fn() },
+        $queryRaw: jest.fn(),
+      };
+      await service.createAppointmentCore(
+        { ...coreInput, bookingSource: 'patient_portal' },
+        null,
+        externalTx as unknown as ExternalTx,
+      );
+      expect(history.record).toHaveBeenCalledWith(
+        externalTx,
+        expect.objectContaining({
+          action: 'created',
+          source: 'patient_portal',
+        }),
+      );
     });
   });
 

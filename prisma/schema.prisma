@@ -21,6 +21,7 @@ model User {
   createdAiProviders       AiProvider[]               @relation("AiProviderCreatedBy")
   cancelledAppointments    Appointment[]              @relation("CancelledByUser")
   createdAppointments      Appointment[]              @relation("CreatedByUser")
+  appointmentHistory       AppointmentHistory[]       @relation("AppointmentHistoryActor")
   chatSessions             ChatSession[]
   clinicalNotesCreated     ClinicalNote[]             @relation("ClinicalNoteCreator")
   clinicalNotesSigned      ClinicalNote[]             @relation("ClinicalNoteSigner")
@@ -314,11 +315,29 @@ model Appointment {
   operatory          Operatory?         @relation(fields: [operatoryId], references: [id])
   clinicalNotes      ClinicalNote[]
   patientProcedures  PatientProcedure[]
+  history            AppointmentHistory[]
 
   @@index([providerId, startTime])
   @@index([patientId])
   @@index([operatoryId, startTime])
   @@map("appointments")
+}
+
+model AppointmentHistory {
+  id            String      @id @default(uuid()) @db.Uuid
+  appointmentId String      @map("appointment_id") @db.Uuid
+  action        String
+  changes       Json
+  reason        String?
+  source        String      @default("staff")
+  actorId       String?     @map("actor_id") @db.Uuid
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  actor         User?       @relation("AppointmentHistoryActor", fields: [actorId], references: [id])
+
+  @@index([appointmentId, createdAt])
+  @@map("appointment_history")
 }
 
 model Operatory {

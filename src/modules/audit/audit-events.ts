@@ -89,6 +89,8 @@ export const AUDIT_EVENTS = {
 
   APPOINTMENT_CREATED: { category: 'ops', severity: 'info' },
   APPOINTMENT_UPDATED: { category: 'ops', severity: 'info' },
+  APPOINTMENT_RESCHEDULED: { category: 'ops', severity: 'notice' },
+  APPOINTMENT_STATUS_CHANGED: { category: 'ops', severity: 'info' },
   APPOINTMENT_CANCELLED: { category: 'ops', severity: 'notice' },
   TREATMENT_PLAN_CREATED: { category: 'phi', severity: 'notice' },
   TREATMENT_PLAN_UPDATED: { category: 'phi', severity: 'notice' },
