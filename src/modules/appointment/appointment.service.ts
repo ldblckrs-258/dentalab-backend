@@ -277,7 +277,11 @@ export class AppointmentService {
 
         await client.patientProcedure.updateMany({
           where: { id: { in: input.procedureIds } },
-          data: { appointmentId: appt.id },
+          data: {
+            appointmentId: appt.id,
+            status: 'scheduled',
+            scheduledAt: new Date(),
+          },
         });
       }
 
@@ -377,6 +381,11 @@ export class AppointmentService {
           cancelledAt: new Date(),
           cancellationReason: dto.reason,
         },
+      });
+
+      await tx.patientProcedure.updateMany({
+        where: { appointmentId: id, status: 'scheduled', deletedAt: null },
+        data: { status: 'planned', scheduledAt: null },
       });
 
       await tx.patientProcedure.updateMany({
@@ -637,14 +646,22 @@ export class AppointmentService {
 
             await tx.patientProcedure.updateMany({
               where: { id: { in: toLink } },
-              data: { appointmentId: id },
+              data: {
+                appointmentId: id,
+                status: 'scheduled',
+                scheduledAt: new Date(),
+              },
             });
           }
 
           if (toUnlink.length > 0) {
             await tx.patientProcedure.updateMany({
-              where: { id: { in: toUnlink } },
-              data: { appointmentId: null },
+              where: { id: { in: toUnlink }, status: 'scheduled' },
+              data: {
+                appointmentId: null,
+                status: 'planned',
+                scheduledAt: null,
+              },
             });
           }
         }

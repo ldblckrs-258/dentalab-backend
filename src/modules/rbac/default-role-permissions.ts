@@ -111,19 +111,21 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
 
   [SYSTEM_ROLE_CODE.MANAGER]: [
     scopedPerm('users', 'read', 'non_admin'),
-    perm('appointments', 'create'),
+    // Appointments: read-only oversight. Booking/rescheduling/cancelling is
+    // owned by Receptionist + Doctor (front-desk + clinician); Manager only
+    // needs read for dashboard/reporting and schedule supervision.
     perm('appointments', 'read'),
     perm('patients', 'read'),
     ...allActions('appointment_types'),
     perm('operatories', 'read'),
     ...allActions('internal_documents'),
     ...allActions('inventory_items'),
-    perm('treatment_plans', 'create'),
+    // Treatment plans & procedures: Manager is a financial/coordination role,
+    // NOT a clinician. Read-full for oversight + fee finalization only.
+    // Clinical authoring (create/update/cancel plans, create procedures) is
+    // reserved for the licensed Doctor.
     perm('treatment_plans', 'read'),
     scopedPerm('treatment_plans', 'read', 'full'),
-    perm('treatment_plans', 'update'),
-    perm('treatment_plans', 'cancel'),
-    perm('patient_procedures', 'create'),
     perm('patient_procedures', 'read'),
     scopedPerm('patient_procedures', 'read', 'full'),
     perm('patient_procedures', 'finalize_fee'),
@@ -137,6 +139,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('provider_schedules', 'read'),
     perm('provider_schedules', 'update'),
     perm('provider_schedules', 'delete'),
+    perm('procedures', 'read'),
     perm('procedures', 'create'),
     perm('procedures', 'update'),
     perm('chat_sessions', 'create'),
