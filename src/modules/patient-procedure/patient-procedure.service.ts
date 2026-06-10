@@ -358,11 +358,21 @@ export class PatientProcedureService {
     const procedure = await this.findProcedureOrFail(id);
     await this.assertOwnProcedure(id, procedure);
 
-    if (procedure.status !== 'scheduled') {
+    if (!['planned', 'scheduled'].includes(procedure.status)) {
       throw new ConflictException({
         message: t(
           'patientProcedure.PROCEDURE_MUST_BE_SCHEDULED_TO_UNLINK',
-          'Only scheduled procedures can be unlinked from an appointment',
+          'Only planned or scheduled procedures can be unlinked from an appointment',
+        ),
+        errorCode: 'PROCEDURE_INVALID_TRANSITION',
+      });
+    }
+
+    if (!procedure.appointmentId) {
+      throw new ConflictException({
+        message: t(
+          'patientProcedure.PROCEDURE_NOT_LINKED',
+          'Procedure is not linked to an appointment',
         ),
         errorCode: 'PROCEDURE_INVALID_TRANSITION',
       });
@@ -577,6 +587,10 @@ export class PatientProcedureService {
         updateData.performedByProviderId = dto.performedByProviderId;
         break;
       case 'cancelled':
+        updateData.cancelledAt = now;
+        updateData.cancellationReason = dto.cancellationReason;
+        updateData.appointmentId = null;
+        break;
       case 'failed':
         updateData.cancelledAt = now;
         updateData.cancellationReason = dto.cancellationReason;
@@ -669,7 +683,7 @@ export class PatientProcedureService {
     > = {
       planned: [],
       scheduled: ['scheduled', 'confirmed', 'checked_in', 'in_progress'],
-      in_progress: ['in_progress'],
+      in_progress: ['in_progress', 'completed'],
       completed: ['in_progress', 'completed'],
       cancelled: [],
       failed: [],

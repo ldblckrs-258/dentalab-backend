@@ -400,6 +400,7 @@ export class TreatmentPlanService {
           status: 'cancelled',
           cancelledAt: new Date(),
           cancellationReason: 'Treatment plan cancelled',
+          appointmentId: null,
         },
       });
 

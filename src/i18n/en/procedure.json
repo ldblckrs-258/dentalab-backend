@@ -16,13 +16,13 @@
     "parse_error": "Could not parse the CSV file. Ensure it is valid UTF-8 CSV.",
     "too_many_rows": "CSV file exceeds the 1000-row limit. Split the file and try again.",
 
-    "row_missing_ada_code": "Row {{row}}: adaCode is required",
-    "row_missing_name": "Row {{row}}: name is required",
-    "row_invalid_ada_code_length": "Row {{row}}: adaCode must be 1–20 characters",
-    "row_invalid_duration": "Row {{row}}: durationMinutes must be a positive integer",
-    "row_invalid_fee": "Row {{row}}: defaultFee must be a non-negative number",
-    "row_invalid_is_active": "Row {{row}}: isActive must be 'true' or 'false'",
-    "row_intra_duplicate": "Row {{row}}: adaCode '{{adaCode}}' appears more than once in this file",
-    "race_conflict": "adaCode '{{adaCode}}' was inserted by another user during import. Re-upload to retry."
+    "row_missing_ada_code": "Row {row}: adaCode is required",
+    "row_missing_name": "Row {row}: name is required",
+    "row_invalid_ada_code_length": "Row {row}: adaCode must be 1–20 characters",
+    "row_invalid_duration": "Row {row}: durationMinutes must be a positive integer",
+    "row_invalid_fee": "Row {row}: defaultFee must be a non-negative number",
+    "row_invalid_is_active": "Row {row}: isActive must be 'true' or 'false'",
+    "row_intra_duplicate": "Row {row}: adaCode '{adaCode}' appears more than once in this file",
+    "race_conflict": "adaCode '{adaCode}' was inserted by another user during import. Re-upload to retry."
   }
 }
