@@ -127,4 +127,68 @@ describe('EmailWebhookController', () => {
     expect(result).toEqual({ received: true });
     expect(mockPrisma.baseClient.emailLog.update).not.toHaveBeenCalled();
   });
+
+  // Regression: prod 500 — @RawBody() was undefined (custom express.json
+  // stripped req.rawBody) → rawBody.toString() threw → Resend retried the 5xx.
+  it('returns 200 (no crash) when rawBody is undefined', async () => {
+    const result = await controller.handleResendWebhook(
+      undefined as unknown as Buffer,
+      defaultHeaders,
+    );
+
+    expect(result).toEqual({ received: true });
+    expect(webhookInstance.verify).not.toHaveBeenCalled();
+    expect(mockPrisma.baseClient.emailLog.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 for an empty body', async () => {
+    const result = await controller.handleResendWebhook(
+      Buffer.from(''),
+      defaultHeaders,
+    );
+
+    expect(result).toEqual({ received: true });
+    expect(mockPrisma.baseClient.emailLog.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 for invalid JSON', async () => {
+    webhookInstance.verify.mockReturnValue(undefined);
+
+    const result = await controller.handleResendWebhook(
+      Buffer.from('not-json{'),
+      defaultHeaders,
+    );
+
+    expect(result).toEqual({ received: true });
+    expect(mockPrisma.baseClient.emailLog.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 when payload has no email_id', async () => {
+    webhookInstance.verify.mockReturnValue(undefined);
+
+    const body = Buffer.from(JSON.stringify({ type: 'email.sent', data: {} }));
+    const result = await controller.handleResendWebhook(body, defaultHeaders);
+
+    expect(result).toEqual({ received: true });
+    expect(mockPrisma.baseClient.emailLog.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('handles email.delivery_delayed without status change', async () => {
+    webhookInstance.verify.mockReturnValue(undefined);
+    mockPrisma.baseClient.emailLog.findUnique.mockResolvedValue({
+      id: 'log-1',
+      status: 'sent',
+      webhookEvents: [],
+    });
+    mockPrisma.baseClient.emailLog.update.mockResolvedValue({});
+
+    const body = Buffer.from(makeEvent('email.delivery_delayed', 'resend-1'));
+    const result = await controller.handleResendWebhook(body, defaultHeaders);
+
+    expect(result).toEqual({ received: true });
+    // Unrecognized event type: only the raw event is appended, no status flip.
+    const updateArg = mockPrisma.baseClient.emailLog.update.mock.calls[0][0];
+    expect(updateArg.data.status).toBeUndefined();
+    expect(updateArg.data.webhookEvents).toHaveLength(1);
+  });
 });

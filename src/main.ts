@@ -28,8 +28,25 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ limit: '10mb', extended: true }));
+  // Preserve the raw request body so @RawBody() works (Resend/svix webhook
+  // signature verification needs the exact bytes). Without this verify hook the
+  // custom parsers consume the stream and req.rawBody stays undefined.
+  const captureRawBody = (
+    req: express.Request & { rawBody?: Buffer },
+    _res: express.Response,
+    buf: Buffer,
+  ): void => {
+    if (buf?.length) req.rawBody = buf;
+  };
+
+  app.use(express.json({ limit: '10mb', verify: captureRawBody }));
+  app.use(
+    express.urlencoded({
+      limit: '10mb',
+      extended: true,
+      verify: captureRawBody,
+    }),
+  );
 
   app.enableCors({
     origin: parseCorsOrigin(CORS_ORIGINS),

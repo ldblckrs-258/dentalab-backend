@@ -22,7 +22,7 @@ export class EmailWebhookController {
   private readonly wh: Webhook | null;
 
   constructor(
-    private readonly config: AppConfigService,
+    config: AppConfigService,
     private readonly prisma: PrismaService,
   ) {
     const secret = config.email.RESEND_WEBHOOK_SECRET;
@@ -34,9 +34,14 @@ export class EmailWebhookController {
   @SkipResponseWrap()
   @HttpCode(HttpStatus.OK)
   async handleResendWebhook(
-    @RawBody() rawBody: Buffer,
+    @RawBody() rawBody: Buffer | undefined,
     @Headers() headers: Record<string, string>,
   ): Promise<{ received: true }> {
+    if (!rawBody || rawBody.length === 0) {
+      this.logger.warn('Resend webhook received with empty body — ignoring');
+      return { received: true };
+    }
+
     const body = rawBody.toString();
 
     if (this.wh) {
@@ -51,8 +56,25 @@ export class EmailWebhookController {
       }
     }
 
-    const event = JSON.parse(body);
+    let event: {
+      type?: string;
+      data?: { email_id?: string; bounce?: { message?: string } };
+    };
+    try {
+      event = JSON.parse(body);
+    } catch {
+      this.logger.warn('Resend webhook received with invalid JSON — ignoring');
+      return { received: true };
+    }
+
     const { type, data } = event;
+
+    if (!data?.email_id) {
+      this.logger.warn(
+        `Resend webhook '${type ?? 'unknown'}' has no email_id — ignoring`,
+      );
+      return { received: true };
+    }
 
     const emailLog = await this.prisma.baseClient.emailLog.findUnique({
       where: { resendId: data.email_id },
