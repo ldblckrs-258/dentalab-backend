@@ -20,6 +20,9 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Server is running');
+      .expect((res) => {
+        const body = res.body as { data?: unknown };
+        expect(body.data ?? res.text).toBe('Server is running');
+      });
   });
 });

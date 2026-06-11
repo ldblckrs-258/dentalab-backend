@@ -273,14 +273,16 @@ export class DashboardService {
       this.prisma.client.patientProcedure.aggregate({
         _sum: { actualFee: true },
         where: {
-          feeFinalizedAt: { gte: window.start, lte: window.end },
+          status: 'completed',
+          completedAt: { gte: window.start, lte: window.end },
           deletedAt: null,
         },
       }),
       this.prisma.client.patientProcedure.aggregate({
         _sum: { actualFee: true },
         where: {
-          feeFinalizedAt: { gte: window.prevStart, lte: window.prevEnd },
+          status: 'completed',
+          completedAt: { gte: window.prevStart, lte: window.prevEnd },
           deletedAt: null,
         },
       }),
@@ -304,10 +306,11 @@ export class DashboardService {
     const rows = await this.prisma.baseClient.$queryRaw<
       Array<{ day: string; total: Prisma.Decimal | null }>
     >`
-      SELECT to_char(((fee_finalized_at AT TIME ZONE 'UTC') AT TIME ZONE ${DEFAULT_TIMEZONE})::date, 'YYYY-MM-DD') AS day,
+      SELECT to_char(((completed_at AT TIME ZONE 'UTC') AT TIME ZONE ${DEFAULT_TIMEZONE})::date, 'YYYY-MM-DD') AS day,
              SUM(actual_fee) AS total
       FROM patient_procedures
-      WHERE fee_finalized_at >= ${trendStart}
+      WHERE completed_at >= ${trendStart}
+        AND status = 'completed'
         AND deleted_at IS NULL
       GROUP BY day
       ORDER BY day
@@ -328,15 +331,29 @@ export class DashboardService {
   }
 
   private async buildPipeline() {
-    const agg = await this.prisma.client.patientProcedure.aggregate({
-      _sum: { estimatedFee: true },
-      where: {
-        status: 'planned',
-        treatmentPlanId: { not: null },
-        deletedAt: null,
-      },
-    });
-    return { estimatedPlanned: Number(agg._sum.estimatedFee ?? 0) };
+    const [completed, live] = await Promise.all([
+      this.prisma.client.patientProcedure.aggregate({
+        _sum: { actualFee: true },
+        where: {
+          status: 'completed',
+          treatmentPlanId: { not: null },
+          deletedAt: null,
+        },
+      }),
+      this.prisma.client.patientProcedure.aggregate({
+        _sum: { estimatedFee: true },
+        where: {
+          status: { in: ['planned', 'scheduled', 'in_progress'] },
+          treatmentPlanId: { not: null },
+          deletedAt: null,
+        },
+      }),
+    ]);
+    return {
+      estimatedPlanned:
+        Number(completed._sum.actualFee ?? 0) +
+        Number(live._sum.estimatedFee ?? 0),
+    };
   }
 
   private async buildInventory() {

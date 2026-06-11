@@ -8,6 +8,7 @@ import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
 import { RateLimitGuard } from '../src/modules/common/guards/rate-limit.guard';
 import { AppConfigService } from '../src/modules/config';
 import { PermissionGuard } from '../src/modules/rbac/guards/permission.guard';
+import { PrismaService } from '../src/modules/database';
 
 const BASE = '/api/v1';
 
@@ -19,6 +20,8 @@ describe('AppointmentController (e2e)', () => {
   let testPatient2Id: string;
   let testTypeId: string;
   let testProcedureId: string;
+  let testOperatoryId: string;
+  let prisma: PrismaService;
 
   function nextMonday9am(): string {
     const d = new Date();
@@ -47,6 +50,7 @@ describe('AppointmentController (e2e)', () => {
         patientId: testPatientId,
         providerId: testProviderId,
         typeId: testTypeId,
+        operatoryId: testOperatoryId,
         startTime: start,
         durationMinutes: 60,
         ...overrides,
@@ -79,6 +83,8 @@ describe('AppointmentController (e2e)', () => {
     );
 
     await app.init();
+
+    prisma = app.get(PrismaService);
 
     const adminLogin = await request(app.getHttpServer())
       .post(`${BASE}/auth/login`)
@@ -127,6 +133,19 @@ describe('AppointmentController (e2e)', () => {
       .send({ name: `E2E Type ${Date.now()}`, durationMinutes: 60 });
     testTypeId = typeRes.body.data?.id ?? '';
 
+    // Created via Prisma: the seed admin role lacks operatories:create.
+    const operatory = await prisma.baseClient.operatory.create({
+      data: {
+        name: `E2E Operatory ${Date.now()}`,
+        code: `OP-${Date.now()}`,
+        color: '#3b82f6',
+        isActive: true,
+        displayOrder: 0,
+      },
+      select: { id: true },
+    });
+    testOperatoryId = operatory.id;
+
     const procedureRes = await request(app.getHttpServer())
       .post(`${BASE}/procedures`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -141,6 +160,28 @@ describe('AppointmentController (e2e)', () => {
   });
 
   afterAll(async () => {
+    if (testOperatoryId) {
+      const appts = await prisma.baseClient.appointment.findMany({
+        where: { operatoryId: testOperatoryId },
+        select: { id: true },
+      });
+      const apptIds = appts.map((a) => a.id);
+      if (apptIds.length > 0) {
+        await prisma.baseClient.appointmentHistory.deleteMany({
+          where: { appointmentId: { in: apptIds } },
+        });
+        await prisma.baseClient.patientProcedure.updateMany({
+          where: { appointmentId: { in: apptIds } },
+          data: { appointmentId: null },
+        });
+        await prisma.baseClient.appointment.deleteMany({
+          where: { id: { in: apptIds } },
+        });
+      }
+      await prisma.baseClient.operatory.deleteMany({
+        where: { id: testOperatoryId },
+      });
+    }
     await app.close();
   });
 
@@ -173,6 +214,7 @@ describe('AppointmentController (e2e)', () => {
           patientId: testPatientId,
           providerId: testProviderId,
           typeId: testTypeId,
+          operatoryId: testOperatoryId,
           startTime: start,
           durationMinutes: 60,
           notes: 'E2E happy path',
@@ -208,6 +250,7 @@ describe('AppointmentController (e2e)', () => {
           patientId: testPatientId,
           providerId: testProviderId,
           typeId: testTypeId,
+          operatoryId: testOperatoryId,
           startTime: start,
           durationMinutes: 60,
           procedureIds: [ppId],
@@ -243,6 +286,7 @@ describe('AppointmentController (e2e)', () => {
           patientId: testPatientId,
           providerId: testProviderId,
           typeId: testTypeId,
+          operatoryId: testOperatoryId,
           startTime: start,
           durationMinutes: 60,
           procedureIds: [wrongPpId],
@@ -262,6 +306,7 @@ describe('AppointmentController (e2e)', () => {
           patientId: testPatientId,
           providerId: testProviderId,
           typeId: testTypeId,
+          operatoryId: testOperatoryId,
           startTime: start,
           durationMinutes: 60,
         })
@@ -275,6 +320,7 @@ describe('AppointmentController (e2e)', () => {
           patientId: testPatientId,
           providerId: testProviderId,
           typeId: testTypeId,
+          operatoryId: testOperatoryId,
           startTime: shiftISO(start, 30),
           durationMinutes: 60,
         })
@@ -301,6 +347,7 @@ describe('AppointmentController (e2e)', () => {
         patientId: testPatientId,
         providerId: testProviderId,
         typeId: testTypeId,
+        operatoryId: testOperatoryId,
         startTime: start,
         durationMinutes: 60,
       };
@@ -339,6 +386,7 @@ describe('AppointmentController (e2e)', () => {
           patientId: testPatientId,
           providerId: testProviderId,
           typeId: testTypeId,
+          operatoryId: testOperatoryId,
           startTime: earlyStart,
           durationMinutes: 60,
         })
@@ -438,6 +486,7 @@ describe('AppointmentController (e2e)', () => {
           patientId: testPatientId,
           providerId: testProviderId,
           typeId: testTypeId,
+          operatoryId: testOperatoryId,
           startTime,
           durationMinutes: 60,
         })

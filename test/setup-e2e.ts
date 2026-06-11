@@ -1,6 +1,6 @@
 import { execSync } from 'child_process';
-import { Client } from 'pg';
 import Redis from 'ioredis';
+import { Client } from 'pg';
 
 export default async (): Promise<void> => {
   const redisHost = process.env.REDIS_HOST ?? 'localhost';
@@ -12,22 +12,23 @@ export default async (): Promise<void> => {
   });
   try {
     await redis.connect();
-    const keys = await redis.keys('rate_limit:*');
-    if (keys.length > 0) {
-      await redis.del(...keys);
+    // Clear rate-limit counters AND login-attempt lockouts. Repeated or
+    // interrupted e2e runs accumulate login_attempts for the seed accounts
+    // (admin/manager/doctor); once they reach MAX_LOGIN_ATTEMPTS the accounts
+    // lock and every suite's login cascades into failures.
+    for (const pattern of ['*rate_limit*', '*login_attempts*']) {
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
     }
   } finally {
     await redis.quit();
   }
 
   const connectionString =
-    process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
-
-  if (!connectionString) {
-    throw new Error(
-      'TEST_DATABASE_URL or DATABASE_URL must be set for e2e tests',
-    );
-  }
+    process.env.TEST_DATABASE_URL ||
+    'postgresql://dentalab:dentalab_secret@localhost:5480/dentalab_test?schema=public';
 
   const client = new Client({ connectionString });
 
@@ -52,6 +53,23 @@ export default async (): Promise<void> => {
   const client2 = new Client({ connectionString });
   try {
     await client2.connect();
+    // Clear rows that reference the seed provider's appointments before deleting
+    // the appointments themselves, otherwise the FK constraints abort the reset.
+    await client2.query(`
+      DELETE FROM appointment_history
+      WHERE appointment_id IN (
+        SELECT id FROM appointments
+        WHERE provider_id = 'b2c3d4e5-f6a7-4890-bcde-f12345678901'
+      );
+    `);
+    await client2.query(`
+      UPDATE patient_procedures
+      SET appointment_id = NULL
+      WHERE appointment_id IN (
+        SELECT id FROM appointments
+        WHERE provider_id = 'b2c3d4e5-f6a7-4890-bcde-f12345678901'
+      );
+    `);
     await client2.query(`
       DELETE FROM appointments
       WHERE provider_id = 'b2c3d4e5-f6a7-4890-bcde-f12345678901';

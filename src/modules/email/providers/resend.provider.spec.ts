@@ -16,6 +16,7 @@ jest.mock('resend', () => ({
 const mockConfig = {
   email: {
     RESEND_API_KEY: 're_test_key',
+    EMAIL_ENABLED: true,
     EMAIL_FROM_ADDRESS: 'test@dentalab.com',
     EMAIL_FROM_NAME: 'DentaLab',
   },
@@ -92,6 +93,47 @@ describe('ResendProvider', () => {
         expect.any(Object),
         { idempotencyKey: 'reset/user-123' },
       );
+    });
+  });
+
+  describe('when EMAIL_ENABLED is false', () => {
+    let disabledProvider: ResendProvider;
+    let disabledResend: any;
+
+    beforeEach(async () => {
+      const module: TestingModule = await Test.createTestingModule({
+        providers: [
+          ResendProvider,
+          {
+            provide: AppConfigService,
+            useValue: { email: { ...mockConfig.email, EMAIL_ENABLED: false } },
+          },
+        ],
+      }).compile();
+      disabledProvider = module.get<ResendProvider>(ResendProvider);
+      disabledResend = (disabledProvider as any).resend;
+    });
+
+    it('skips the Resend API and returns a stub id', async () => {
+      const result = await disabledProvider.send({
+        to: 'user@example.com',
+        subject: 'Test',
+        html: '<p>Test</p>',
+      });
+
+      expect(disabledResend.emails.send).not.toHaveBeenCalled();
+      expect(result.id).toMatch(/^disabled-/);
+    });
+
+    it('skips the Resend API for batch sends', async () => {
+      const result = await disabledProvider.sendBatch([
+        { to: 'a@b.com', subject: 'A', html: '<p>A</p>' },
+        { to: 'c@d.com', subject: 'B', html: '<p>B</p>' },
+      ]);
+
+      expect(disabledResend.batch.send).not.toHaveBeenCalled();
+      expect(result.results).toHaveLength(2);
+      expect(result.results[0].id).toMatch(/^disabled-/);
     });
   });
 

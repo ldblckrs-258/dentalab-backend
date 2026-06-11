@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { AppConfigService } from '@modules/config';
@@ -22,6 +23,13 @@ export class ResendProvider implements EmailProvider {
   }
 
   async send(options: SendEmailOptions): Promise<SendEmailResult> {
+    if (!this.config.email.EMAIL_ENABLED) {
+      this.logger.warn(
+        `Email sending disabled — skipping send to ${String(options.to)}`,
+      );
+      return { id: `disabled-${randomUUID()}` };
+    }
+
     const { data, error } = await this.resend.emails.send(
       {
         from: options.from ?? this.defaultFrom,
@@ -51,6 +59,15 @@ export class ResendProvider implements EmailProvider {
   }
 
   async sendBatch(options: SendEmailOptions[]): Promise<SendBatchResult> {
+    if (!this.config.email.EMAIL_ENABLED) {
+      this.logger.warn(
+        `Email sending disabled — skipping batch of ${options.length}`,
+      );
+      return {
+        results: options.map(() => ({ id: `disabled-${randomUUID()}` })),
+      };
+    }
+
     const { data, error } = await this.resend.batch.send(
       options.map((opt) => ({
         from: opt.from ?? this.defaultFrom,

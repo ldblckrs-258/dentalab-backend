@@ -20,6 +20,7 @@ describe('Public Booking — single-transaction guarantees (e2e)', () => {
   let jwt: JwtService;
   let bookingSecret: string;
   let typeId: string;
+  let operatoryId: string;
 
   // A verified, unconsumed BookingVerification + a signed ticket the guard accepts.
   async function mintTicket(
@@ -134,12 +135,43 @@ describe('Public Booking — single-transaction guarantees (e2e)', () => {
     await (prisma.baseClient as any).providerAppointmentType.create({
       data: { providerId: PROVIDER_ID, appointmentTypeId: typeId },
     });
+
+    // At least one active operatory is required or the slot service returns
+    // none (noOperatoriesConfigured).
+    const operatory = await prisma.baseClient.operatory.create({
+      data: {
+        name: `E2E Booking Room ${Date.now()}`,
+        code: `BR-${Date.now()}`,
+        color: '#3b82f6',
+        isActive: true,
+        displayOrder: 0,
+      },
+      select: { id: true },
+    });
+    operatoryId = operatory.id;
   });
 
   afterAll(async () => {
     // Clean up everything this suite created so reused DBs don't accumulate rows.
-    await prisma.baseClient.appointment.deleteMany({
+    const appts = await prisma.baseClient.appointment.findMany({
       where: { providerId: PROVIDER_ID },
+      select: { id: true },
+    });
+    const apptIds = appts.map((a) => a.id);
+    if (apptIds.length > 0) {
+      await prisma.baseClient.appointmentHistory.deleteMany({
+        where: { appointmentId: { in: apptIds } },
+      });
+      await prisma.baseClient.patientProcedure.updateMany({
+        where: { appointmentId: { in: apptIds } },
+        data: { appointmentId: null },
+      });
+      await prisma.baseClient.appointment.deleteMany({
+        where: { id: { in: apptIds } },
+      });
+    }
+    await prisma.baseClient.operatory.deleteMany({
+      where: { id: operatoryId },
     });
     await (prisma.baseClient as any).providerAppointmentType.deleteMany({
       where: { appointmentTypeId: typeId },
