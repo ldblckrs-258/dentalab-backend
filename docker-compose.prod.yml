@@ -70,7 +70,7 @@ services:
     restart: unless-stopped
     env_file: /opt/dentalab/secrets/worker.env
     networks: [dentalab-net]
-    mem_limit: 2g
+    mem_limit: 6g
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
