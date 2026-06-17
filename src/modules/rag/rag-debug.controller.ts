@@ -8,8 +8,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { RagDebugSearchDto } from './dto/rag-debug-search.dto';
-import { RagDebugService } from './rag-debug.service';
 import { InternalTokenGuard } from './guards/internal-token.guard';
+import { RagDebugService } from './rag-debug.service';
 
 @Controller('rag')
 export class RagDebugController {
@@ -19,7 +19,7 @@ export class RagDebugController {
   @HttpCode(HttpStatus.OK)
   @Public()
   @UseGuards(InternalTokenGuard)
-  @RateLimit({ limit: 20, windowSeconds: 60 })
+  @RateLimit({ skip: true })
   @SkipResponseWrap()
   async debugSearch(@Body() dto: RagDebugSearchDto): Promise<unknown> {
     return this.ragDebugService.debugSearch(dto);

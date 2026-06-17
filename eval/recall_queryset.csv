@@ -1,0 +1,23 @@
+id,source_doc,query,relevant_child_chunk_ids,note
+S1,Quy-trinh-khu-khuan-tiet-khuan,"Trong quy trình khử khuẩn, ""làm sạch"" dụng cụ được định nghĩa là gì?",e53e3a36-ea07-41f8-8f4d-8a3ee593a74f,định nghĩa thuật ngữ
+S2,Quy-trinh-khu-khuan-tiet-khuan,"Dụng cụ sau khi tiệt khuẩn cần được bảo quản như thế nào (tủ, giá, khoảng cách với nền và trần)?",9a5d9d3b-ab63-461a-a718-e5aac926c37a,quy định bảo quản
+S3,Quy-trinh-khu-khuan-tiet-khuan,Khi làm sạch dụng cụ cần mang phương tiện phòng hộ cá nhân gì và pha dung dịch Cidezyme theo tỉ lệ nào?,0b27d2bb-65c7-4bce-b412-425b807360a7;f761fc5a-6a59-4e71-b336-a049d1bdf521,multi-chunk (PPE + pha hóa chất)
+S4,Quy-trinh-khu-khuan-tiet-khuan,Nhược điểm của hóa chất khử khuẩn nhóm amoni bậc 4 là gì?,3c7bcee0-b36b-424c-adf2-5aa2be566178,nhược điểm hóa chất
+R1,QTKT-RHM-Tap1,Nang xương hàm là gì và khi phát triển mạnh có thể gây hậu quả nào?,e778128f-d670-4c61-a7e1-f58e96aaae6b,định nghĩa bệnh lý
+R2,QTKT-RHM-Tap1,Hẹp hàm (hẹp cung răng) là tình trạng gì?,0749d866-5f46-4367-bc0b-e974db518505,định nghĩa + chỉ định
+R3,QTKT-RHM-Tap1,Điều trị tủy (chụp tủy/nội nha) được chỉ định cho những trường hợp răng nào?,02e49840-0671-4231-ae92-dad2e66b5f91,chỉ định kỹ thuật
+R4,QTKT-RHM-Tap1,Đặt thuốc điều trị nhạy cảm ngà là kỹ thuật như thế nào?,57f3a440-a0cf-4ee8-9c2e-a443e8303cfa,định nghĩa kỹ thuật
+R5,QTKT-RHM-Tap1,Phẫu thuật cắt u tuyến nước bọt mang tai bảo tồn thần kinh VII là gì và chỉ định khi nào?,58e03423-46ed-4e96-8da9-f89e84891c2d,định nghĩa + chỉ định phẫu thuật
+T1,2hdrnghmmt,Viêm quanh cuống răng được định nghĩa là gì?,3a8c1fb0-2f60-4231-ad07-b94861c35e26,định nghĩa bệnh lý
+T2,2hdrnghmmt,Phân biệt áp xe nông quanh hàm trong và phlegmon sàn miệng?,ed8de5ea-fa3e-47bb-bf29-1b05adfe27e7,chẩn đoán phân biệt
+T3,2hdrnghmmt,Các nguyên nhân bên ngoài gây ung thư khoang miệng gồm những gì?,3c04db17-f044-479f-a419-404a9bbb3d2c,nguyên nhân bệnh
+T4,2hdrnghmmt,Phương pháp phá hủy thần kinh ngoại vi để điều trị đau dây thần kinh V gồm những cách nào?,634ba0d0-1a66-41a2-aef7-1c8d06df0beb,phương pháp điều trị
+T5,2hdrnghmmt,Áp xe tuyến nước bọt mang tai có dấu hiệu gì ở ống Stenon và cận lâm sàng (MRI/CT) ra sao?,d630878d-4de8-43c2-9069-ab06c093e6a6,triệu chứng + cận lâm sàng
+L1,26-vbhn-Luat-KCB,"Theo Luật Khám bệnh, chữa bệnh, ""khám bệnh"" được định nghĩa như thế nào?",43b06d77-b0b5-496d-83db-329ef99992cc,định nghĩa pháp lý
+L2,26-vbhn-Luat-KCB,Người hành nghề có được đăng ký hành nghề tại nhiều cơ sở khám chữa bệnh cùng lúc không?,7ac31d2c-0afb-459f-b06b-ec33623f0e48,nguyên tắc đăng ký hành nghề
+L3,26-vbhn-Luat-KCB,Thủ tục cấp mới giấy phép hành nghề cho người có giấy phép do nước ngoài cấp như thế nào?,74389da4-6cd2-40a2-b6d4-3944c1b44b28,thủ tục hành chính
+L4,26-vbhn-Luat-KCB,"Chính sách của Nhà nước về khám bệnh, chữa bệnh (ưu đãi đầu tư, miễn thuế) gồm những gì?",f04223c4-7dba-4e2b-965f-d00b08717866,chính sách nhà nước
+L5,26-vbhn-Luat-KCB,Nhà nước hỗ trợ học phí và chi phí sinh hoạt cho người học những chuyên ngành nào?,2213c203-8090-4c29-830c-83bdc80f3c5d,chính sách hỗ trợ đào tạo
+W1,so-tay-phap-luat-lao-dong,Người lao động làm việc liên tục 8 giờ được nghỉ giữa giờ ít nhất bao nhiêu phút?,4fbba3a8-a6b0-44a3-8585-c260fcb7df5b,quy định thời giờ nghỉ
+W2,so-tay-phap-luat-lao-dong,Người sử dụng lao động được sa thải người lao động khi tự ý bỏ việc bao nhiêu ngày?,1fc08281-02e0-4f16-ae1b-7a9dde3cad11,điều kiện kỷ luật sa thải
+W3,so-tay-phap-luat-lao-dong,Người sử dụng lao động có được trả lương chậm hoặc khấu trừ tiền lương của người lao động không?,24016b3a-a167-4a8b-b0d8-bec1fd82d34f,quy định tiền lương
