@@ -233,6 +233,39 @@ describe('CitationMapperService.refineCitations', () => {
     );
   });
 
+  it('joins passages when the same source backs multiple claims', () => {
+    const hit = makeHit({
+      childContent:
+        'Tobacco use is a major risk. Areca nut chewing also raises risk significantly.',
+    });
+    const out = service.refineCitations(
+      [baseCitation()],
+      [hit],
+      [
+        { n: 1, quote: 'Tobacco use is a major risk' },
+        { n: 1, quote: 'Areca nut chewing also raises risk' },
+      ],
+    );
+    expect(out[0].snippet).toContain('Tobacco use is a major risk.');
+    expect(out[0].snippet).toContain(
+      'Areca nut chewing also raises risk significantly.',
+    );
+    expect(out[0].snippet).toContain('[…]');
+  });
+
+  it('dedupes identical passages from repeated quotes', () => {
+    const hit = makeHit({ childContent: 'One key fact stated once here.' });
+    const out = service.refineCitations(
+      [baseCitation()],
+      [hit],
+      [
+        { n: 1, quote: 'One key fact' },
+        { n: 1, quote: 'One key fact stated' },
+      ],
+    );
+    expect(out[0].snippet).toBe('One key fact stated once here.');
+  });
+
   it('falls back to parentContent when quote is not in childContent', () => {
     const hit = makeHit({
       childContent: 'unrelated child text.',
@@ -265,10 +298,10 @@ describe('CitationMapperService.refineCitations', () => {
     expect(out[0].snippet).toBe('Alpha beta gamma delta epsilon.');
   });
 
-  it('overrides a wrong metadata heading with a content-grounded section and clears noisy breadcrumbs', () => {
+  it('builds a content-grounded breadcrumb path, overriding wrong metadata', () => {
     const hit = makeHit({
       childContent:
-        'II. Principles for choosing disinfectant\nApply fluoride varnish quarterly for high-risk patients.',
+        'II. Disinfection\nII.3 Choosing chemicals\nApply fluoride varnish quarterly for high-risk patients.',
       breadcrumbs: ['REGULATION', 'Storage'],
       heading: 'Mismatched Heading',
     });
@@ -284,15 +317,34 @@ describe('CitationMapperService.refineCitations', () => {
         {
           n: 1,
           quote: 'Apply fluoride varnish',
-          section: 'II. Principles for choosing disinfectant',
+          breadcrumbs: ['II. Disinfection', 'II.3 Choosing chemicals'],
         },
       ],
     );
-    expect(out[0].heading).toBe('II. Principles for choosing disinfectant');
-    expect(out[0].breadcrumbs).toEqual([]);
+    expect(out[0].breadcrumbs).toEqual(['II. Disinfection']);
+    expect(out[0].heading).toBe('II.3 Choosing chemicals');
   });
 
-  it('ignores a section not present in the chunk content (anti-fabrication)', () => {
+  it('keeps only path crumbs that appear in the chunk content (anti-fabrication)', () => {
+    const hit = makeHit({
+      childContent: 'Real Heading\nthe cited sentence is here.',
+    });
+    const out = service.refineCitations(
+      [baseCitation()],
+      [hit],
+      [
+        {
+          n: 1,
+          quote: 'the cited sentence',
+          breadcrumbs: ['Ghost Ancestor', 'Real Heading'],
+        },
+      ],
+    );
+    expect(out[0].breadcrumbs).toEqual([]);
+    expect(out[0].heading).toBe('Real Heading');
+  });
+
+  it('leaves heading/breadcrumbs untouched when no path crumb is in content', () => {
     const hit = makeHit({
       childContent: 'Some real content sentence here.',
       breadcrumbs: ['Chapter 1'],
@@ -301,7 +353,13 @@ describe('CitationMapperService.refineCitations', () => {
     const out = service.refineCitations(
       [baseCitation({ breadcrumbs: ['Chapter 1'], heading: 'Intro' })],
       [hit],
-      [{ n: 1, quote: 'Some real content', section: 'Fabricated Section' }],
+      [
+        {
+          n: 1,
+          quote: 'Some real content',
+          breadcrumbs: ['Fabricated Section', 'Another Fake'],
+        },
+      ],
     );
     expect(out[0].heading).toBe('Intro');
     expect(out[0].breadcrumbs).toEqual(['Chapter 1']);

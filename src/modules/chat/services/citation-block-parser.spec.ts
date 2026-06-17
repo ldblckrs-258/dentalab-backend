@@ -4,13 +4,17 @@ import {
 } from './citation-block-parser';
 
 describe('splitAnswerAndAnchors', () => {
-  it('splits prose from a clean trailing anchor block', () => {
+  it('splits prose from a clean trailing anchor block with a breadcrumb path', () => {
     const full =
-      'Anesthesia is required [1].\n<<<CITES>>>\n[{"n":1,"quote":"Anesthesia is required","section":"Surgery"}]';
+      'Anesthesia is required [1].\n<<<CITES>>>\n[{"n":1,"quote":"Anesthesia is required","breadcrumbs":["Surgery","Anesthesia"]}]';
     const { prose, anchors } = splitAnswerAndAnchors(full);
     expect(prose).toBe('Anesthesia is required [1].');
     expect(anchors).toEqual([
-      { n: 1, quote: 'Anesthesia is required', section: 'Surgery' },
+      {
+        n: 1,
+        quote: 'Anesthesia is required',
+        breadcrumbs: ['Surgery', 'Anesthesia'],
+      },
     ]);
   });
 
@@ -48,10 +52,17 @@ describe('splitAnswerAndAnchors', () => {
     expect(anchors).toEqual([{ n: 3, quote: 'good one' }]);
   });
 
-  it('omits blank section', () => {
-    const full = 'A.\n<<<CITES>>>\n[{"n":1,"quote":"x","section":"  "}]';
-    const { anchors } = splitAnswerAndAnchors(full);
-    expect(anchors).toEqual([{ n: 1, quote: 'x' }]);
+  it('keeps only non-empty string breadcrumbs, omits empty path', () => {
+    const withJunk =
+      'A.\n<<<CITES>>>\n[{"n":1,"quote":"x","breadcrumbs":["H1","  ",5,"H2"]}]';
+    expect(splitAnswerAndAnchors(withJunk).anchors).toEqual([
+      { n: 1, quote: 'x', breadcrumbs: ['H1', 'H2'] },
+    ]);
+
+    const empty = 'A.\n<<<CITES>>>\n[{"n":1,"quote":"x","breadcrumbs":[]}]';
+    expect(splitAnswerAndAnchors(empty).anchors).toEqual([
+      { n: 1, quote: 'x' },
+    ]);
   });
 
   it('parses multiple anchors', () => {

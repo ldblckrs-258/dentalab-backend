@@ -158,29 +158,43 @@ export class CitationMapperService {
     anchors: CitationAnchor[],
   ): CitationItem[] {
     if (anchors.length === 0) return base;
-    const byN = new Map<number, CitationAnchor>();
-    for (const a of anchors) if (!byN.has(a.n)) byN.set(a.n, a);
+    const byN = new Map<number, CitationAnchor[]>();
+    for (const a of anchors) {
+      const group = byN.get(a.n) ?? [];
+      group.push(a);
+      byN.set(a.n, group);
+    }
 
     return base.map((c) => {
-      const anchor = byN.get(c.index);
+      const group = byN.get(c.index);
       const hit = hits[c.index - 1];
-      if (!anchor || !hit) return c;
+      if (!group || !hit) return c;
 
-      const text =
-        extractSnippet(hit.childContent ?? '', anchor.quote) ??
-        extractSnippet(hit.parentContent ?? '', anchor.quote);
+      const passages: string[] = [];
+      for (const a of group) {
+        const text =
+          extractSnippet(hit.childContent ?? '', a.quote) ??
+          extractSnippet(hit.parentContent ?? '', a.quote);
+        if (text && !passages.includes(text)) passages.push(text);
+      }
+      const snippet = passages.length > 0 ? passages.join(' […] ') : null;
 
       let breadcrumbs = c.breadcrumbs;
       let heading = c.heading;
-      if (anchor.section && sectionInContent(anchor.section, hit)) {
-        heading = anchor.section.trim();
-        breadcrumbs = [];
+      for (const a of group) {
+        if (!a.breadcrumbs || a.breadcrumbs.length === 0) continue;
+        const path = a.breadcrumbs.filter((b) => sectionInContent(b, hit));
+        if (path.length > 0) {
+          breadcrumbs = path.slice(0, -1);
+          heading = path[path.length - 1];
+          break;
+        }
       }
 
-      if (!text && heading === c.heading) return c;
+      if (!snippet && heading === c.heading) return c;
       return {
         ...c,
-        ...(text ? { snippet: text } : {}),
+        ...(snippet ? { snippet } : {}),
         breadcrumbs,
         heading,
       };

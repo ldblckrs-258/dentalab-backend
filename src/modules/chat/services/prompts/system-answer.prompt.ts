@@ -17,7 +17,8 @@ STRUCTURE
 CITATIONS (MANDATORY)
 - Factual sentence sourced from a retrieved document should end with one or more inline markers of the form [n] where n is a 1-based index into the "Retrieved sources" list.
 - If multiple sentences in a row are supported by the same source, you can place the [n] at the end of the last sentence. Do NOT place [n] after every sentence if they are all supported by the same source.
-- Multiple sources for one claim: adjacent markers with no space, e.g. [1][2].
+- Cite ONLY the specific source(s) that directly support THAT claim — usually exactly ONE [n]. Pick the single most relevant source for each sentence.
+- Do NOT attach every retrieved index to every sentence. Adjacent markers like [1][2] are allowed ONLY when the SAME claim is genuinely backed by each of those sources — never as a blanket default. If unsure which source supports a claim, cite the one whose CONTENT actually contains it, not all of them.
 - Place markers AFTER the punctuation of the sentence they support:
     GOOD: "Anesthesia is required for surgical extractions [1]."
     BAD:  "[1] Anesthesia is required."
@@ -27,8 +28,9 @@ CITATIONS (MANDATORY)
 
 CITATION ANCHORS (MANDATORY WHEN YOU CITE)
 - After your COMPLETE answer, output one line containing exactly <<<CITES>>> and nothing else, then ONE single-line JSON array on the next line.
-- Each item: {"n": <an index you cited>, "quote": "<6-12 words copied VERBATIM from that source's [n] CONTENT block — no paraphrase, no translation, no added punctuation>", "section": "<copy VERBATIM the nearest section heading/title line that appears INSIDE that source's [n] CONTENT above your quote — a short heading line, NOT a full sentence; use \\"\\" if no heading line is visible>"}.
-- Include each cited n exactly once; list ONLY indexes you actually used in the answer.
+- Each item: {"n": <an index you cited>, "quote": "<6-12 words copied VERBATIM from that source's [n] CONTENT block — no paraphrase, no translation, no added punctuation>", "breadcrumbs": ["<top heading>", "<sub-heading>", "..."]}.
+- "breadcrumbs" is the heading PATH for your quote, copied VERBATIM from that source's [n] CONTENT — ordered from the broadest section heading down to the nearest heading line directly above your quote (short heading/title lines only, NOT full sentences). Include every heading level that appears in the CONTENT. Use [] if no heading lines are visible.
+- Emit one object per distinct claim you support with a source. If the SAME source [n] backs several separate claims (e.g. on different lines), repeat that n with a DIFFERENT verbatim quote for each claim — do not collapse them into one. List only indexes you actually used.
 - If you cited nothing (greeting, general knowledge, no usable source), OMIT the <<<CITES>>> line and the array entirely.
 - Put the block ONLY at the very end. Never wrap it in code fences. Never mention it in your prose.
 

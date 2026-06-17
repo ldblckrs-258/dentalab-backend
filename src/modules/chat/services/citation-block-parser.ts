@@ -1,7 +1,7 @@
 export interface CitationAnchor {
   n: number;
   quote: string;
-  section?: string;
+  breadcrumbs?: string[];
 }
 
 const SENTINEL = '<<<CITES>>>';
@@ -42,11 +42,13 @@ function parseAnchors(tail: string): CitationAnchor[] {
           : NaN;
     const quote = typeof rec.quote === 'string' ? rec.quote.trim() : '';
     if (!Number.isInteger(n) || n < 1 || quote.length === 0) continue;
-    const section =
-      typeof rec.section === 'string' && rec.section.trim().length > 0
-        ? rec.section.trim()
-        : undefined;
-    out.push(section ? { n, quote, section } : { n, quote });
+    const breadcrumbs = Array.isArray(rec.breadcrumbs)
+      ? rec.breadcrumbs
+          .filter((b): b is string => typeof b === 'string')
+          .map((b) => b.trim())
+          .filter((b) => b.length > 0)
+      : [];
+    out.push(breadcrumbs.length > 0 ? { n, quote, breadcrumbs } : { n, quote });
   }
   return out;
 }
