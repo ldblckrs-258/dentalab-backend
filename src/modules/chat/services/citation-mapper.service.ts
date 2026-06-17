@@ -2,6 +2,8 @@ import { PrismaService } from '@modules/database/prisma.service';
 import type { RagSearchResult } from '@modules/rag/dto/rag-search-result.dto';
 import { Injectable } from '@nestjs/common';
 import type { CitationItem } from '../types';
+import type { CitationAnchor } from './citation-block-parser';
+import { extractSnippet } from './citation-snippet';
 
 const SOURCE_TYPE_LABEL: Record<string, string> = {
   internal_document: 'Document',
@@ -35,6 +37,15 @@ function dedupHits(hits: RagSearchResult[]): RagSearchResult[] {
     out.push(h);
   }
   return out;
+}
+
+function sectionInContent(section: string, hit: RagSearchResult): boolean {
+  const needle = section.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (needle.length < 3 || needle.length > 120) return false;
+  const hay = `${hit.childContent ?? ''}\n${hit.parentContent ?? ''}`
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return hay.includes(needle);
 }
 
 export interface MappedCitations {
@@ -139,5 +150,40 @@ export class CitationMapperService {
     });
 
     return { citations, dedupedHits: deduped };
+  }
+
+  refineCitations(
+    base: CitationItem[],
+    hits: RagSearchResult[],
+    anchors: CitationAnchor[],
+  ): CitationItem[] {
+    if (anchors.length === 0) return base;
+    const byN = new Map<number, CitationAnchor>();
+    for (const a of anchors) if (!byN.has(a.n)) byN.set(a.n, a);
+
+    return base.map((c) => {
+      const anchor = byN.get(c.index);
+      const hit = hits[c.index - 1];
+      if (!anchor || !hit) return c;
+
+      const text =
+        extractSnippet(hit.childContent ?? '', anchor.quote) ??
+        extractSnippet(hit.parentContent ?? '', anchor.quote);
+
+      let breadcrumbs = c.breadcrumbs;
+      let heading = c.heading;
+      if (anchor.section && sectionInContent(anchor.section, hit)) {
+        heading = anchor.section.trim();
+        breadcrumbs = [];
+      }
+
+      if (!text && heading === c.heading) return c;
+      return {
+        ...c,
+        ...(text ? { snippet: text } : {}),
+        breadcrumbs,
+        heading,
+      };
+    });
   }
 }

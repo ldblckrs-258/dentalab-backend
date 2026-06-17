@@ -110,6 +110,27 @@ describe('buildChatMessages — prompt injection hardening', () => {
     expect(content).toMatch(/\[1\]/);
   });
 
+  it('ANSWER_SYSTEM contains the trailing citation-anchor contract', () => {
+    const msgs = buildChatMessages([], 'q', [], [], null);
+    const sys = msgs.find((m) => m.role === 'system');
+    const content = sys!.content;
+    expect(content).toMatch(/CITATION ANCHORS/);
+    expect(content).toMatch(/<<<CITES>>>/);
+    expect(content).toMatch(/VERBATIM/);
+  });
+
+  it('RAG block instructs verbatim anchor quote from CONTENT', () => {
+    const msgs = buildChatMessages(
+      [],
+      'q',
+      [makeCitation(1)],
+      [makeHit('x')],
+      null,
+    );
+    const userMsg = msgs.find((m) => m.role === 'user');
+    expect(userMsg!.content).toMatch(/copy the anchor quote verbatim/);
+  });
+
   it('user_instruction does NOT displace citation contract', () => {
     const msgs = buildChatMessages(
       [],

@@ -74,6 +74,7 @@ function buildRagBlock(
     'Retrieved sources (cite by [n]):',
     ...tocLines,
     '',
+    'When you cite [n], copy the anchor quote verbatim from its [n] CONTENT block below.',
     ...contentBlocks.map((b, i) => (i === 0 ? b : `\n${b}`)),
     '',
     `USER QUESTION:\n${userMessage}`,

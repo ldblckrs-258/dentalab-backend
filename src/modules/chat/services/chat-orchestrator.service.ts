@@ -6,6 +6,11 @@ import type { SseWriter } from '../sse/sse-writer';
 import { ChatLlmService } from './chat-llm.service';
 import { ChatMessageService } from './chat-message.service';
 import { buildChatMessages, buildRewritePrompt } from './chat-prompts';
+import {
+  SENTINEL,
+  splitAnswerAndAnchors,
+  stripAnchorBlock,
+} from './citation-block-parser';
 import { ChatRagService } from './chat-rag.service';
 import { ChatSessionService } from './chat-session.service';
 import { CitationMapperService } from './citation-mapper.service';
@@ -193,6 +198,8 @@ export class ChatOrchestratorService {
 
       let full = '';
       let fullReasoning = '';
+      let emitted = 0;
+      let capturing = false;
       let firstChunkAt: number | null = null;
       try {
         for await (const part of this.llm.streamAnswer(
@@ -207,18 +214,38 @@ export class ChatOrchestratorService {
             writer.emit('reasoning', { text: part.text });
           } else {
             full += part.text;
-            writer.emit('delta', { text: part.text });
+            if (capturing) continue;
+            const sentinelIdx = full.indexOf(SENTINEL);
+            if (sentinelIdx !== -1) {
+              if (sentinelIdx > emitted) {
+                writer.emit('delta', {
+                  text: full.slice(emitted, sentinelIdx),
+                });
+              }
+              emitted = sentinelIdx;
+              capturing = true;
+            } else {
+              const safe = full.length - (SENTINEL.length - 1);
+              if (safe > emitted) {
+                writer.emit('delta', { text: full.slice(emitted, safe) });
+                emitted = safe;
+              }
+            }
           }
+        }
+        if (!capturing && full.length > emitted) {
+          writer.emit('delta', { text: full.slice(emitted) });
         }
       } catch (e) {
         const aborted = clientSignal.aborted;
         const timedOut = !aborted && isAbortError(e);
         if (aborted || timedOut) {
           if (full || fullReasoning) {
+            const prose = stripAnchorBlock(full);
             await this.messages.append(
               sessionId,
               'assistant',
-              full,
+              prose,
               citations as unknown,
               {
                 aborted,
@@ -235,11 +262,19 @@ export class ChatOrchestratorService {
         return;
       }
 
+      const { prose, anchors } = splitAnswerAndAnchors(full);
+      const refinedCitations = anchors.length
+        ? this.mapper.refineCitations(citations, dedupedHits, anchors)
+        : citations;
+      if (anchors.length > 0) {
+        writer.emit('citations', { sources: refinedCitations });
+      }
+
       const assistantMsg = await this.messages.append(
         sessionId,
         'assistant',
-        full,
-        citations as unknown,
+        prose,
+        refinedCitations as unknown,
         fullReasoning ? { reasoning: fullReasoning } : null,
       );
 

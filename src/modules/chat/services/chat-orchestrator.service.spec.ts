@@ -161,6 +161,9 @@ describe('ChatOrchestratorService.runTurn', () => {
           },
         ],
       }),
+      refineCitations: jest.fn((base: Array<{ snippet: string }>) =>
+        base.map((c) => ({ ...c, snippet: 'REFINED' })),
+      ),
     } as unknown as jest.Mocked<CitationMapperService>;
 
     llm = {
@@ -392,5 +395,127 @@ describe('ChatOrchestratorService.runTurn', () => {
     ).rejects.toThrow(/stream_already_active/);
     release();
     await first;
+  });
+
+  it('strips trailing anchor block from deltas, re-emits refined citations, persists clean prose', async () => {
+    llm.streamAnswer.mockImplementation(() =>
+      (async function* () {
+        yield {
+          type: 'text',
+          text: 'Anesthesia is required for extractions [1].',
+        };
+        yield {
+          type: 'text',
+          text: '\n<<<CITES>>>\n[{"n":1,"quote":"Anesthesia is required"}]',
+        };
+      })(),
+    );
+    const writer = makeWriter();
+    const ac = new AbortController();
+    await orch.runTurn({
+      sessionId: 's1',
+      user: TEST_USER,
+      userMessage: 'q',
+      clientSignal: ac.signal,
+      writer,
+    });
+
+    const calls = (writer as unknown as { calls: EmitCall[] }).calls;
+    const deltaText = calls
+      .filter((c) => c.event === 'delta')
+      .map((c) => (c.data as { text: string }).text)
+      .join('');
+    expect(deltaText).not.toContain('<<<CITES>>>');
+    expect(deltaText).toContain('Anesthesia is required for extractions [1].');
+
+    const citationsEvents = calls.filter((c) => c.event === 'citations');
+    expect(citationsEvents).toHaveLength(2);
+    expect(mapper.refineCitations).toHaveBeenCalled();
+
+    const assistantCall = messages.append.mock.calls.find(
+      (c) => c[1] === 'assistant',
+    );
+    expect(assistantCall![2]).toBe(
+      'Anesthesia is required for extractions [1].',
+    );
+    expect(assistantCall![2]).not.toContain('<<<CITES>>>');
+  });
+
+  it('never leaks a sentinel split across two text chunks', async () => {
+    llm.streamAnswer.mockImplementation(() =>
+      (async function* () {
+        yield { type: 'text', text: 'Final answer text here [1]. \n<<<CI' };
+        yield {
+          type: 'text',
+          text: 'TES>>>\n[{"n":1,"quote":"Final answer text"}]',
+        };
+      })(),
+    );
+    const writer = makeWriter();
+    const ac = new AbortController();
+    await orch.runTurn({
+      sessionId: 's1',
+      user: TEST_USER,
+      userMessage: 'q',
+      clientSignal: ac.signal,
+      writer,
+    });
+    const deltaText = (writer as unknown as { calls: EmitCall[] }).calls
+      .filter((c) => c.event === 'delta')
+      .map((c) => (c.data as { text: string }).text)
+      .join('');
+    expect(deltaText).not.toContain('<<<CI');
+    expect(deltaText).not.toContain('<<<CITES>>>');
+    const assistantCall = messages.append.mock.calls.find(
+      (c) => c[1] === 'assistant',
+    );
+    expect(assistantCall![2]).not.toContain('<<<CI');
+  });
+
+  it('strips a partial sentinel from persisted content when aborted mid-sentinel', async () => {
+    const ac = new AbortController();
+    llm.streamAnswer.mockImplementation(() =>
+      (async function* () {
+        yield { type: 'text', text: 'Answer body here [1]. \n<<<CI' };
+        ac.abort();
+        throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+      })(),
+    );
+    const writer = makeWriter();
+    await orch.runTurn({
+      sessionId: 's1',
+      user: TEST_USER,
+      userMessage: 'q',
+      clientSignal: ac.signal,
+      writer,
+    });
+    const assistantPersist = messages.append.mock.calls.find(
+      (c) => c[1] === 'assistant',
+    );
+    expect(assistantPersist).toBeDefined();
+    expect(assistantPersist![2]).not.toContain('<<<');
+    expect(assistantPersist![2]).toBe('Answer body here [1].');
+  });
+
+  it('no second citations emit when the answer has no anchor block', async () => {
+    llm.streamAnswer.mockImplementation(() =>
+      (async function* () {
+        yield { type: 'text', text: 'Plain answer without any citations.' };
+      })(),
+    );
+    const writer = makeWriter();
+    const ac = new AbortController();
+    await orch.runTurn({
+      sessionId: 's1',
+      user: TEST_USER,
+      userMessage: 'q',
+      clientSignal: ac.signal,
+      writer,
+    });
+    const citationsEvents = (
+      writer as unknown as { calls: EmitCall[] }
+    ).calls.filter((c) => c.event === 'citations');
+    expect(citationsEvents).toHaveLength(1);
+    expect(mapper.refineCitations).not.toHaveBeenCalled();
   });
 });

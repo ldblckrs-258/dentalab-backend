@@ -2,6 +2,7 @@ import { Test } from '@nestjs/testing';
 import { PrismaService } from '@modules/database/prisma.service';
 import { CitationMapperService } from './citation-mapper.service';
 import type { RagSearchResult } from '@modules/rag/dto/rag-search-result.dto';
+import type { CitationItem } from '../types';
 
 function makeHit(over: Partial<RagSearchResult> = {}): RagSearchResult {
   return {
@@ -181,5 +182,145 @@ describe('CitationMapperService', () => {
     expect(dedupedHits[1].parentChunkId).toBe('p2');
     expect(citations[0].sourceId).toBe(dedupedHits[0].sourceId);
     expect(citations[1].sourceId).toBe(dedupedHits[1].sourceId);
+  });
+});
+
+function baseCitation(over: Partial<CitationItem> = {}): CitationItem {
+  return {
+    index: 1,
+    ragDocumentId: 'r1',
+    sourceType: 'internal_document',
+    sourceId: 'doc-1',
+    title: 'Doc 1',
+    typeLabel: 'Document',
+    breadcrumbs: [],
+    heading: null,
+    snippet: 'OLD SNIPPET that was a blind slice of the chunk content',
+    score: 0.9,
+    linkTo: '/documents/doc-1',
+    ...over,
+  };
+}
+
+describe('CitationMapperService.refineCitations', () => {
+  let service: CitationMapperService;
+
+  beforeEach(async () => {
+    const prisma = {
+      client: { internalDocument: { findMany: jest.fn() } },
+    } as unknown as PrismaService;
+    const module = await Test.createTestingModule({
+      providers: [
+        CitationMapperService,
+        { provide: PrismaService, useValue: prisma },
+      ],
+    }).compile();
+    service = module.get(CitationMapperService);
+  });
+
+  it('replaces snippet with the verbatim passage located in childContent', () => {
+    const hit = makeHit({
+      childContent:
+        'Preamble text. Composite resin must cure for twenty seconds under the lamp. Trailing.',
+    });
+    const out = service.refineCitations(
+      [baseCitation()],
+      [hit],
+      [{ n: 1, quote: 'Composite resin must cure' }],
+    );
+    expect(out[0].snippet).toBe(
+      'Composite resin must cure for twenty seconds under the lamp.',
+    );
+  });
+
+  it('falls back to parentContent when quote is not in childContent', () => {
+    const hit = makeHit({
+      childContent: 'unrelated child text.',
+      parentContent: 'The recall interval is six months for low-risk adults.',
+    });
+    const out = service.refineCitations(
+      [baseCitation()],
+      [hit],
+      [{ n: 1, quote: 'recall interval is six months' }],
+    );
+    expect(out[0].snippet).toContain('recall interval is six months');
+  });
+
+  it('preserves page fields and linkTo when refining', () => {
+    const hit = makeHit({ childContent: 'Alpha beta gamma delta epsilon.' });
+    const out = service.refineCitations(
+      [
+        baseCitation({
+          pageStart: 3,
+          pageEnd: 4,
+          linkTo: '/documents/doc-1?heading=x',
+        }),
+      ],
+      [hit],
+      [{ n: 1, quote: 'Alpha beta gamma' }],
+    );
+    expect(out[0].pageStart).toBe(3);
+    expect(out[0].pageEnd).toBe(4);
+    expect(out[0].linkTo).toBe('/documents/doc-1?heading=x');
+    expect(out[0].snippet).toBe('Alpha beta gamma delta epsilon.');
+  });
+
+  it('overrides a wrong metadata heading with a content-grounded section and clears noisy breadcrumbs', () => {
+    const hit = makeHit({
+      childContent:
+        'II. Principles for choosing disinfectant\nApply fluoride varnish quarterly for high-risk patients.',
+      breadcrumbs: ['REGULATION', 'Storage'],
+      heading: 'Mismatched Heading',
+    });
+    const out = service.refineCitations(
+      [
+        baseCitation({
+          breadcrumbs: ['REGULATION', 'Storage'],
+          heading: 'Mismatched Heading',
+        }),
+      ],
+      [hit],
+      [
+        {
+          n: 1,
+          quote: 'Apply fluoride varnish',
+          section: 'II. Principles for choosing disinfectant',
+        },
+      ],
+    );
+    expect(out[0].heading).toBe('II. Principles for choosing disinfectant');
+    expect(out[0].breadcrumbs).toEqual([]);
+  });
+
+  it('ignores a section not present in the chunk content (anti-fabrication)', () => {
+    const hit = makeHit({
+      childContent: 'Some real content sentence here.',
+      breadcrumbs: ['Chapter 1'],
+      heading: 'Intro',
+    });
+    const out = service.refineCitations(
+      [baseCitation({ breadcrumbs: ['Chapter 1'], heading: 'Intro' })],
+      [hit],
+      [{ n: 1, quote: 'Some real content', section: 'Fabricated Section' }],
+    );
+    expect(out[0].heading).toBe('Intro');
+    expect(out[0].breadcrumbs).toEqual(['Chapter 1']);
+  });
+
+  it('leaves a citation unchanged when the quote is not found', () => {
+    const hit = makeHit({ childContent: 'totally different content.' });
+    const base = baseCitation();
+    const out = service.refineCitations(
+      [base],
+      [hit],
+      [{ n: 1, quote: 'phrase absent from the chunk' }],
+    );
+    expect(out[0].snippet).toBe(base.snippet);
+  });
+
+  it('leaves citations without a matching anchor unchanged', () => {
+    const base = baseCitation();
+    const out = service.refineCitations([base], [makeHit()], []);
+    expect(out[0]).toBe(base);
   });
 });
