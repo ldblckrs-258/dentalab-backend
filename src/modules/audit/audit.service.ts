@@ -191,7 +191,31 @@ export class AuditService implements OnModuleInit {
       this.prisma.baseClient.auditLog.count({ where }),
     ]);
 
-    return buildPaginatedResponse(data, total, query);
+    const enriched = await this.attachActorNames(data);
+    return buildPaginatedResponse(enriched, total, query);
+  }
+
+  private async attachActorNames<
+    T extends { actorId: string | null; actorType: string },
+  >(rows: T[]): Promise<(T & { actorName: string | null })[]> {
+    const ids = [
+      ...new Set(
+        rows
+          .filter((r) => r.actorType === 'user' && r.actorId)
+          .map((r) => r.actorId as string),
+      ),
+    ];
+    const users = ids.length
+      ? await this.prisma.baseClient.user.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, fullName: true },
+        })
+      : [];
+    const nameById = new Map(users.map((u) => [u.id, u.fullName]));
+    return rows.map((r) => ({
+      ...r,
+      actorName: r.actorId ? (nameById.get(r.actorId) ?? null) : null,
+    }));
   }
 
   async findById(id: string, currentUserId: string) {
@@ -230,7 +254,8 @@ export class AuditService implements OnModuleInit {
       );
     }
 
-    return log;
+    const [enriched] = await this.attachActorNames([log]);
+    return enriched;
   }
 
   private resolveAuditScope(

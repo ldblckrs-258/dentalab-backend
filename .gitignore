@@ -71,3 +71,4 @@ coverage-doc
 scripts/debug-rag.env
 scripts/*.md
 __pycache__
+plans
