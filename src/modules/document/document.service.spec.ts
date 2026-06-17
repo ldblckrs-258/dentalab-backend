@@ -5,6 +5,7 @@ import { DocumentService } from './document.service';
 import { PrismaService } from '@modules/database';
 import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
 import { StorageService } from '@modules/storage';
+import { CacheService } from '@modules/redis';
 import { mockI18nContext } from '@common/test/i18n-mock';
 import type { AuthenticatedUser } from '@common/interfaces';
 
@@ -75,6 +76,7 @@ describe('DocumentService', () => {
   let prisma: any;
   let storageService: any;
   let queueService: { publish: jest.Mock };
+  let cacheService: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
 
   beforeEach(async () => {
     mockI18nContext();
@@ -148,6 +150,11 @@ describe('DocumentService', () => {
     };
 
     queueService = { publish: jest.fn() };
+    cacheService = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockResolvedValue(undefined),
+      del: jest.fn().mockResolvedValue(undefined),
+    };
 
     const module = await Test.createTestingModule({
       providers: [
@@ -155,21 +162,22 @@ describe('DocumentService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: StorageService, useValue: storageService },
         { provide: QueueProducerService, useValue: queueService },
+        { provide: CacheService, useValue: cacheService },
       ],
     }).compile();
 
     service = module.get(DocumentService);
   });
 
-  describe('isManager (via findAll behavior)', () => {
-    it('manager with MANAGER roleCode bypasses published filter', async () => {
+  describe('isAdmin (via findAll behavior)', () => {
+    it('ADMIN roleCode bypasses published filter', async () => {
       prisma.baseClient.internalDocument.findMany.mockResolvedValue([
         makeDoc({ isPublished: false }),
       ]);
       prisma.baseClient.internalDocument.count.mockResolvedValue(1);
       prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
 
-      const result = await service.findAll({ page: 1, limit: 10 }, managerUser);
+      const result = await service.findAll({ page: 1, limit: 10 }, adminUser);
       expect(result.data).toHaveLength(1);
 
       const callArgs =
@@ -177,19 +185,19 @@ describe('DocumentService', () => {
       expect(callArgs.where.isPublished).toBeUndefined();
     });
 
-    it('ADMIN roleCode also bypasses published filter', async () => {
+    it('MANAGER roleCode does NOT bypass published filter', async () => {
       prisma.baseClient.internalDocument.findMany.mockResolvedValue([]);
       prisma.baseClient.internalDocument.count.mockResolvedValue(0);
       prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
 
-      await service.findAll({ page: 1, limit: 10 }, adminUser);
+      await service.findAll({ page: 1, limit: 10 }, managerUser);
 
       const callArgs =
         prisma.baseClient.internalDocument.findMany.mock.calls[0][0];
-      expect(callArgs.where.isPublished).toBeUndefined();
+      expect(callArgs.where.isPublished).toBe(true);
     });
 
-    it('doctor (non-manager) gets isPublished: true filter', async () => {
+    it('doctor (non-admin) gets isPublished: true filter', async () => {
       prisma.baseClient.internalDocument.findMany.mockResolvedValue([]);
       prisma.baseClient.internalDocument.count.mockResolvedValue(0);
       prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
@@ -201,7 +209,7 @@ describe('DocumentService', () => {
       expect(callArgs.where.isPublished).toBe(true);
     });
 
-    it('user with no roleCodes treated as non-manager', async () => {
+    it('user with no roleCodes treated as non-admin', async () => {
       const noRoleUser: AuthenticatedUser = {
         id: 'user-norole',
         email: 'norole@test.com',
@@ -237,14 +245,14 @@ describe('DocumentService', () => {
       expect(callArgs.where.deletedAt).toBeNull();
     });
 
-    it('manager with includeDeleted: true sets deletedAt: undefined', async () => {
+    it('admin with includeDeleted: true sets deletedAt: undefined', async () => {
       prisma.baseClient.internalDocument.findMany.mockResolvedValue([]);
       prisma.baseClient.internalDocument.count.mockResolvedValue(0);
       prisma.baseClient.documentAccess.findMany.mockResolvedValue([]);
 
       await service.findAll(
         { page: 1, limit: 10, includeDeleted: true },
-        managerUser,
+        adminUser,
       );
 
       const callArgs =
@@ -350,6 +358,22 @@ describe('DocumentService', () => {
 
       expect(result.data[0].ragDocumentId).toBe('rag-uuid-001');
     });
+
+    it('MANAGER is subject to ACL: restricted doc filtered out of findAll', async () => {
+      prisma.baseClient.documentAccess.findMany
+        .mockResolvedValueOnce([{ sourceId: 'doc-restricted' }])
+        .mockResolvedValueOnce([]);
+
+      prisma.baseClient.internalDocument.findMany.mockResolvedValue([]);
+      prisma.baseClient.internalDocument.count.mockResolvedValue(0);
+
+      await service.findAll({ page: 1, limit: 10 }, managerUser);
+
+      const callArgs =
+        prisma.baseClient.internalDocument.findMany.mock.calls[0][0];
+      expect(callArgs.where.OR).toBeDefined();
+      expect(callArgs.where.isPublished).toBe(true);
+    });
   });
 
   describe('findById', () => {
@@ -443,6 +467,19 @@ describe('DocumentService', () => {
 
       const result = await service.findById('doc-has-rag', managerUser);
       expect(result.ragDocumentId).toBe('rag-uuid-002');
+    });
+
+    it('MANAGER is subject to ACL: throws NotFoundException when ACL blocks access', async () => {
+      prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
+      prisma.baseClient.userRole.findMany.mockResolvedValue([]);
+      prisma.baseClient.userPermissionOverride.findMany.mockResolvedValue([]);
+      prisma.baseClient.documentAccess.findMany.mockResolvedValue([
+        { permissionId: 'perm-hr' },
+      ]);
+
+      await expect(service.findById('doc-1', managerUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -956,33 +993,29 @@ describe('DocumentService', () => {
   describe('getAccess', () => {
     it('returns access rows for document', async () => {
       prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
-      prisma.baseClient.documentAccess.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([
-          {
-            id: 'access-1',
-            permissionId: 'perm-1',
-            createdAt: new Date(),
-            permission: {
-              id: 'perm-1',
-              resource: 'documents',
-              action: 'access',
-              scope: 'hr',
-            },
+      prisma.baseClient.documentAccess.findMany.mockResolvedValueOnce([
+        {
+          id: 'access-1',
+          permissionId: 'perm-1',
+          createdAt: new Date(),
+          permission: {
+            id: 'perm-1',
+            resource: 'documents',
+            action: 'access',
+            scope: 'hr',
           },
-        ]);
+        },
+      ]);
 
-      const result = await service.getAccess('doc-1', managerUser);
+      const result = await service.getAccess('doc-1', adminUser);
       expect(result).toHaveLength(1);
     });
 
     it('returns empty array when no ACL rows exist', async () => {
       prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
-      prisma.baseClient.documentAccess.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([]);
+      prisma.baseClient.documentAccess.findMany.mockResolvedValueOnce([]);
 
-      const result = await service.getAccess('doc-1', managerUser);
+      const result = await service.getAccess('doc-1', adminUser);
       expect(result).toHaveLength(0);
     });
   });
@@ -990,17 +1023,17 @@ describe('DocumentService', () => {
   describe('setAccess', () => {
     it('replaces ACL atomically', async () => {
       prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
-      prisma.baseClient.documentAccess.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ permissionId: 'perm-old' }]);
+      prisma.baseClient.documentAccess.findMany.mockResolvedValueOnce([
+        { permissionId: 'perm-old' },
+      ]);
       prisma.baseClient.permission.findMany.mockResolvedValue([
-        { id: 'perm-new' },
+        { id: 'perm-new', resource: 'documents', action: 'access' },
       ]);
 
       const result = await service.setAccess(
         'doc-1',
         { permissionIds: ['perm-new'] },
-        managerUser,
+        adminUser,
       );
 
       expect(result.added).toEqual(['perm-new']);
@@ -1017,21 +1050,21 @@ describe('DocumentService', () => {
         service.setAccess(
           'doc-1',
           { permissionIds: ['perm-unknown'] },
-          managerUser,
+          adminUser,
         ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('clears ACL when empty array provided', async () => {
       prisma.baseClient.internalDocument.findFirst.mockResolvedValue(makeDoc());
-      prisma.baseClient.documentAccess.findMany
-        .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ permissionId: 'perm-hr' }]);
+      prisma.baseClient.documentAccess.findMany.mockResolvedValueOnce([
+        { permissionId: 'perm-hr' },
+      ]);
 
       const result = await service.setAccess(
         'doc-1',
         { permissionIds: [] },
-        managerUser,
+        adminUser,
       );
 
       expect(result.added).toEqual([]);

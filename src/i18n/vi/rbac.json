@@ -11,5 +11,10 @@
   "own_resources_only": "Bạn chỉ có thể truy cập tài nguyên của chính mình",
   "override_not_found": "Không tìm thấy ghi đè quyền",
   "override_revoked": "Đã thu hồi ghi đè quyền",
-  "override_already_active": "Đã tồn tại một ghi đè quyền đang hoạt động cho cặp user-permission này. Hãy thu hồi trước."
+  "override_already_active": "Đã tồn tại một ghi đè quyền đang hoạt động cho cặp user-permission này. Hãy thu hồi trước.",
+  "documents_access_scope_exists": "Quyền truy cập tài liệu với phạm vi này đã tồn tại",
+  "documents_access_permission_invalid": "Không tìm thấy quyền truy cập tài liệu",
+  "documents_access_scope_system": "Không thể sửa hoặc xóa phạm vi truy cập mặc định của hệ thống",
+  "documents_access_permission_in_use": "Phạm vi truy cập này đang được gán cho một hoặc nhiều tài liệu. Hãy gỡ khỏi các tài liệu đó trước.",
+  "documents_access_permission_deleted": "Đã xóa phạm vi truy cập"
 }

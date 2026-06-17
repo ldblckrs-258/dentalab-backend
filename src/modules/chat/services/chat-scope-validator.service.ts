@@ -1,12 +1,12 @@
+import type { AuthenticatedUser } from '@common/interfaces';
+import { PrismaService } from '@modules/database/prisma.service';
+import { DocumentService } from '@modules/document/document.service';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '@modules/database/prisma.service';
-import { DocumentService } from '@modules/document/document.service';
-import type { AuthenticatedUser } from '@common/interfaces';
 import type { ScopeDto, ScopeType } from '../dto/chat-scope.dto';
 
 export interface PersistedScope {
@@ -59,7 +59,7 @@ export class ChatScopeValidatorService {
         throw new NotFoundException('chat.scope.patient_not_found');
       }
       const allowed =
-        user.permissions?.includes('patients:read') ?? this.isManager(user);
+        user.permissions?.includes('patients:read') ?? this.isAdmin(user);
       if (!allowed) {
         throw new ForbiddenException('chat.scope.permission_denied');
       }
@@ -114,7 +114,7 @@ export class ChatScopeValidatorService {
         };
       }
       const allowed =
-        user.permissions?.includes('patients:read') ?? this.isManager(user);
+        user.permissions?.includes('patients:read') ?? this.isAdmin(user);
       if (!allowed) {
         return {
           type: 'patient',
@@ -183,8 +183,8 @@ export class ChatScopeValidatorService {
     return null;
   }
 
-  private isManager(user: AuthenticatedUser): boolean {
+  private isAdmin(user: AuthenticatedUser): boolean {
     const roleCodes = user.roleCodes ?? [];
-    return roleCodes.includes('ADMIN') || roleCodes.includes('MANAGER');
+    return roleCodes.includes('ADMIN');
   }
 }

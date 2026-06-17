@@ -35,6 +35,9 @@ export const AUDIT_EVENTS = {
   RBAC_ROLE_PERMISSIONS_RESET: { category: 'rbac', severity: 'warning' },
   RBAC_USER_OVERRIDE_GRANTED: { category: 'rbac', severity: 'warning' },
   RBAC_USER_OVERRIDE_REVOKED: { category: 'rbac', severity: 'notice' },
+  RBAC_PERMISSION_CREATED: { category: 'rbac', severity: 'notice' },
+  RBAC_PERMISSION_UPDATED: { category: 'rbac', severity: 'notice' },
+  RBAC_PERMISSION_DELETED: { category: 'rbac', severity: 'warning' },
 
   USER_CREATED: { category: 'ops', severity: 'notice' },
   USER_UPDATED: { category: 'ops', severity: 'notice' },

@@ -4,5 +4,6 @@
   "version_not_found": "Không tìm thấy phiên bản tài liệu",
   "file_required": "Vui lòng tải lên tệp",
   "version_conflict": "Xung đột số phiên bản, vui lòng thử lại",
-  "invalid_permission_ids": "Một hoặc nhiều ID quyền không hợp lệ"
+  "invalid_permission_ids": "Một hoặc nhiều ID quyền không hợp lệ",
+  "access_permission_not_allowed": "Chỉ các quyền documents:access mới có thể giới hạn truy cập tài liệu"
 }

@@ -67,7 +67,7 @@ export class RagSearchService {
     const isManager =
       roleCodes.includes('ADMIN') || roleCodes.includes('MANAGER');
 
-    const permissionIds = await this.documentService.getUserPermissionIds(
+    const permissionIds = await this.documentService.getRagAccessPermissionIds(
       user.id,
     );
 
@@ -78,6 +78,7 @@ export class RagSearchService {
       query: dto.query,
       permission_ids: permissionIds,
       is_manager: isManager,
+      include_unpublished: isManager,
       top_k: dto.topK,
       min_score: dto.minScore,
       source_types: dto.sourceTypes ?? ['internal_document', 'clinical_note'],

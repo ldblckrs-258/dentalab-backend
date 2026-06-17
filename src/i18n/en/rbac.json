@@ -11,5 +11,10 @@
   "own_resources_only": "You can only access your own resources",
   "override_not_found": "Override not found",
   "override_revoked": "Override revoked",
-  "override_already_active": "An active override already exists for this user-permission pair. Revoke it first."
+  "override_already_active": "An active override already exists for this user-permission pair. Revoke it first.",
+  "documents_access_scope_exists": "A documents:access permission with this scope already exists",
+  "documents_access_permission_invalid": "documents:access permission not found",
+  "documents_access_scope_system": "System-default access scopes cannot be modified or deleted",
+  "documents_access_permission_in_use": "This access scope is assigned to one or more documents. Remove it from those documents first.",
+  "documents_access_permission_deleted": "Access scope deleted"
 }

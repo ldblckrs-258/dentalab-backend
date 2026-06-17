@@ -25,6 +25,14 @@ import {
 } from './default-role-permissions';
 import { SYSTEM_ROLE_CODE } from '@common/constants';
 import { AuditService } from '@modules/audit/audit.service';
+import { Prisma } from '@prisma/client';
+import {
+  DOC_ACCESS_ACTION,
+  DOC_ACCESS_RESOURCE,
+  SYSTEM_DOCUMENT_ACCESS_SCOPES,
+} from './rbac.constants';
+import type { CreateDocumentsAccessPermissionDto } from './dto/create-documents-access-permission.dto';
+import type { UpdateDocumentsAccessPermissionDto } from './dto/update-documents-access-permission.dto';
 
 @Injectable()
 export class RbacService {
@@ -177,6 +185,186 @@ export class RbacService {
       this.prisma.baseClient.permission.count({ where }),
     ]);
     return buildPaginatedResponse(data, total, query);
+  }
+
+  // ── Document-Access Permissions (documents:access:{scope}) ──
+
+  private readonly DOCUMENTS_ACCESS_SELECT = {
+    id: true,
+    resource: true,
+    action: true,
+    scope: true,
+    description: true,
+  } as const;
+
+  async listDocumentsAccessPermissions() {
+    return this.prisma.baseClient.permission.findMany({
+      where: { resource: DOC_ACCESS_RESOURCE, action: DOC_ACCESS_ACTION },
+      orderBy: { scope: 'asc' },
+      select: this.DOCUMENTS_ACCESS_SELECT,
+    });
+  }
+
+  async createDocumentsAccessPermission(
+    dto: CreateDocumentsAccessPermissionDto,
+  ) {
+    try {
+      const permission = await this.prisma.baseClient.permission.create({
+        data: {
+          resource: DOC_ACCESS_RESOURCE,
+          action: DOC_ACCESS_ACTION,
+          scope: dto.scope,
+          description: dto.description ?? null,
+        },
+        select: this.DOCUMENTS_ACCESS_SELECT,
+      });
+
+      this.auditService.emit({
+        code: 'RBAC_PERMISSION_CREATED',
+        resource: 'permission',
+        resourceId: permission.id,
+        after: {
+          resource: permission.resource,
+          action: permission.action,
+          scope: permission.scope,
+        },
+      });
+
+      return permission;
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          t(
+            'rbac.documents_access_scope_exists',
+            'A documents:access permission with this scope already exists',
+          ),
+        );
+      }
+      throw err;
+    }
+  }
+
+  // Loads a permission and guarantees it is a *custom* documents:access scope
+  // (not a system default), so update/delete can never touch other permissions.
+  private async assertCustomDocumentsAccessPermission(id: string) {
+    const permission = await this.prisma.baseClient.permission.findUnique({
+      where: { id },
+      select: this.DOCUMENTS_ACCESS_SELECT,
+    });
+    if (
+      !permission ||
+      permission.resource !== DOC_ACCESS_RESOURCE ||
+      permission.action !== DOC_ACCESS_ACTION
+    ) {
+      throw new NotFoundException(
+        t(
+          'rbac.documents_access_permission_invalid',
+          'documents:access permission not found',
+        ),
+      );
+    }
+    if (
+      permission.scope &&
+      SYSTEM_DOCUMENT_ACCESS_SCOPES.includes(permission.scope)
+    ) {
+      throw new ForbiddenException(
+        t(
+          'rbac.documents_access_scope_system',
+          'System-default access scopes cannot be modified or deleted',
+        ),
+      );
+    }
+    return permission;
+  }
+
+  async updateDocumentsAccessPermission(
+    id: string,
+    dto: UpdateDocumentsAccessPermissionDto,
+  ) {
+    await this.assertCustomDocumentsAccessPermission(id);
+
+    const permission = await this.prisma.baseClient.permission.update({
+      where: { id },
+      data: { description: dto.description },
+      select: this.DOCUMENTS_ACCESS_SELECT,
+    });
+
+    this.auditService.emit({
+      code: 'RBAC_PERMISSION_UPDATED',
+      resource: 'permission',
+      resourceId: id,
+      after: { description: permission.description },
+    });
+
+    return permission;
+  }
+
+  async deleteDocumentsAccessPermission(id: string) {
+    const permission = await this.assertCustomDocumentsAccessPermission(id);
+
+    // Count-and-delete in one transaction: blocks deletion while the scope
+    // still gates a document (its document_access row would otherwise cascade
+    // away and silently un-restrict that document). Role/override cascades are
+    // intended; their caches are invalidated below.
+    const { roleIds, userIds } = await this.prisma.transaction(async (tx) => {
+      const docRefs = await tx.documentAccess.count({
+        where: { permissionId: id },
+      });
+      if (docRefs > 0) {
+        throw new ConflictException(
+          t(
+            'rbac.documents_access_permission_in_use',
+            'This access scope is assigned to one or more documents. Remove it from those documents first.',
+          ),
+        );
+      }
+
+      const roleRows = await tx.rolePermission.findMany({
+        where: { permissionId: id },
+        select: { roleId: true },
+      });
+      const overrideRows = await tx.userPermissionOverride.findMany({
+        where: { permissionId: id },
+        select: { userId: true },
+      });
+
+      await tx.permission.delete({ where: { id } });
+
+      return {
+        roleIds: roleRows.map((r) => r.roleId),
+        userIds: [...new Set(overrideRows.map((o) => o.userId))],
+      };
+    });
+
+    for (const roleId of roleIds) {
+      await this.permissionResolver.invalidateCacheForRole(roleId);
+    }
+    for (const userId of userIds) {
+      await this.permissionResolver.invalidateCache(userId);
+    }
+
+    this.auditService.emit({
+      code: 'RBAC_PERMISSION_DELETED',
+      resource: 'permission',
+      resourceId: id,
+      before: { scope: permission.scope },
+      metadata: {
+        affectedRoles: roleIds.length,
+        affectedUsers: userIds.length,
+      },
+    });
+
+    return {
+      message: t(
+        'rbac.documents_access_permission_deleted',
+        'Access scope deleted',
+      ),
+      affectedRoles: roleIds.length,
+      affectedUsers: userIds.length,
+    };
   }
 
   // ── Role-Permission Assignment ──

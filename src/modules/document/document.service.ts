@@ -1,3 +1,26 @@
+import { CACHE_DOMAIN_RBAC, PERMISSION_CACHE_TTL } from '@common/constants';
+import type { AuthenticatedUser } from '@common/interfaces';
+import { t } from '@common/utils';
+import { PrismaService } from '@modules/database';
+import { buildPaginatedResponse, buildPrismaQuery } from '@modules/pagination';
+import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
+import {
+  DOC_ACCESS_ACTION,
+  DOC_ACCESS_RESOURCE,
+} from '@modules/rbac/rbac.constants';
+import { CacheService } from '@modules/redis';
+import { StorageService } from '@modules/storage';
+import {
+  INLINE_DISPLAY_MIME_TYPES,
+  INTERNAL_DOC_ALLOWED_MIME_TYPES,
+  INTERNAL_DOC_MAX_SIZE,
+  INTERNAL_DOC_PRESIGNED_EXPIRY,
+} from '@modules/storage/storage.constants';
+import {
+  validateFileSize,
+  validateMagicBytes,
+  validateMimeType,
+} from '@modules/storage/storage.utils';
 import {
   BadRequestException,
   Injectable,
@@ -5,29 +28,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { PrismaService } from '@modules/database';
-import { QueueProducerService, ROUTING_KEY } from '@modules/queue';
-import { StorageService } from '@modules/storage';
-import { buildPrismaQuery, buildPaginatedResponse } from '@modules/pagination';
-import {
-  INTERNAL_DOC_ALLOWED_MIME_TYPES,
-  INTERNAL_DOC_MAX_SIZE,
-  INTERNAL_DOC_PRESIGNED_EXPIRY,
-  INLINE_DISPLAY_MIME_TYPES,
-} from '@modules/storage/storage.constants';
-import {
-  validateMimeType,
-  validateFileSize,
-  validateMagicBytes,
-} from '@modules/storage/storage.utils';
-import { t } from '@common/utils';
-import type { AuthenticatedUser } from '@common/interfaces';
 import type { CreateDocumentDto } from './dto/create-document.dto';
-import type { UpdateDocumentDto } from './dto/update-document.dto';
 import type { DocumentQueryDto } from './dto/document-query.dto';
 import type { SetDocumentAccessDto } from './dto/set-document-access.dto';
+import type { UpdateDocumentDto } from './dto/update-document.dto';
 
 const DOC_SOURCE_TYPE = 'internal_document';
+const DOC_ACCESS_GATING_CACHE_KEY = 'doc_access:gating_ids';
 
 const DOCUMENT_SELECT = {
   id: true,
@@ -82,6 +89,7 @@ export class DocumentService {
     private readonly prisma: PrismaService,
     private readonly storageService: StorageService,
     private readonly queue: QueueProducerService,
+    private readonly cacheService: CacheService,
   ) {}
 
   private publishDocumentEvent(
@@ -107,13 +115,9 @@ export class DocumentService {
     }
   }
 
-  private isManager(user: AuthenticatedUser): boolean {
+  private isAdmin(user: AuthenticatedUser): boolean {
     const roleCodes = user.roleCodes ?? [];
-    return roleCodes.includes('ADMIN') || roleCodes.includes('MANAGER');
-  }
-
-  async getUserPermissionIds(userId: string): Promise<string[]> {
-    return this.resolveUserPermissionIds(userId);
+    return roleCodes.includes('ADMIN');
   }
 
   private async resolveUserPermissionIds(userId: string): Promise<string[]> {
@@ -153,10 +157,45 @@ export class DocumentService {
     return Array.from(ids);
   }
 
+  // Returns only the caller's permission IDs that actually gate an indexed
+  // document (i.e. appear in document_access). The RAG worker matches
+  // permission_ids solely against document_access.permission_id, so trimming to
+  // this set is result-preserving while shrinking the payload sent to the
+  // worker. The gating universe is cached; the per-user resolution reuses the
+  // existing path, so no new uncached query is added to the RAG/chat hot path.
+  async getRagAccessPermissionIds(userId: string): Promise<string[]> {
+    const resolved = await this.resolveUserPermissionIds(userId);
+    if (resolved.length === 0) return [];
+    const gating = await this.getDocumentAccessGatingIds();
+    return resolved.filter((id) => gating.has(id));
+  }
+
+  private async getDocumentAccessGatingIds(): Promise<Set<string>> {
+    const cached = await this.cacheService.get<string[]>(
+      CACHE_DOMAIN_RBAC,
+      DOC_ACCESS_GATING_CACHE_KEY,
+    );
+    if (cached) return new Set(cached);
+
+    const rows = await this.prisma.baseClient.documentAccess.findMany({
+      select: { permissionId: true },
+      distinct: ['permissionId'],
+    });
+    const ids = rows.map((r) => r.permissionId);
+
+    await this.cacheService.set(
+      CACHE_DOMAIN_RBAC,
+      DOC_ACCESS_GATING_CACHE_KEY,
+      ids,
+      PERMISSION_CACHE_TTL,
+    );
+    return new Set(ids);
+  }
+
   private async buildAclFilter(
     user: AuthenticatedUser & { permissions?: string[] },
   ): Promise<Prisma.InternalDocumentWhereInput | null> {
-    if (this.isManager(user)) return null;
+    if (this.isAdmin(user)) return null;
 
     const permissionIds = await this.resolveUserPermissionIds(user.id);
 
@@ -195,7 +234,7 @@ export class DocumentService {
     user: AuthenticatedUser & { permissions?: string[] },
   ): Promise<{ allowed: string[]; denied: string[] }> {
     if (documentIds.length === 0) return { allowed: [], denied: [] };
-    if (this.isManager(user)) {
+    if (this.isAdmin(user)) {
       return { allowed: [...documentIds], denied: [] };
     }
     const permissionIds = await this.resolveUserPermissionIds(user.id);
@@ -252,6 +291,8 @@ export class DocumentService {
     documentId: string,
     user: AuthenticatedUser & { permissions?: string[] },
   ): Promise<void> {
+    if (this.isAdmin(user)) return;
+
     const permissionIds = await this.resolveUserPermissionIds(user.id);
 
     const accessRows = await this.prisma.baseClient.documentAccess.findMany({
@@ -284,11 +325,10 @@ export class DocumentService {
     );
 
     const where: Prisma.InternalDocumentWhereInput = {
-      deletedAt:
-        query.includeDeleted && this.isManager(user) ? undefined : null,
+      deletedAt: query.includeDeleted && this.isAdmin(user) ? undefined : null,
     };
 
-    if (!this.isManager(user)) {
+    if (!this.isAdmin(user)) {
       where.isPublished = true;
     } else if (query.isPublished !== undefined) {
       where.isPublished = query.isPublished;
@@ -329,7 +369,7 @@ export class DocumentService {
       deletedAt: null,
     };
 
-    if (!this.isManager(user)) {
+    if (!this.isAdmin(user)) {
       where.isPublished = true;
     }
 
@@ -584,7 +624,7 @@ export class DocumentService {
       deletedAt: null,
     };
 
-    if (!this.isManager(user)) {
+    if (!this.isAdmin(user)) {
       where.isPublished = true;
     }
 
@@ -655,7 +695,7 @@ export class DocumentService {
     if (dto.permissionIds.length > 0) {
       const found = await this.prisma.baseClient.permission.findMany({
         where: { id: { in: dto.permissionIds } },
-        select: { id: true },
+        select: { id: true, resource: true, action: true },
       });
 
       if (found.length !== dto.permissionIds.length) {
@@ -663,6 +703,19 @@ export class DocumentService {
           t(
             'document.invalid_permission_ids',
             'One or more permission IDs are invalid',
+          ),
+        );
+      }
+
+      const allDocumentsAccess = found.every(
+        (p) =>
+          p.resource === DOC_ACCESS_RESOURCE && p.action === DOC_ACCESS_ACTION,
+      );
+      if (!allDocumentsAccess) {
+        throw new BadRequestException(
+          t(
+            'document.access_permission_not_allowed',
+            'Only documents:access permissions can restrict a document',
           ),
         );
       }
@@ -700,6 +753,9 @@ export class DocumentService {
         });
       }
     });
+
+    // The set of permission IDs referenced by document_access may have changed.
+    await this.cacheService.del(CACHE_DOMAIN_RBAC, DOC_ACCESS_GATING_CACHE_KEY);
 
     return { documentId, added, removed };
   }

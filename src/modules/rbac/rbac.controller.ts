@@ -22,6 +22,8 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { AssignPermissionsDto } from './dto/assign-permissions.dto';
 import { CreateOverrideDto } from './dto/create-override.dto';
+import { CreateDocumentsAccessPermissionDto } from './dto/create-documents-access-permission.dto';
+import { UpdateDocumentsAccessPermissionDto } from './dto/update-documents-access-permission.dto';
 
 @Controller('rbac')
 export class RbacController {
@@ -71,6 +73,37 @@ export class RbacController {
   @RequirePermissions('permissions:read')
   async findAllPermissions(@Query() query: PaginationQueryDto) {
     return this.rbacService.findAllPermissions(query);
+  }
+
+  // ── Document-Access Scope Permissions (documents:access:{scope}) ──
+
+  @Get('permissions/documents-access')
+  @RequirePermissions('permissions:read')
+  async listDocumentsAccessPermissions() {
+    return this.rbacService.listDocumentsAccessPermissions();
+  }
+
+  @Post('permissions/documents-access')
+  @RequirePermissions('permissions:create')
+  async createDocumentsAccessPermission(
+    @Body() dto: CreateDocumentsAccessPermissionDto,
+  ) {
+    return this.rbacService.createDocumentsAccessPermission(dto);
+  }
+
+  @Patch('permissions/documents-access/:id')
+  @RequirePermissions('permissions:update')
+  async updateDocumentsAccessPermission(
+    @Param('id') id: string,
+    @Body() dto: UpdateDocumentsAccessPermissionDto,
+  ) {
+    return this.rbacService.updateDocumentsAccessPermission(id, dto);
+  }
+
+  @Delete('permissions/documents-access/:id')
+  @RequirePermissions('permissions:delete')
+  async deleteDocumentsAccessPermission(@Param('id') id: string) {
+    return this.rbacService.deleteDocumentsAccessPermission(id);
   }
 
   // ── Role-Permission Assignment ──

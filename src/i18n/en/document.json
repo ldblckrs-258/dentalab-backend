@@ -4,5 +4,6 @@
   "version_not_found": "Document version not found",
   "file_required": "File is required",
   "version_conflict": "Version number conflict, please retry",
-  "invalid_permission_ids": "One or more permission IDs are invalid"
+  "invalid_permission_ids": "One or more permission IDs are invalid",
+  "access_permission_not_allowed": "Only documents:access permissions can restrict a document"
 }

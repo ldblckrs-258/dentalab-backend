@@ -78,8 +78,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat_sessions', 'read'),
     perm('chat_sessions', 'delete'),
     perm('chat', 'use'),
-    perm('rag_patient_notes', 'read'),
-    perm('rag_internal_docs', 'read'),
     perm('audit_logs', 'read'),
   ],
 
@@ -105,7 +103,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat_sessions', 'read'),
     perm('chat_sessions', 'delete'),
     perm('chat', 'use'),
-    perm('rag_internal_docs', 'read'),
     perm('audit_logs', 'read'),
   ],
 
@@ -146,7 +143,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     perm('chat_sessions', 'read'),
     perm('chat_sessions', 'delete'),
     perm('chat', 'use'),
-    perm('rag_internal_docs', 'read'),
     perm('email_logs', 'read'),
     perm('financial_reports', 'read'),
     perm('audit_logs', 'read'),

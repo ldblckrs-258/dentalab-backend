@@ -254,8 +254,6 @@ const PERMISSIONS: {
   { resource: 'chat_sessions', action: 'create' },
   { resource: 'chat_sessions', action: 'read' },
   { resource: 'chat_sessions', action: 'delete' },
-  { resource: 'rag_patient_notes', action: 'read' },
-  { resource: 'rag_internal_docs', action: 'read' },
   {
     resource: 'chat',
     action: 'use',
