@@ -30,6 +30,24 @@ function toMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
+// Shift HH:MM strings are clinic-local (Asia/Saigon); appointment timestamps
+// are stored in UTC. Convert an appointment instant to its local wall clock so
+// day-of-week and minute-of-day line up with the shift strings.
+const VN_OFFSET_MINUTES = 7 * 60;
+
+function toLocalWallClock(date: Date): { dow: number; minutes: number } {
+  const local = new Date(date.getTime() + VN_OFFSET_MINUTES * 60_000);
+  return {
+    dow: local.getUTCDay(),
+    minutes: local.getUTCHours() * 60 + local.getUTCMinutes(),
+  };
+}
+
+// Resolve a clinic-local date + HH:MM to the matching UTC instant.
+function localTimeToUtc(dateStr: string, hhmm: string): Date {
+  return new Date(`${dateStr}T${hhmm}:00.000+07:00`);
+}
+
 @Injectable()
 export class SchedulingConflictService {
   constructor(private readonly prisma: PrismaService) {}
@@ -60,14 +78,12 @@ export class SchedulingConflictService {
         startTime: Date;
         endTime: Date;
         status: string;
-        dow: number;
       }>
     >`
       SELECT id,
              start_time as "startTime",
              end_time as "endTime",
-             status,
-             EXTRACT(DOW FROM start_time AT TIME ZONE 'UTC')::int as "dow"
+             status
       FROM appointments
       WHERE provider_id = ${providerId}::uuid
         AND status <> 'cancelled'
@@ -86,13 +102,11 @@ export class SchedulingConflictService {
 
     return futureAppointments
       .filter((apt) => {
-        const aptStart =
-          apt.startTime.getUTCHours() * 60 + apt.startTime.getUTCMinutes();
-        const aptEnd =
-          apt.endTime.getUTCHours() * 60 + apt.endTime.getUTCMinutes();
-        const dowShifts = shiftsByDow.get(apt.dow) ?? [];
+        const start = toLocalWallClock(apt.startTime);
+        const end = toLocalWallClock(apt.endTime);
+        const dowShifts = shiftsByDow.get(start.dow) ?? [];
         const covered = dowShifts.some(
-          (s) => aptStart >= s.start && aptEnd <= s.end,
+          (s) => start.minutes >= s.start && end.minutes <= s.end,
         );
         return !covered;
       })
@@ -119,8 +133,8 @@ export class SchedulingConflictService {
     tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
     tomorrow.setUTCHours(0, 0, 0, 0);
 
-    // Push day-of-week predicate to Postgres so we don't pull every future
-    // appointment into Node memory for busy providers.
+    // Day-of-week is resolved against the clinic-local wall clock (below), so
+    // the SQL filter only bounds the future window; the DOW match happens in JS.
     const futureAppointments = await client.$queryRaw<
       Array<{
         id: string;
@@ -134,16 +148,14 @@ export class SchedulingConflictService {
       WHERE provider_id = ${providerId}::uuid
         AND status <> 'cancelled'
         AND start_time >= ${tomorrow}
-        AND EXTRACT(DOW FROM start_time AT TIME ZONE 'UTC')::int = ${dayOfWeek}
     `;
 
     return futureAppointments
       .filter((apt) => {
-        const aptStartMinutes =
-          apt.startTime.getUTCHours() * 60 + apt.startTime.getUTCMinutes();
-        const aptEndMinutes =
-          apt.endTime.getUTCHours() * 60 + apt.endTime.getUTCMinutes();
-        return aptStartMinutes < startMinutes || aptEndMinutes > endMinutes;
+        const start = toLocalWallClock(apt.startTime);
+        if (start.dow !== dayOfWeek) return false;
+        const end = toLocalWallClock(apt.endTime);
+        return start.minutes < startMinutes || end.minutes > endMinutes;
       })
       .map((apt) => ({
         id: apt.id,
@@ -164,8 +176,8 @@ export class SchedulingConflictService {
   ): Promise<ConflictResult[]> {
     const client = this.getDb(db);
     const dateStr = specificDate.toISOString().split('T')[0];
-    const dateStart = new Date(`${dateStr}T00:00:00.000Z`);
-    const dateEnd = new Date(`${dateStr}T23:59:59.999Z`);
+    const dateStart = localTimeToUtc(dateStr, '00:00');
+    const dateEnd = new Date(dateStart.getTime() + 24 * 60 * 60 * 1000);
 
     const appointments = await client.appointment.findMany({
       where: {
@@ -188,8 +200,8 @@ export class SchedulingConflictService {
       });
       if (!shift) return [];
 
-      const shiftStart = new Date(`${dateStr}T${shift.startTime}:00.000Z`);
-      const shiftEnd = new Date(`${dateStr}T${shift.endTime}:00.000Z`);
+      const shiftStart = localTimeToUtc(dateStr, shift.startTime);
+      const shiftEnd = localTimeToUtc(dateStr, shift.endTime);
 
       const inTargetShift = appointments.filter(
         (apt) => apt.startTime >= shiftStart && apt.endTime <= shiftEnd,
@@ -205,8 +217,8 @@ export class SchedulingConflictService {
       }
 
       if (overrideType === 'custom_hours' && startTime && endTime) {
-        const windowStart = new Date(`${dateStr}T${startTime}:00.000Z`);
-        const windowEnd = new Date(`${dateStr}T${endTime}:00.000Z`);
+        const windowStart = localTimeToUtc(dateStr, startTime);
+        const windowEnd = localTimeToUtc(dateStr, endTime);
 
         return inTargetShift
           .filter(
@@ -233,8 +245,8 @@ export class SchedulingConflictService {
     }
 
     if (overrideType === 'custom_hours' && startTime && endTime) {
-      const windowStart = new Date(`${dateStr}T${startTime}:00.000Z`);
-      const windowEnd = new Date(`${dateStr}T${endTime}:00.000Z`);
+      const windowStart = localTimeToUtc(dateStr, startTime);
+      const windowEnd = localTimeToUtc(dateStr, endTime);
 
       return appointments
         .filter((apt) => apt.startTime < windowStart || apt.endTime > windowEnd)
