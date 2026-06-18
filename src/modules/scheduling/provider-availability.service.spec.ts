@@ -33,86 +33,36 @@ describe('ProviderAvailabilityService', () => {
   });
 
   describe('getAvailability', () => {
-    it('Fixture A: overlapping replacement — schedule split by override', async () => {
+    it('whole-day custom_hours replaces the entire normal schedule', async () => {
       prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
         {
           id: 'ov-1',
           overrideType: 'custom_hours',
-          startTime: '10:00',
-          endTime: '11:00',
+          startTime: '13:00',
+          endTime: '17:00',
+          targetScheduleId: null,
         },
       ]);
       prisma.baseClient.providerSchedule.findMany.mockResolvedValue([
-        { id: 's-1', startTime: '08:00', endTime: '12:00' },
-        { id: 's-2', startTime: '13:00', endTime: '17:00' },
+        { id: 's-1', startTime: '08:00', endTime: '17:00' },
       ]);
 
       const result = await service.getAvailability('provider-1', '2026-05-01');
 
       expect(result.hasApprovedDayOff).toBe(false);
       expect(result.windows).toEqual([
-        { start: '08:00', end: '10:00', source: 'schedule' },
-        { start: '10:00', end: '11:00', source: 'override' },
-        { start: '11:00', end: '12:00', source: 'schedule' },
-        { start: '13:00', end: '17:00', source: 'schedule' },
+        { start: '13:00', end: '17:00', source: 'override' },
       ]);
     });
 
-    it('Fixture B: extension hours — override outside schedule range', async () => {
-      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
-        {
-          id: 'ov-1',
-          overrideType: 'custom_hours',
-          startTime: '18:00',
-          endTime: '20:00',
-        },
-      ]);
-      prisma.baseClient.providerSchedule.findMany.mockResolvedValue([
-        { id: 's-1', startTime: '08:00', endTime: '12:00' },
-        { id: 's-2', startTime: '13:00', endTime: '17:00' },
-      ]);
-
-      const result = await service.getAvailability('provider-1', '2026-05-01');
-
-      expect(result.hasApprovedDayOff).toBe(false);
-      expect(result.windows).toEqual([
-        { start: '08:00', end: '12:00', source: 'schedule' },
-        { start: '13:00', end: '17:00', source: 'schedule' },
-        { start: '18:00', end: '20:00', source: 'override' },
-      ]);
-    });
-
-    it('Fixture C: straddling shift boundary — override cuts across two shifts', async () => {
-      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
-        {
-          id: 'ov-1',
-          overrideType: 'custom_hours',
-          startTime: '11:30',
-          endTime: '13:30',
-        },
-      ]);
-      prisma.baseClient.providerSchedule.findMany.mockResolvedValue([
-        { id: 's-1', startTime: '08:00', endTime: '12:00' },
-        { id: 's-2', startTime: '13:00', endTime: '17:00' },
-      ]);
-
-      const result = await service.getAvailability('provider-1', '2026-05-01');
-
-      expect(result.hasApprovedDayOff).toBe(false);
-      expect(result.windows).toEqual([
-        { start: '08:00', end: '11:30', source: 'schedule' },
-        { start: '11:30', end: '13:30', source: 'override' },
-        { start: '13:30', end: '17:00', source: 'schedule' },
-      ]);
-    });
-
-    it('Fixture D: no base schedule, extension only', async () => {
+    it('whole-day custom_hours drops all shifts even without a base schedule', async () => {
       prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
         {
           id: 'ov-1',
           overrideType: 'custom_hours',
           startTime: '09:00',
           endTime: '12:00',
+          targetScheduleId: null,
         },
       ]);
       prisma.baseClient.providerSchedule.findMany.mockResolvedValue([]);
@@ -125,7 +75,70 @@ describe('ProviderAvailabilityService', () => {
       ]);
     });
 
-    it('Fixture E: empty — no schedule, no overrides', async () => {
+    it('targeted custom_hours replaces only its shift, leaving others intact', async () => {
+      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
+        {
+          id: 'ov-1',
+          overrideType: 'custom_hours',
+          startTime: '09:00',
+          endTime: '11:00',
+          targetScheduleId: 's-1',
+        },
+      ]);
+      prisma.baseClient.providerSchedule.findMany.mockResolvedValue([
+        { id: 's-1', startTime: '08:00', endTime: '12:00' },
+        { id: 's-2', startTime: '13:00', endTime: '17:00' },
+      ]);
+
+      const result = await service.getAvailability('provider-1', '2026-05-01');
+
+      expect(result.hasApprovedDayOff).toBe(false);
+      expect(result.windows).toEqual([
+        { start: '09:00', end: '11:00', source: 'override' },
+        { start: '13:00', end: '17:00', source: 'schedule' },
+      ]);
+    });
+
+    it('targeted day_off removes only its shift; the day is not fully off', async () => {
+      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
+        {
+          id: 'ov-1',
+          overrideType: 'day_off',
+          startTime: null,
+          endTime: null,
+          targetScheduleId: 's-1',
+        },
+      ]);
+      prisma.baseClient.providerSchedule.findMany.mockResolvedValue([
+        { id: 's-1', startTime: '08:00', endTime: '12:00' },
+        { id: 's-2', startTime: '13:00', endTime: '17:00' },
+      ]);
+
+      const result = await service.getAvailability('provider-1', '2026-05-01');
+
+      expect(result.hasApprovedDayOff).toBe(false);
+      expect(result.windows).toEqual([
+        { start: '13:00', end: '17:00', source: 'schedule' },
+      ]);
+    });
+
+    it('no overrides — normal multi-shift schedule passes through', async () => {
+      prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([]);
+      prisma.baseClient.providerSchedule.findMany.mockResolvedValue([
+        { id: 's-1', startTime: '08:00', endTime: '12:00' },
+        { id: 's-2', startTime: '13:00', endTime: '17:00' },
+      ]);
+
+      const result = await service.getAvailability('provider-1', '2026-05-01');
+
+      expect(result.hasApprovedDayOff).toBe(false);
+      expect(result.windows).toEqual([
+        { start: '08:00', end: '12:00', source: 'schedule' },
+        { start: '13:00', end: '17:00', source: 'schedule' },
+      ]);
+    });
+
+    it('empty — no schedule, no overrides', async () => {
       prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([]);
       prisma.baseClient.providerSchedule.findMany.mockResolvedValue([]);
 
@@ -135,19 +148,21 @@ describe('ProviderAvailabilityService', () => {
       expect(result.windows).toEqual([]);
     });
 
-    it('Fixture F: day_off precedence over everything', async () => {
+    it('whole-day day_off takes precedence over everything', async () => {
       prisma.baseClient.providerScheduleOverride.findMany.mockResolvedValue([
         {
           id: 'ov-1',
           overrideType: 'day_off',
           startTime: null,
           endTime: null,
+          targetScheduleId: null,
         },
         {
           id: 'ov-2',
           overrideType: 'custom_hours',
           startTime: '10:00',
           endTime: '12:00',
+          targetScheduleId: null,
         },
       ]);
       prisma.baseClient.providerSchedule.findMany.mockResolvedValue([

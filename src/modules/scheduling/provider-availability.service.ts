@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@modules/database';
-import { subtractWindow } from '@common/utils/interval-math';
 
 export interface AvailabilityWindow {
   start: string;
@@ -81,14 +80,17 @@ export class ProviderAvailabilityService {
           overrideType: true,
           startTime: true,
           endTime: true,
+          targetScheduleId: true,
         },
       });
 
-    const hasApprovedDayOff = approvedOverrides.some(
+    const dayOffOverrides = approvedOverrides.filter(
       (o) => o.overrideType === 'day_off',
     );
 
-    if (hasApprovedDayOff) {
+    // A day_off with no target removes the entire day.
+    const hasWholeDayOff = dayOffOverrides.some((o) => !o.targetScheduleId);
+    if (hasWholeDayOff) {
       return {
         providerId,
         date: dateStr,
@@ -113,26 +115,40 @@ export class ProviderAvailabilityService {
         orderBy: { startTime: 'asc' },
       });
 
-    let windows: AvailabilityWindow[] = baseSchedules.map((s) => ({
-      start: s.startTime,
-      end: s.endTime,
-      source: 'schedule' as const,
-    }));
-
-    const customHoursOverrides = approvedOverrides.filter(
+    const customOverrides = approvedOverrides.filter(
       (o) => o.overrideType === 'custom_hours' && o.startTime && o.endTime,
     );
 
-    for (const override of customHoursOverrides) {
-      windows = subtractWindow(windows, override.startTime!, override.endTime!);
-      windows.push({
-        start: override.startTime!,
-        end: override.endTime!,
-        source: 'override',
-      });
-    }
+    // Custom hours replace the day's normal schedule rather than extend it. A
+    // targeted override swaps out only its shift; a whole-day override (no
+    // target) drops every regular shift. Targeted day_off removes just its
+    // shift. Mirrors the resolution shown on the /schedule timeline.
+    const replacedShiftIds = new Set<string>(
+      [...dayOffOverrides, ...customOverrides]
+        .map((o) => o.targetScheduleId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const hasWholeDayCustom = customOverrides.some((o) => !o.targetScheduleId);
 
-    windows.sort((a, b) => a.start.localeCompare(b.start));
+    const scheduleWindows: AvailabilityWindow[] = hasWholeDayCustom
+      ? []
+      : baseSchedules
+          .filter((s) => !replacedShiftIds.has(s.id))
+          .map((s) => ({
+            start: s.startTime,
+            end: s.endTime,
+            source: 'schedule' as const,
+          }));
+
+    const overrideWindows: AvailabilityWindow[] = customOverrides.map((o) => ({
+      start: o.startTime!,
+      end: o.endTime!,
+      source: 'override' as const,
+    }));
+
+    const windows = [...scheduleWindows, ...overrideWindows].sort((a, b) =>
+      a.start.localeCompare(b.start),
+    );
 
     return {
       providerId,
